@@ -1,0 +1,166 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Dark only: every `dark:` variant always applies. */
+@custom-variant dark (&:is(.dark *));
+
+/* DESIGN.md tokens. Every UI value comes from here. */
+:root {
+  color-scheme: dark;
+
+  --bg: #0a0e12;
+  --surface: #10161c;
+  --surface-raised: #161e26;
+  --surface-top: #1c2630;
+  --border: #1f2a33;
+  --text: #d6e2ea;
+  --text-muted: #7a8b98;
+  --text-dim: #4a5966;
+  --accent: #39ff9e;
+  --accent-dim: #1b5e44;
+  --info: #4fc3f7;
+  --warning: #ffb454;
+  --danger: #ff5c7a;
+  --success: #39ff9e;
+
+  --account-personal: #39ff9e;
+  --account-work1: #4fc3f7;
+  --account-work2: #c792ea;
+
+  --duration-fast: 80ms;
+  --duration-base: 150ms;
+  --ease-snap: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Reset Tailwind defaults so only DESIGN.md values exist as utilities. */
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --font-weight-*: initial;
+  --leading-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --ease-*: initial;
+
+  --spacing: 4px;
+
+  --text-11: 11px;
+  --text-11--line-height: 1.45;
+  --text-12: 12px;
+  --text-12--line-height: 1.45;
+  --text-13: 13px;
+  --text-13--line-height: 1.45;
+  --text-15: 15px;
+  --text-15--line-height: 1.45;
+  --text-20: 20px;
+  --text-20--line-height: 1.45;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --leading-list: 1.45;
+  --leading-prose: 1.6;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+
+  --ease-snap: cubic-bezier(0.2, 0, 0, 1);
+
+  --spacing-row: 32px;
+  --spacing-touch: 44px;
+  --spacing-status: 24px;
+  --spacing-rail: 200px;
+  --spacing-list: 360px;
+  --container-palette: 640px;
+
+  --breakpoint-md: 768px;
+  --breakpoint-rail: 1100px;
+}
+
+@theme inline {
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: var(--font-mono);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-top: var(--surface-top);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-info: var(--info);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  /* shadcn aliases, pointing at the tokens above. `accent` keeps the DESIGN.md meaning. */
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface-raised);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--bg);
+  --color-secondary: var(--surface-raised);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface-raised);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent-foreground: var(--bg);
+  --color-destructive: var(--danger);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+}
+
+/* The three sanctioned gradients. Nothing else gets one. */
+@utility glow-focus {
+  background-image: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent) 12%, transparent),
+    transparent 24px
+  );
+}
+
+@utility pane-depth {
+  background-image: linear-gradient(to bottom, var(--surface), var(--bg));
+}
+
+@utility status-rule {
+  border-top: 1px solid;
+  border-image: linear-gradient(to right, var(--accent-dim), transparent) 1;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply bg-bg font-mono text-text;
+  }
+
+  body {
+    @apply text-13 leading-list;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0ms !important;
+      animation-duration: 0ms !important;
+    }
+  }
+}

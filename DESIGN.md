@@ -83,3 +83,17 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 - Tone: terse operator. Labels are lowercase verbs: `archive`, `snooze`, `let in`, `keep out`. Counts precede nouns: `3 unseen`.
 - No exclamation marks, no "Great!", no confirmations of success beyond the status line. Errors say what failed and what to do: `sync failed for work2, retry`.
 - Empty states are one line: `inbox clear`. Nothing else.
+
+## In code
+
+Tokens live in `app/globals.css`: raw values as CSS variables on `:root` with the names above, exposed to Tailwind under `@theme`. Tailwind's default palette, type scale, radii, shadows, and easings are reset, so only these utilities exist:
+
+- Color: `bg-bg`, `bg-surface`, `bg-surface-raised`, `bg-surface-top`, `border-border`, `text-text`, `text-text-muted`, `text-text-dim`, `*-accent`, `*-accent-dim`, `*-info`, `*-warning`, `*-danger`, `*-success`. shadcn names (`primary`, `muted`, `popover`, `destructive`, `ring`) alias these; `accent` keeps its meaning here.
+- Type: `text-11` `text-12` `text-13` `text-15` `text-20`, `font-normal` `font-medium` `font-semibold`, `leading-list` `leading-prose`. One family, `font-mono`.
+- Space: the default 4px scale (`p-1` 4, `p-2` 8, `p-3` 12, `p-4` 16, `p-6` 24, `p-8` 32). Layout sizes: `h-row` 32, `h-touch` 44, `h-status` 24, `w-rail` 200, `w-list` 360, `max-w-palette` 640.
+- Shape: `rounded-sm` 2px, `rounded-md` 4px.
+- Motion: `duration-80`, `duration-150`, `ease-snap`. Reduced motion zeroes all durations globally.
+- Gradients: `glow-focus`, `pane-depth`, `status-rule`. The only three.
+- Breakpoints: `md` 768, `rail` 1100.
+
+Merge classes with `cn` from `lib/utils`, which knows this scale.
