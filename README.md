@@ -30,6 +30,7 @@ Next.js, TypeScript, Postgres with pgvector, Drizzle, Jev for classification, Cl
 cp .env.example .env      # fill in keys
 docker compose up -d
 pnpm install
+pnpm db:migrate
 pnpm dev
 pnpm sync                 # separate terminal
 ```
