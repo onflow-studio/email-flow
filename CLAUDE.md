@@ -23,6 +23,9 @@ Personal email client for one user, three Gmail accounts. Read these before any 
 
 ```
 docker compose up -d      # postgres
+pnpm db:migrate           # apply migrations
 pnpm dev                  # web on :3000
 pnpm sync                 # 5-minute sync loop, separate terminal
 ```
+
+@AGENTS.md
