@@ -152,7 +152,7 @@
   --color-ring: var(--accent);
 }
 
-/* Sanctioned gradients. Nothing else gets one. radio-live, the fourth, is defined with the radio. */
+/* Sanctioned gradients. Nothing else gets one. */
 @utility glow-focus {
   background-image: linear-gradient(
     to right,
@@ -168,6 +168,35 @@
 
 @utility pane-depth {
   background-image: linear-gradient(to bottom, var(--surface), var(--bg));
+}
+
+/* The radio's border while it plays: accent light drifting around the square, one turn per --duration-drift.
+   The only looping animation. Reduced motion holds it still as a static glow. */
+@property --radio-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes radio-drift {
+  to {
+    --radio-angle: 360deg;
+  }
+}
+
+@utility radio-live {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--surface-raised), var(--surface-raised)) padding-box,
+    linear-gradient(var(--radio-angle), var(--accent), transparent, var(--accent)) border-box;
+  animation: radio-drift var(--duration-drift) linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    background: var(--surface-raised);
+    border-color: var(--accent-dim);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
 }
 
 /* The focused pane's top hairline. Drawn inset so it takes no space; not a shadow. */

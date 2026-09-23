@@ -314,6 +314,7 @@ export function Radio() {
   };
 
   const on = status === "playing" || status === "buffering" || status === "loading";
+  const playing = status === "playing" || status === "buffering";
   // The accessible name stays put; aria-pressed carries play vs pause.
   const label = status === "error" ? "radio failed, retry" : "radio";
   const Icon = status === "error" ? RotateCw : on ? Pause : Play;
@@ -397,7 +398,9 @@ export function Radio() {
           aria-expanded={open}
           title={status === "error" ? label : `${on ? "pause" : "play"} ${station.label}`}
           className={cn(
-            "flex size-touch items-center justify-center rounded-sm border border-border bg-surface-raised text-text-muted transition-colors duration-80 ease-snap outline-none hover:text-text focus-visible:border-accent md:size-row",
+            "flex size-touch items-center justify-center rounded-sm border text-text-muted transition-colors duration-80 ease-snap outline-none hover:text-text focus-visible:border-accent md:size-row",
+            // While it plays the border is the drifting accent; paused or stopped it is the hairline at once.
+            playing ? "radio-live" : "border-border bg-surface-raised",
             on && "text-text",
             status === "error" && "text-danger hover:text-danger",
           )}
