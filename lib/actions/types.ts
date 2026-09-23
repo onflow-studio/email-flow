@@ -14,8 +14,8 @@ export type ThreadAction =
   | { type: "move"; bucket: MovableBucket }
   | { type: "snooze"; until: string; needsReply?: boolean; deadline?: string | null }
   | { type: "unsnooze" }
-  | { type: "setAside" }
-  | { type: "unsetAside" };
+  | { type: "pin" }
+  | { type: "unpin" };
 
 /** Actions on a thread's sender, through the screener. */
 export type SenderAction =
@@ -42,7 +42,7 @@ export const STATE_COLUMNS = [
   "snoozedUntil",
   "needsReply",
   "deadlineAt",
-  "setAsideAt",
+  "pinnedAt",
   "archived",
   "trashed",
   "spam",

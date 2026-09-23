@@ -41,15 +41,15 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
         snoozedUntil: until,
         needsReply: action.needsReply ?? false,
         deadlineAt: deadline && !Number.isNaN(deadline.getTime()) ? deadline : null,
-        setAsideAt: null,
+        pinnedAt: null,
       };
     }
     case "unsnooze":
       return { snoozedUntil: null };
-    case "setAside":
-      return { setAsideAt: t.setAsideAt ?? now, snoozedUntil: null };
-    case "unsetAside":
-      return { setAsideAt: null };
+    case "pin":
+      return { pinnedAt: t.pinnedAt ?? now, snoozedUntil: null };
+    case "unpin":
+      return { pinnedAt: null };
   }
 }
 

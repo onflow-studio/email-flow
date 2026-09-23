@@ -43,7 +43,7 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
     id: t.id,
     bucket: t.bucket,
     senderId: t.senderId,
-    setAside: t.setAside,
+    pinned: t.pinned,
     snoozedUntil: t.snoozedUntil,
   }));
   // An open thread may have left the list (e.g. opened from a link); it is still a target.
@@ -52,7 +52,7 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
       id: detail.id,
       bucket: detail.bucket,
       senderId: detail.senderId,
-      setAside: detail.setAside,
+      pinned: detail.pinned,
       snoozedUntil: detail.snoozedUntil,
     });
   }

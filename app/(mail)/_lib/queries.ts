@@ -14,10 +14,9 @@ const unseen = () => or(isNull(threads.seenAt), resurfaced());
 function viewFilter(view: View): SQL | undefined {
   if (view.slug === "snoozed") return and(live(), gt(threads.snoozedUntil, sql`now()`));
   if (view.slug === "trash") return and(eq(threads.trashed, true), eq(threads.spam, false));
-  if (view.slug === "set-aside") return and(live(), isNotNull(threads.setAsideAt));
-  const inBucket = and(eq(threads.bucket, view.bucket!), isNull(threads.snoozedUntil), isNull(threads.setAsideAt));
-  // Resurfaced snoozes come back to the top of Inbox whatever their bucket.
-  return and(live(), view.bucket === "inbox" ? or(inBucket, resurfaced()) : inBucket);
+  const inBucket = and(eq(threads.bucket, view.bucket!), isNull(threads.snoozedUntil), isNull(threads.pinnedAt));
+  // Pinned threads and resurfaced snoozes sit at the top of Inbox whatever their bucket.
+  return and(live(), view.bucket === "inbox" ? or(inBucket, isNotNull(threads.pinnedAt), resurfaced()) : inBucket);
 }
 
 const accountFilter = (account: string | null) => (account ? eq(threads.accountId, account) : undefined);
@@ -39,7 +38,7 @@ export async function listAccounts() {
 
 export type AccountSummary = Awaited<ReturnType<typeof listAccounts>>[number];
 
-/** Unseen count for bucket views, total for snoozed, set aside and trash. */
+/** Unseen count for bucket views, total for snoozed and trash. */
 export async function viewCounts(account: string | null): Promise<Record<ViewSlug, number>> {
   const rows = await Promise.all(
     VIEWS.map(async (view) => {
@@ -81,7 +80,7 @@ export async function listThreads(view: View, account: string | null) {
       snoozedUntil: threads.snoozedUntil,
       needsReply: threads.needsReply,
       deadlineAt: threads.deadlineAt,
-      setAsideAt: threads.setAsideAt,
+      pinnedAt: threads.pinnedAt,
       fromName: last.fromName,
       fromEmail: last.fromEmail,
       snippet: last.snippet,
@@ -93,6 +92,7 @@ export async function listThreads(view: View, account: string | null) {
     .leftJoinLateral(last, sql`true`)
     .where(and(viewFilter(view), accountFilter(account)))
     .orderBy(
+      desc(isNotNull(threads.pinnedAt)),
       desc(sql`coalesce(${resurfaced()}, false)`),
       desc(sql`coalesce(${unseen()}, false)`),
       desc(threads.lastMessageAt),
@@ -120,7 +120,7 @@ export async function listThreads(view: View, account: string | null) {
     snoozedUntil: r.snoozedUntil?.toISOString() ?? null,
     needsReply: r.needsReply,
     deadlineAt: r.deadlineAt?.toISOString() ?? null,
-    setAside: r.setAsideAt !== null,
+    pinned: r.pinnedAt !== null,
     messageCount: r.messageCount,
   }));
 }
@@ -177,7 +177,7 @@ export async function getThread(id: string) {
     snoozedUntil: thread.snoozedUntil?.toISOString() ?? null,
     needsReply: thread.needsReply,
     deadlineAt: thread.deadlineAt?.toISOString() ?? null,
-    setAside: thread.setAsideAt !== null,
+    pinned: thread.pinnedAt !== null,
     trashed: thread.trashed,
     canUnsubscribe: !!latestInbound?.headers.listUnsubscribe,
     account: thread.account,

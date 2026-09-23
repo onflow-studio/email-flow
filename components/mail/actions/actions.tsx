@@ -19,7 +19,7 @@ export type ActionTarget = {
   id: string;
   bucket: Bucket;
   senderId: string | null;
-  setAside: boolean;
+  pinned: boolean;
   snoozedUntil: string | null;
 };
 
@@ -70,10 +70,10 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
       return `${n}snoozed until ${fullTime(action.until)}${action.needsReply ? ", needs reply" : ""}`;
     case "unsnooze":
       return `${n}unsnoozed`;
-    case "setAside":
-      return `${n}set aside`;
-    case "unsetAside":
-      return `${n}no longer set aside`;
+    case "pin":
+      return `${n}pinned`;
+    case "unpin":
+      return `${n}unpinned`;
     case "letIn":
       return count ? `let in, ${count} out of triage` : "let in";
     case "keepOut":
@@ -99,13 +99,12 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
       return view !== "snoozed";
     case "unsnooze":
       return view === "snoozed";
-    case "setAside":
-      return view !== "set-aside";
-    case "unsetAside":
-      return view === "set-aside";
+    // Pinned threads leave the other bucket views for the top of inbox.
+    case "pin":
+      return !!bucket && bucket !== "inbox";
     case "move":
       return !!bucket && bucket !== action.bucket;
-    // Screener moves change the bucket only; snoozed and set aside cut across buckets.
+    // Screener moves change the bucket only; snoozed and pinned cut across buckets.
     case "letIn":
       return bucket === "triage";
     case "keepOut":
@@ -218,10 +217,10 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     { keys: "s", label: "snooze", group: "triage", when: () => !!target, run: openSnooze },
     {
       keys: "h",
-      label: "set aside",
+      label: "pin",
       group: "triage",
       when: () => !!target,
-      run: () => void run({ type: target?.setAside ? "unsetAside" : "setAside" }),
+      run: () => void run({ type: target?.pinned ? "unpin" : "pin" }),
     },
     move("inbox"),
     move("news"),

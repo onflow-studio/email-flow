@@ -164,7 +164,8 @@ export const threads = pgTable(
     snoozedUntil: timestamp({ withTimezone: true }),
     needsReply: boolean().notNull().default(false),
     deadlineAt: timestamp({ withTimezone: true }),
-    setAsideAt: timestamp({ withTimezone: true }),
+    // Pinned threads stay at the top of Inbox. Client-only, never written to Gmail.
+    pinnedAt: timestamp({ withTimezone: true }),
     archived: boolean().notNull().default(false),
     trashed: boolean().notNull().default(false),
     spam: boolean().notNull().default(false),

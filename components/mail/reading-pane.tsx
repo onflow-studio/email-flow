@@ -118,7 +118,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           ) : null}
           {thread.needsReply ? <span className="text-text">needs reply</span> : null}
           {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
-          {thread.setAside ? <span>set aside</span> : null}
+          {thread.pinned ? <span>pinned</span> : null}
           {thread.trashed ? <span className="text-danger">in trash</span> : null}
         </div>
         <ActionToolbar thread={thread} />

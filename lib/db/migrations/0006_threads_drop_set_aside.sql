@@ -1,0 +1,1 @@
+ALTER TABLE "threads" DROP COLUMN "set_aside_at";

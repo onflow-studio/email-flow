@@ -35,16 +35,18 @@ export function ThreadList({
 
   const byId = new Map(threads.map((t) => [t.id, t]));
   const ordered = sel.threadIds.flatMap((id) => byId.get(id) ?? []);
-  const unseen = threads.filter((t) => t.unseen).length;
-  // Group labels only hold while rows sit in server order (unseen first).
+  // Pinned rows sit above the groups, marked by their badge.
+  const unseen = threads.filter((t) => t.unseen && !t.pinned).length;
+  // Group labels only hold while rows sit in server order (pinned, then unseen first).
   const grouped = ordered.every((t, i) => t.id === threads[i]?.id);
-  const firstSeen = grouped ? ordered.findIndex((t) => !t.unseen) : -1;
+  const firstUnseen = grouped ? ordered.findIndex((t) => !t.pinned) : -1;
+  const firstSeen = grouped ? ordered.findIndex((t) => !t.pinned && !t.unseen) : -1;
 
   return (
     <ul ref={listRef} role="listbox" aria-label="threads" className="flex flex-col py-1">
       {ordered.map((t, i) => (
         <li key={t.id} role="presentation">
-          {i === 0 && grouped && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
+          {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
           {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
           <ThreadRow
             thread={t}
@@ -118,6 +120,7 @@ function ThreadRow({
       </span>
       {t.resurfaced ? <Badge>back</Badge> : null}
       {overdue ? <Badge className="text-warning">overdue</Badge> : t.needsReply ? <Badge>reply</Badge> : null}
+      {t.pinned ? <Badge>pinned</Badge> : null}
       {showSnooze && t.snoozedUntil ? (
         <Time iso={t.snoozedUntil} className="shrink-0 text-11 text-text-muted" />
       ) : (

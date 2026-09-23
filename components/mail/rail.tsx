@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, Clock, Inbox, Newspaper, Receipt, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
+import { Clock, Inbox, Newspaper, Receipt, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -17,7 +17,6 @@ const ICONS: Record<ViewSlug, LucideIcon> = {
   "paper-trail": Receipt,
   triage: ShieldQuestionMark,
   snoozed: Clock,
-  "set-aside": Bookmark,
   trash: Trash2,
 };
 

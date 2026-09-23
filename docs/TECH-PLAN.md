@@ -44,7 +44,7 @@ superfer/
     classify/             classifier prompt, thresholds, correction context, rules
     ai/                   provider wiring, summarize, later embed and ask
     mail/                 html sanitize, text extraction, thread grouping
-    actions/              archive, snooze, set aside, move, undo log
+    actions/              archive, snooze, pin, move, undo log
   scripts/
     sync.ts               loop runner for the Mac
     backfill.ts           year-to-date import per account
@@ -58,7 +58,7 @@ superfer/
 Core tables, Drizzle in `lib/db/schema.ts`.
 
 - `accounts`: id, email, label, color, oauth tokens (encrypted at rest with a key from env), gmail history cursor, last sync at, signature html.
-- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, set aside at, archived, participants summary, list summary and the last message time it covers.
+- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, pinned at, archived, participants summary, list summary and the last message time it covers.
 - `messages`: id, thread id, gmail message id, from, to, cc, date, snippet, html sanitized, text, is inbound, gmail labels, headers subset (list-unsubscribe, precedence, in-reply-to).
 - `attachments`: id, message id, filename, mime, size, gmail attachment id. Metadata only.
 - `senders`: id, email, domain, display name, first seen, screener decision (allowed, out_spam, out_not_now, none), decided at, decided by (ai, user), images allowed, notes. Shared across accounts, with a per-account seen count in a join table.
@@ -104,7 +104,7 @@ User moves write a correction row and set bucket source user. Rules are entered 
 - Ensure labels `superfer/inbox`, `superfer/news`, `superfer/paper-trail`, `superfer/triage` exist per account.
 - On bucket change: set the matching label, remove the others. For news, paper_trail, and triage: also remove INBOX so Gmail's inbox mirrors our Inbox bucket.
 - Read, archive, trash, spam: mirror both ways. Gmail changes come in via history, ours go out via modify.
-- Snooze, set aside, screener decisions, deadlines: never written to Gmail.
+- Snooze, pin, screener decisions, deadlines: never written to Gmail.
 
 ## Actions and undo
 
@@ -127,7 +127,7 @@ esc           back to list
 e             archive
 r / a / f     reply / reply all / forward
 s             snooze (opens picker, with needs-reply toggle)
-h             set aside
+h             pin / unpin
 1 2 3         move to inbox / news / paper trail
 x             keep out (from triage)
 i             let in (from triage)
@@ -180,7 +180,7 @@ SYNC_SECRET
 3. Sync: history polling, message storage, sanitize, `pnpm sync` loop, refresh route.
 4. Shell: three panes, bucket rail, thread list, reading pane, status line, keyboard nav. Static buckets from Gmail labels at first.
 5. Classify: Claude call, thresholds, corrections, inline notes, triage bucket, write back.
-6. Actions: archive, snooze with flag, set aside, move, undo, Gmail mirror.
+6. Actions: archive, snooze with flag, pin, move, undo, Gmail mirror.
 7. Compose: Tiptap, signatures, reply all, forward, send.
 8. Palette: navigation, full-text search, actions with preview.
 9. Backfill year to date, rules in settings.

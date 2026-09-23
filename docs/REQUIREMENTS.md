@@ -50,8 +50,8 @@ AI-gated:
 
 - Top actions: reply all, forward, snooze.
 - Reply later and snooze merge into one mechanism: snooze with an optional "needs reply" flag and optional deadline. Past due, the thread resurfaces at the top of Inbox.
-- Set aside: keep a thread at hand without action.
-- Snoozed/reply-later and set-aside live as separate views with count badges. A digest of stale items may come later.
+- Pin: keep a few threads at hand (a boarding pass) at the top of Inbox until unpinned.
+- Snoozed/reply-later lives as a separate view with a count badge; pinned threads are not a view. A digest of stale items may come later.
 - Single-message triage actions execute immediately with undo, no confirmation.
 - Bulk actions from cmd+k show a preview list before executing.
 - Phase 1: nothing requires confirmation beyond bulk preview.
@@ -88,7 +88,7 @@ Full keyboard triage in phase 1: navigate, archive, reply, snooze, move to bucke
 - Poll every 5 minutes, plus manual refresh button.
 - Mirrored both ways: read/unread, archive, trash, spam.
 - One-way client to Gmail: one label per bucket.
-- Client-only: snooze, set aside, screener decisions, deadlines.
+- Client-only: snooze, pin, screener decisions, deadlines.
 - Actions taken in the Gmail app (e.g. archive from phone) flow back on next poll.
 
 ## Platform
@@ -113,7 +113,7 @@ Full keyboard triage in phase 1: navigate, archive, reply, snooze, move to bucke
 1. Three accounts synced, unified thread list, account indicator
 2. AI buckets with learn-from-corrections and NL rules
 3. AI-gated screener
-4. Reply all, forward, snooze-with-flag, set aside
+4. Reply all, forward, snooze-with-flag, pin
 5. Rich text compose, per-account signature, account toggle
 6. Keyboard triage
 7. cmd+k with keyword search and actions with preview

@@ -36,9 +36,9 @@ export function ActionToolbar({ thread }: { thread: ThreadDetail }) {
       <Button
         variant="ghost"
         shortcut="h"
-        onClick={() => void run({ type: thread.setAside ? "unsetAside" : "setAside" }, ids)}
+        onClick={() => void run({ type: thread.pinned ? "unpin" : "pin" }, ids)}
       >
-        {thread.setAside ? "unset aside" : "set aside"}
+        {thread.pinned ? "unpin" : "pin"}
       </Button>
       {thread.canUnsubscribe ? (
         <Button variant="ghost" shortcut="u" onClick={() => void unsubscribe(thread.id)}>
