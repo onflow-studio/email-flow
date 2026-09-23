@@ -25,7 +25,7 @@ Account identity uses hue, not a full palette: one hue per account, chosen at se
 
 ## Typography
 
-- Family: `JetBrains Mono` for everything, UI and content chrome. One family is the TUI heritage, and monospace makes dense columns align without effort. Email bodies render in the sender's HTML inside the sandboxed iframe, untouched.
+- Family: `JetBrains Mono` for everything, UI and content chrome. One family is the TUI heritage, and monospace makes dense columns align without effort. Designed email bodies (own backgrounds, layout tables, responsive CSS) render in the sender's HTML inside the sandboxed iframe, framed by a hairline. Plain and lightly formatted ones (people writing to people) render as native text in the same iframe: no frame, transparent on the pane, `--text` at 13px and prose line height in this family, bold at 600, links `--text` underlined, quotes with a `--border` rule and `--text-muted` text. Only the part above the quoted history decides which.
 - Fallback: `ui-monospace, SFMono-Regular, Menlo, monospace`
 - Scale: 11 / 12 / 13 / 15 / 20. Body and list rows at 13, which is the densest size still comfortable for an hour of triage. 11 for timestamps and badges. 20 only for the thread subject in the reading pane, the single place the eye should land.
 - Weights: 400 regular, 500 for unseen threads and active items, 600 for the reading pane subject. Bold at 700 is never used, it smears in monospace at small sizes.

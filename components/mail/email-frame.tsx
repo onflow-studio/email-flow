@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { alwaysLoadImages } from "@/app/(mail)/thread-actions";
+import { isPlainEmail } from "@/lib/mail/plain";
 import { markQuote, QUOTE_ATTR } from "@/lib/mail/quote";
 import { hasBlockedImages, restoreRemoteImages } from "@/lib/mail/remote";
+
+import { cn } from "@/lib/utils";
 
 import { QuoteFold } from "./quote-fold";
 
@@ -29,6 +32,49 @@ export function hasRemoteImages(html: string) {
 
 const QUOTE_OPEN = "data-quote-open";
 
+// DESIGN.md --text, --text-muted, --text-dim and --border: the iframe cannot read the app's CSS variables.
+const TEXT = "#d6e2ea";
+const TEXT_MUTED = "#7a8b98";
+const TEXT_DIM = "#4a5966";
+const BORDER = "#1f2a33";
+
+/**
+ * Plain mail as native text: the app's colors, font, size and prose line height on a
+ * transparent page, no frame. Bold is 600 as everywhere; links are text-colored and underlined.
+ */
+const PLAIN_CSS = `:root{color-scheme:dark}
+html,body{background:transparent!important}
+body{padding:0;color:${TEXT};font:13px/1.6 var(--app-font,ui-monospace,SFMono-Regular,Menlo,monospace)}
+body *{color:inherit!important;background-color:transparent!important;font-family:inherit!important;font-size:inherit!important;line-height:inherit!important;border-color:${BORDER}!important}
+body h1{font-size:20px!important}body h2{font-size:15px!important}
+body h1,body h2,body h3,body b,body strong,body th{font-weight:600!important}
+body a{text-decoration:underline!important;text-decoration-color:${TEXT_DIM}!important;text-underline-offset:2px}
+body blockquote{margin:0!important;padding-left:12px!important;border-left:1px solid ${BORDER}!important;color:${TEXT_MUTED}!important}
+body hr{border:0!important;border-top:1px solid ${BORDER}!important}`;
+
+/** The app's font inside the frame: its @font-face rules and the computed family. */
+function copyAppFont(doc: Document) {
+  const faces: string[] = [];
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue;
+    }
+    for (const rule of Array.from(rules)) {
+      if (!(rule instanceof CSSFontFaceRule) || !/jetbrains/i.test(rule.style.getPropertyValue("font-family"))) continue;
+      // Font urls are relative to the stylesheet; the frame document would resolve them against the page.
+      const base = sheet.href ?? document.baseURI;
+      faces.push(rule.cssText.replace(/url\(\s*["']?([^"')]+)["']?\s*\)/g, (_, url: string) => `url("${new URL(url, base).href}")`));
+    }
+  }
+  const style = doc.createElement("style");
+  style.textContent = faces.join("\n");
+  doc.head.appendChild(style);
+  doc.documentElement.style.setProperty("--app-font", getComputedStyle(document.body).fontFamily);
+}
+
 // CSP does not govern navigation; a refresh would load a remote page in the frame.
 const META_REFRESH = /<meta[^>]+http-equiv\s*=\s*["']?refresh[^>]*>/gi;
 
@@ -37,11 +83,12 @@ const META_REFRESH = /<meta[^>]+http-equiv\s*=\s*["']?refresh[^>]*>/gi;
  * email and the network: no scripts, no remote styles or fonts, no forms, and
  * remote images only when explicitly allowed.
  */
-export function buildEmailDocument(html: string, { allowImages }: { allowImages: boolean }) {
+export function buildEmailDocument(html: string, { allowImages, plain }: { allowImages: boolean; plain: boolean }) {
   const csp = [
     "default-src 'none'",
     "style-src 'unsafe-inline'",
-    "font-src data:",
+    // 'self' lets a plain email use the app's own font, copied in on load.
+    `font-src data:${plain ? " 'self'" : ""}`,
     // 'self' serves inline cid: images through /api/attachments.
     `img-src 'self' data: cid:${allowImages ? " https: http:" : ""}`,
     "media-src 'none'",
@@ -50,8 +97,8 @@ export function buildEmailDocument(html: string, { allowImages }: { allowImages:
   ].join("; ");
 
   // Light emails get inverted with a hue rotation so brand colors keep their
-  // hue; media is inverted back so photos look right.
-  const invert = !declaresDarkScheme(html);
+  // hue; media is inverted back so photos look right. Plain emails are restyled instead.
+  const invert = !plain && !declaresDarkScheme(html);
   // #e3e9ef lands near --surface after invert and hue rotation, so bare emails sit on the pane color.
   const invertCss = invert
     ? `html{background:#e3e9ef;filter:invert(1) hue-rotate(180deg)}
@@ -62,7 +109,7 @@ img,picture,video,svg,[style*="background-image"],[background]{filter:invert(1) 
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="referrer" content="no-referrer">
 <base target="_blank">
-<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}body:not([${QUOTE_OPEN}]) [${QUOTE_ATTR}]{display:none!important}${invertCss}</style>
+<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}body:not([${QUOTE_OPEN}]) [${QUOTE_ATTR}]{display:none!important}${invertCss}${plain ? PLAIN_CSS : ""}</style>
 </head><body>${(allowImages ? restoreRemoteImages(html) : html).replace(META_REFRESH, "")}</body></html>`;
 }
 
@@ -82,6 +129,7 @@ export function EmailFrame({
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
   const allowImages = imagesAllowed || loadImages;
+  const plain = useMemo(() => isPlainEmail(html), [html]);
   const blocked = !allowImages && hasRemoteImages(html);
 
   const [hasQuote, setHasQuote] = useState(false);
@@ -106,15 +154,16 @@ export function EmailFrame({
     // The body, not the root: the root never reports less than the frame, so the frame could not shrink
     // when the quote folds again.
     const content = doc.body?.scrollHeight ?? doc.documentElement.scrollHeight;
-    // The frame is border-box with a 1px border on each side.
-    setHeight(content + 2);
-  }, []);
+    // A framed email is border-box with a 1px border on each side.
+    setHeight(content + (plain ? 0 : 2));
+  }, [plain]);
 
   // Same-origin sandbox (no scripts) lets the parent size the frame to its
   // content and forward keys, so j/k keep working after a click in the email.
   const onLoad = useCallback(() => {
     const doc = ref.current?.contentDocument;
     if (!doc?.body) return;
+    if (plain) copyAppFont(doc);
     if (quoteLabel !== null) {
       setHasQuote(markQuote(doc));
       doc.body.toggleAttribute(QUOTE_OPEN, quoteOpenRef.current);
@@ -139,7 +188,7 @@ export function EmailFrame({
       window.dispatchEvent(forwarded);
       if (forwarded.defaultPrevented) e.preventDefault();
     });
-  }, [measure, quoteLabel]);
+  }, [measure, quoteLabel, plain]);
 
   const toggleQuote = () => {
     const open = !quoteOpen;
@@ -187,10 +236,10 @@ export function EmailFrame({
         title="message"
         sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         referrerPolicy="no-referrer"
-        srcDoc={buildEmailDocument(html, { allowImages })}
+        srcDoc={buildEmailDocument(html, { allowImages, plain })}
         onLoad={onLoad}
         style={{ height }}
-        className="w-full rounded-sm border border-border bg-transparent"
+        className={cn("w-full bg-transparent", !plain && "rounded-sm border border-border")}
       />
       {hasQuote && quoteLabel !== null ? <QuoteFold label={quoteLabel} open={quoteOpen} onToggle={toggleQuote} /> : null}
     </div>
