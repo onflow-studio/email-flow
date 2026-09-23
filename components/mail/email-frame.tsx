@@ -76,11 +76,11 @@ export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowe
     if (!doc?.documentElement) return;
     // Fixed-width newsletters wider than the pane are scaled down to fit instead of scrolling
     // sideways inside the frame; the pane then scrolls as one.
+    // Measure at full size every time: a scaled body never reports less than the frame width.
     if (doc.body) {
-      const current = Number(doc.body.style.zoom || 1);
-      const natural = doc.documentElement.scrollWidth / current;
-      const fit = Math.min(1, doc.documentElement.clientWidth / natural);
-      if (Math.abs(fit - current) > 0.01) doc.body.style.zoom = String(fit);
+      doc.body.style.zoom = "";
+      const fit = doc.documentElement.clientWidth / doc.documentElement.scrollWidth;
+      doc.body.style.zoom = fit < 0.99 ? String(Math.round(fit * 1000) / 1000) : "";
     }
     const content = Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight ?? 0);
     // The frame is border-box with a 1px border on each side.
