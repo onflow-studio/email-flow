@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -117,12 +118,17 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
             role="switch"
             aria-checked={needsReply}
             onClick={() => setNeedsReply((v) => !v)}
-            className="flex h-touch items-center gap-2 md:h-row"
+            className="group flex h-touch items-center gap-2 outline-none md:h-row"
           >
             <span
               aria-hidden
-              className={cn("size-3 rounded-sm border", needsReply ? "border-accent bg-accent" : "border-border")}
-            />
+              className={cn(
+                "flex size-4 items-center justify-center rounded-sm border transition-colors duration-80 ease-snap group-focus-visible:border-accent",
+                needsReply ? "border-accent bg-accent text-bg" : "border-text-muted bg-bg group-hover:border-text",
+              )}
+            >
+              {needsReply ? <Check className="size-3" strokeWidth={2.5} /> : null}
+            </span>
             <span className={needsReply ? "text-text" : "text-text-muted"}>needs reply</span>
             <Kbd keys="r" />
           </button>
