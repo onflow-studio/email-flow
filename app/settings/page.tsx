@@ -37,6 +37,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             <div className="flex items-center justify-between gap-4">
               <h1 className="text-15 font-medium">accounts</h1>
               {oauthConfigured ? (
+                // OAuth start is a route handler redirecting to Google, not a page.
+                // eslint-disable-next-line @next/next/no-html-link-for-pages
                 <a href="/api/auth/google/start" className={buttonVariants({ variant: "primary" })}>
                   connect account
                 </a>
