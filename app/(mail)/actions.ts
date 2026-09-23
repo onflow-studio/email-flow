@@ -11,9 +11,8 @@ import { syncAllAccounts } from "@/lib/sync";
 export async function refreshSync(): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const outcomes = await syncAllAccounts();
-    const reauth = outcomes.filter((o) => o.status === "reauth").map((o) => o.label);
+    // Reconnects show from the saved account error, with a link to settings.
     const failed = outcomes.filter((o) => o.status === "error").map((o) => o.label);
-    if (reauth.length) return { ok: false, error: `reconnect ${reauth.join(", ")} in settings` };
     if (failed.length) return { ok: false, error: `sync failed for ${failed.join(", ")}, retry` };
     return { ok: true };
   } catch (error) {

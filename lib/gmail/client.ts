@@ -7,8 +7,7 @@ import { accounts } from "@/lib/db/schema";
 
 import { decryptToken, encryptToken } from "./crypto";
 import { createOAuthClient } from "./oauth";
-
-export const REAUTH_MESSAGE = "reconnect required";
+import { REAUTH_MESSAGE } from "./status";
 
 // Refresh token revoked or expired. Only a new OAuth consent fixes it.
 export class ReauthRequiredError extends Error {
