@@ -11,9 +11,6 @@ importers:
       '@ai-sdk/anthropic':
         specifier: ^4.0.60
         version: 4.0.60(zod@4.6.5)
-      '@ai-sdk/typesafe-ai':
-        specifier: ^3.0.4
-        version: 3.0.4(zod@4.6.5)
       '@base-ui/react':
         specifier: ^1.8.0
         version: 1.8.0(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -153,12 +150,6 @@ packages:
   '@ai-sdk/provider@4.0.17':
     resolution: {integrity: sha512-VYMBxIQdcHqbIf1j+YZlI9Ati6LZ4wJe0GGd4z4a5H/KxTggjeOiyaVYTnfF7LHZK5jMQ+rofmzz4QPqf++NUw==}
     engines: {node: '>=22'}
-
-  '@ai-sdk/typesafe-ai@3.0.4':
-    resolution: {integrity: sha512-LQvqtf6cVla5iyH/LYs9rvl63NDWRRqggz9ilGNmjixhi5TuONAWo+SC6+xT46izn/bpyx9hmXNdMLg3ZSSW0A==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
 
   '@alloc/quick-lru@5.3.0':
     resolution: {integrity: sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA==}
@@ -4638,12 +4629,6 @@ snapshots:
   '@ai-sdk/provider@4.0.17':
     dependencies:
       json-schema: 0.4.0
-
-  '@ai-sdk/typesafe-ai@3.0.4(zod@4.6.5)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.17
-      '@ai-sdk/provider-utils': 5.0.45(zod@4.6.5)
-      zod: 4.6.5
 
   '@alloc/quick-lru@5.3.0': {}
 
