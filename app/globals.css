@@ -13,6 +13,9 @@
   --surface: #10161c;
   --surface-raised: #161e26;
   --surface-top: #1c2630;
+  /* The header bar: deep desaturated blue that frames the app without competing with --accent. */
+  --header: #0e1a2a;
+  --header-border: #1a2a40;
   --border: #1f2a33;
   --text: #d6e2ea;
   --text-muted: #7a8b98;
@@ -97,8 +100,8 @@
   --spacing-label: 56px;
   --spacing-field: 160px;
   --spacing-editor: 160px;
-  --spacing-header: 32px;
-  --container-search: 480px;
+  --spacing-header: 44px;
+  --container-search: 200px;
   --spacing-timeline: 24px;
   /* Reading pane bottom clearance: action bar 40 + 16 gap + 16 air. */
   --spacing-action: 72px;
@@ -122,6 +125,8 @@
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-top: var(--surface-top);
+  --color-header: var(--header);
+  --color-header-border: var(--header-border);
   --color-border: var(--border);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
