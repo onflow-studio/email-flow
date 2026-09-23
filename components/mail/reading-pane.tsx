@@ -7,6 +7,7 @@ import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
 import type { Address } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
+import { ReplyBar } from "./compose/reply-bar";
 import { EmailFrame } from "./email-frame";
 import { useMailSelection } from "./selection";
 import { Time } from "./time";
@@ -80,6 +81,8 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           </li>
         ))}
       </ol>
+
+      <ReplyBar threadId={thread.id} accountId={thread.account.id} />
     </article>
   );
 }
