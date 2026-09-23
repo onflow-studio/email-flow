@@ -1,23 +1,34 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
 
-import { evaluateWithJev, type JevQuestion, type JevState } from "@/lib/ai";
+import type { LanguageModel } from "ai";
+
+import { generateStructured } from "@/lib/ai";
 import type { Db } from "@/lib/db";
 import { classifications, senders, threads, type Job } from "@/lib/db/schema";
 import { enqueueWriteback, type JobContext } from "@/lib/sync/jobs";
 
 import { loadContext } from "./context";
-import { buildJevRequest, parseJevAnswers, type JevAnswer } from "./prompt";
-import { evaluateRules, jevConfirms, ruleDecision } from "./rules";
+import {
+  answerSchema,
+  buildClassifierRequest,
+  parseAnswer,
+  type ClassifierAnswer,
+  type ClassifierRequest,
+} from "./prompt";
+import { evaluateRules, modelConfirms, ruleDecision } from "./rules";
 import { decide, needsScreening } from "./thresholds";
 import type { ClassifyContext, Decision, ModelResult } from "./types";
 
 export type Evaluator = (
-  state: JevState,
-  questions: Record<string, JevQuestion>,
-) => Promise<{
-  answers: Record<string, JevAnswer>;
-  response: { modelId: string };
-}>;
+  request: ClassifierRequest,
+) => Promise<{ output: ClassifierAnswer; modelId: string; raw: unknown }>;
+
+// Claude Haiku by default; tests pass a mock model.
+export function claudeEvaluator(model?: LanguageModel): Evaluator {
+  return (request) => generateStructured({ ...request, schema: answerSchema, name: "classification" }, { model });
+}
+
+const defaultEvaluator: Evaluator = (request) => claudeEvaluator()(request);
 
 export type ClassifierRun = {
   decision: Decision;
@@ -27,7 +38,7 @@ export type ClassifierRun = {
 
 export async function runClassifier(
   ctx: ClassifyContext,
-  evaluate: Evaluator = evaluateWithJev,
+  evaluate: Evaluator = defaultEvaluator,
 ): Promise<ClassifierRun> {
   const { decision: screened } = ctx.sender;
   if (screened === "out_spam" || screened === "out_not_now") {
@@ -42,20 +53,15 @@ export async function runClassifier(
     return { decision: ruleDecision(rules.direct.bucket, ctx.sender), model: null };
   }
 
-  const request = buildJevRequest({ ...ctx, rules: rules.hints });
-  const response = await evaluate(request.state, request.questions);
-  const result = parseJevAnswers(response.answers);
+  const response = await evaluate(buildClassifierRequest({ ...ctx, rules: rules.hints }));
+  const result = parseAnswer(response.output, needsScreening(ctx.sender));
   const decision =
-    rules.conditional && jevConfirms(rules.conditional, result)
+    rules.conditional && modelConfirms(rules.conditional, result)
       ? ruleDecision(rules.conditional.bucket, ctx.sender)
       : decide(result, ctx.sender);
   return {
     decision,
-    model: {
-      id: response.response.modelId,
-      raw: { answers: response.answers },
-      result,
-    },
+    model: { id: response.modelId, raw: response.raw, result },
   };
 }
 
@@ -63,7 +69,7 @@ export async function runClassifier(
 export async function classifyThread(
   db: Db,
   threadId: string,
-  evaluate: Evaluator = evaluateWithJev,
+  evaluate: Evaluator = defaultEvaluator,
 ): Promise<Decision | null> {
   const loaded = await loadContext(db, threadId);
   if (!loaded || loaded.thread.bucketSource === "user") return null;

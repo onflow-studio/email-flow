@@ -3,11 +3,11 @@ import type { Bucket } from "@/lib/db/schema";
 import type { Decision, ModelResult, RuleInput, SenderFacts, ThreadInput } from "./types";
 
 // Hybrid rules. A rule's literal conditions (sender, domain, account, subject words) are matched
-// here; its semantic part ("failed payments") is judged by Jev.
-// - literal only, all conditions match: the rule bucket applies directly, Jev is not asked
-// - literal plus semantic, literal part matches: Jev decides; the rule bucket applies when Jev's
+// here; its semantic part ("failed payments") is judged by the model.
+// - literal only, all conditions match: the rule bucket applies directly, the model is not asked
+// - literal plus semantic, literal part matches: the model decides; the rule bucket applies when its
 //   top bucket agrees or urgency is high
-// - semantic only, or no bucket: a hint in Jev's instructions, nothing more
+// - semantic only, or no bucket: a hint in the model's prompt, nothing more
 // A user correction for the sender made after the rule was last saved beats the rule, and an
 // unscreened sender is only placed by a rule that names it (sender or domain).
 
@@ -29,11 +29,11 @@ export type ReadRule = {
 export type RuleHit = { rule: RuleInput; bucket: Bucket };
 
 export type RuleEvaluation = {
-  // Literal rule that matched: apply without asking Jev.
+  // Literal rule that matched: apply without asking the model.
   direct: RuleHit | null;
-  // Mixed rule whose literal part matched: apply if Jev agrees.
+  // Mixed rule whose literal part matched: apply if the model agrees.
   conditional: RuleHit | null;
-  // What Jev sees: semantic-only rules and rules whose literal part matched.
+  // What the model sees: semantic-only rules and rules whose literal part matched.
   hints: RuleInput[];
 };
 
@@ -138,8 +138,8 @@ export function evaluateRules(
   return { direct: newest(direct), conditional: newest(conditional), hints };
 }
 
-// Jev agreed with a mixed rule: its top bucket is the rule's, or the mail is urgent.
-export function jevConfirms(hit: RuleHit, result: ModelResult): boolean {
+// The model agreed with a mixed rule: its top bucket is the rule's, or the mail is urgent.
+export function modelConfirms(hit: RuleHit, result: ModelResult): boolean {
   return result.bucket === hit.bucket || result.urgency >= RULE_URGENCY;
 }
 
