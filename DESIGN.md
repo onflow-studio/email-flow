@@ -59,6 +59,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 ## Layout
 
 - Desktop: three panes. Left rail 200px with buckets and counts. Thread list 360px. Reading pane takes the rest. Rail collapses to icons below 1100px.
+- Resizable panes: the rail and the thread list can be dragged wider or narrower on desktop. Rail 160 to 320, list 280 to 640, and the reading pane never drops below 320, so the list gives way first when the window is narrow. Widths are remembered per browser. The collapsed icon rail and the phone layout do not resize.
 - Phone: single pane, list then thread, back via a sticky header. Touch targets 44px. Keyboard hints are hidden, since there is no keyboard; search opens from a `search` button in the list header.
 - Home-screen icon: a `>_` prompt in `--accent` on `--bg`, square, with the prompt inside the maskable safe zone.
 - Command palette: centered, 640px max, top-aligned at 15vh so results grow downward.
@@ -79,6 +80,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 - Input: `--surface` background, `--border` border, 2px radius, `--accent` border on focus.
 - Command palette: `--surface-top`, hairline border, backdrop darkens the app to 60%, results as rows, matched text in `--accent`, action rows show a `--info` preview count when they would touch more than one thread.
 - Status line: `--surface`, 11px, `--text-muted`, sync state at left, keyboard hint at right.
+- Pane handle: the hairline border between two panes is the handle. An invisible 8px hit area centered on it, `col-resize` cursor. The hairline turns `--accent-dim` on hover and keyboard focus, `--accent` while dragging, over 80ms. Double-click resets the pane to its default width. Focusable as a separator: left and right arrows resize by 8px, 32px with shift, home and end jump to the limits.
 - Compose: `--surface-top`, hairline border, 4px radius. Header row names the mode and account (`reply  work1`), fields are label-left rows (`to`, `cc`, `subject`) on hairlines, the toolbar is ghost buttons in 11px, the body is 13px at prose line height and at least 160px tall. Signature and quoted text show as one dim line each, never inline. Footer: primary `send  mod+enter`, ghost `discard`, errors in `--danger` on the same row. Body headings: h1 20, h2 15, h3 13, all 600. Links in the body are `--text` underlined, not accent.
 
 ## Voice
@@ -93,7 +95,7 @@ Tokens live in `app/globals.css`: raw values as CSS variables on `:root` with th
 
 - Color: `bg-bg`, `bg-surface`, `bg-surface-raised`, `bg-surface-top`, `border-border`, `text-text`, `text-text-muted`, `text-text-dim`, `*-accent`, `*-accent-dim`, `*-info`, `*-warning`, `*-danger`, `*-success`. shadcn names (`primary`, `muted`, `popover`, `destructive`, `ring`) alias these; `accent` keeps its meaning here.
 - Type: `text-11` `text-12` `text-13` `text-15` `text-20`, `font-normal` `font-medium` `font-semibold`, `leading-list` `leading-prose`. One family, `font-mono`.
-- Space: the default 4px scale (`p-1` 4, `p-2` 8, `p-3` 12, `p-4` 16, `p-6` 24, `p-8` 32). Layout sizes: `h-row` 32, `h-touch` 44, `h-status` 24, `w-rail` 200, `w-list` 360, `max-w-palette` 640, `pt-palette-top` 15vh (palette and other overlays), `w-compose` 640, `max-h-compose-h` 70vh, `w-rail-icons` 48 (rail below 1100), `w-sender` 112 (sender column in rows), `w-label` 56 (label column in forms), `w-field` 160 (short inputs), `min-h-editor` 160 (compose body).
+- Space: the default 4px scale (`p-1` 4, `p-2` 8, `p-3` 12, `p-4` 16, `p-6` 24, `p-8` 32). Layout sizes: `h-row` 32, `h-touch` 44, `h-status` 24, `w-rail` 200, `w-list` 360 (both follow the dragged width, clamped: `--rail-w` 160 to 320, `--list-w` 280 to 640), `min-w-list-min` 280, `min-w-reading` 320, `max-w-palette` 640, `pt-palette-top` 15vh (palette and other overlays), `w-compose` 640, `max-h-compose-h` 70vh, `w-rail-icons` 48 (rail below 1100), `w-sender` 112 (sender column in rows), `w-label` 56 (label column in forms), `w-field` 160 (short inputs), `min-h-editor` 160 (compose body).
 - Shape: `rounded-sm` 2px, `rounded-md` 4px.
 - Motion: `duration-80`, `duration-150`, `ease-snap`. Reduced motion zeroes all durations globally.
 - Gradients: `glow-focus`, `pane-depth`, `status-rule`. The only three.

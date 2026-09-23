@@ -28,6 +28,15 @@
   --account-work1: #4fc3f7;
   --account-work2: #c792ea;
 
+  /* Pane widths. --rail-w and --list-w are overridden on <html> by the stored drag widths. */
+  --rail-w: 200px;
+  --rail-min: 160px;
+  --rail-max: 320px;
+  --list-w: 360px;
+  --list-min: 280px;
+  --list-max: 640px;
+  --reading-min: 320px;
+
   --duration-fast: 80ms;
   --duration-base: 150ms;
   --ease-snap: cubic-bezier(0.2, 0, 0, 1);
@@ -74,8 +83,6 @@
   --spacing-row: 32px;
   --spacing-touch: 44px;
   --spacing-status: 24px;
-  --spacing-rail: 200px;
-  --spacing-list: 360px;
   --container-palette: 640px;
   --spacing-compose: 640px;
   --spacing-compose-h: 70vh;
@@ -93,6 +100,11 @@
 @theme inline {
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-sans: var(--font-mono);
+
+  --spacing-rail: clamp(var(--rail-min), var(--rail-w), var(--rail-max));
+  --spacing-list: clamp(var(--list-min), var(--list-w), var(--list-max));
+  --spacing-list-min: var(--list-min);
+  --spacing-reading: var(--reading-min);
 
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -166,6 +178,16 @@
     @apply text-13 leading-list;
     font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* While a pane handle is dragged: one cursor everywhere, no text selection, iframes cannot steal the pointer. */
+  html[data-resizing] * {
+    cursor: col-resize !important;
+    user-select: none;
+  }
+
+  html[data-resizing] iframe {
+    pointer-events: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
