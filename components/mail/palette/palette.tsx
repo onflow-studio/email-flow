@@ -15,12 +15,10 @@ import { cn } from "@/lib/utils";
 import { describeAction } from "../actions/actions";
 import { useUndo } from "../actions/undo";
 import { useKeys } from "../keys/keymap";
-import { useMailSelection } from "../selection";
+import { useAccountToggles, type ToggleAccount } from "../account-toggles";
 import { Time } from "../time";
 import { mailHref, VIEWS, type ViewSlug } from "../views";
 import { Highlight, Snippet } from "./highlight";
-
-type PaletteAccount = { id: string; label: string; color: string };
 
 const SEARCH_DELAY_MS = 120;
 // Enough to pick from; bulk actions below cover the rest of the matches.
@@ -44,7 +42,7 @@ export function useOpenPalette() {
 }
 
 /** cmd+k or `/`: one entry point for going somewhere, finding mail, and acting on it. */
-export function PaletteProvider({ accounts, children }: { accounts: PaletteAccount[]; children: React.ReactNode }) {
+export function PaletteProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [openPalette] = useState(() => () => setOpen(true));
   useKeys([
@@ -54,29 +52,15 @@ export function PaletteProvider({ accounts, children }: { accounts: PaletteAccou
   return (
     <PaletteContext.Provider value={openPalette}>
       {children}
-      {open ? <PaletteDialog accounts={accounts} onClose={() => setOpen(false)} /> : null}
+      {open ? <PaletteDialog onClose={() => setOpen(false)} /> : null}
     </PaletteContext.Provider>
-  );
-}
-
-export function SearchButton() {
-  const open = useOpenPalette();
-  return (
-    <button
-      type="button"
-      onClick={open}
-      aria-label="search"
-      className="flex h-touch items-center px-2 text-text-muted transition-colors duration-80 ease-snap hover:text-text md:h-6"
-    >
-      search <Kbd keys="/" className="ml-2" />
-    </button>
   );
 }
 
 type Mode = { kind: "search" } | { kind: "preview"; key: string; label: string; preview: ActionPreview | null };
 
-function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onClose: () => void }) {
-  const sel = useMailSelection();
+function PaletteDialog({ onClose }: { onClose: () => void }) {
+  const { accounts, toggle } = useAccountToggles();
   const router = useRouter();
   const { report } = useUndo();
   const [input, setInput] = useState("");
@@ -143,7 +127,7 @@ function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onCl
 
   const current = search && search.input === query ? search.result : null;
   const words = current?.words ?? [];
-  const nav = navItems(sel.view, sel.account, accounts).filter(
+  const nav = navItems(accounts).filter(
     (item) => !query || item.label.toLowerCase().includes(query.toLowerCase()),
   );
   const colorOf = new Map(accounts.map((a) => [a.id, a.color]));
@@ -177,7 +161,11 @@ function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onCl
               {nav.length ? (
                 <Group heading="go to">
                   {nav.map((item) => (
-                    <Item key={item.href + item.label} value={`nav:${item.label}`} onSelect={() => go(item.href)}>
+                    <Item
+                      key={item.label}
+                      value={`nav:${item.label}`}
+                      onSelect={() => ("toggle" in item ? toggle(item.toggle) : go(item.href))}
+                    >
                       <span className="flex-1">{item.label}</span>
                       {item.hint ? <Kbd keys={item.hint} /> : null}
                     </Item>
@@ -197,7 +185,7 @@ function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onCl
                     <Item
                       key={hit.id}
                       value={`thread:${hit.id}`}
-                      onSelect={() => go(mailHref(BUCKET_VIEW[hit.bucket], { threadId: hit.id, account: sel.account }))}
+                      onSelect={() => go(mailHref(BUCKET_VIEW[hit.bucket], { threadId: hit.id }))}
                     >
                       <span
                         aria-hidden
@@ -316,14 +304,14 @@ function PreviewPane({
   );
 }
 
-function navItems(view: ViewSlug, account: string | null, accounts: PaletteAccount[]) {
+type NavItem = { label: string; hint: string } & ({ href: string } | { toggle: string });
+
+function navItems(accounts: ToggleAccount[]): NavItem[] {
   return [
-    ...VIEWS.map((v) => ({ label: v.label, href: mailHref(v.slug, { account }), hint: v.goKey ? `g ${v.goKey}` : "" })),
+    ...VIEWS.map((v) => ({ label: v.label, href: mailHref(v.slug), hint: v.goKey ? `g ${v.goKey}` : "" })),
+    // Same as the header toggles; the palette stays open.
     ...(accounts.length > 1
-      ? [
-          { label: "all accounts", href: mailHref(view), hint: "" },
-          ...accounts.map((a) => ({ label: `account ${a.label}`, href: mailHref(view, { account: a.id }), hint: "" })),
-        ]
+      ? accounts.map((a) => ({ label: `${a.on ? "hide" : "show"} ${a.label}`, toggle: a.id, hint: "" }))
       : []),
     { label: "settings", href: "/settings", hint: "" },
   ];

@@ -27,7 +27,6 @@ export function findView(slug: string): View | undefined {
   return VIEWS.find((v) => v.slug === slug);
 }
 
-export function mailHref(view: ViewSlug, opts: { threadId?: string | null; account?: string | null } = {}) {
-  const path = opts.threadId ? `/${view}/${opts.threadId}` : `/${view}`;
-  return opts.account ? `${path}?account=${opts.account}` : path;
+export function mailHref(view: ViewSlug, opts: { threadId?: string | null } = {}) {
+  return opts.threadId ? `/${view}/${opts.threadId}` : `/${view}`;
 }

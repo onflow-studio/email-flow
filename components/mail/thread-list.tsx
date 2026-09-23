@@ -53,7 +53,7 @@ export function ThreadList({
             accountColor={accountColors[t.accountId]}
             focused={t.id === sel.focusedId}
             open={t.id === sel.openId}
-            href={mailHref(sel.view, { threadId: t.id, account: sel.account })}
+            href={mailHref(sel.view, { threadId: t.id })}
             onSelect={() => sel.focus(t.id)}
             showSnooze={sel.view === "snoozed"}
           />

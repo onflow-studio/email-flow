@@ -21,9 +21,13 @@ export type SearchResult = { query: ParsedQuery; hits: SearchHit[]; total: numbe
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
-function where(q: ParsedQuery, tsq: SQL | null): SQL | undefined {
+/** `accountIds` limits results to the accounts toggled on; null searches all. */
+export type SearchScope = { accountIds?: string[] | null };
+
+function where(q: ParsedQuery, tsq: SQL | null, scope: SearchScope): SQL | undefined {
   return and(
     eq(threads.trashed, false),
+    scope.accountIds ? inArray(threads.accountId, scope.accountIds) : undefined,
     eq(threads.spam, false),
     tsq ? sql`${messages.search} @@ ${tsq}` : undefined,
     ...q.from.map((f) => or(ilike(messages.fromEmail, `%${escapeLike(f)}%`), ilike(messages.fromName, `%${escapeLike(f)}%`))),
@@ -37,7 +41,7 @@ function where(q: ParsedQuery, tsq: SQL | null): SQL | undefined {
 
 const tsqueryOf = (q: ParsedQuery) => (q.tsquery ? sql`to_tsquery('simple', ${q.tsquery})` : null);
 
-function matches(db: Pick<Db, "select">, q: ParsedQuery, tsq: SQL | null) {
+function matches(db: Pick<Db, "select">, q: ParsedQuery, tsq: SQL | null, scope: SearchScope) {
   return db
     .select({
       id: threads.id,
@@ -47,7 +51,7 @@ function matches(db: Pick<Db, "select">, q: ParsedQuery, tsq: SQL | null) {
     .from(messages)
     .innerJoin(threads, eq(threads.id, messages.threadId))
     .innerJoin(accounts, eq(accounts.id, threads.accountId))
-    .where(where(q, tsq))
+    .where(where(q, tsq, scope))
     .groupBy(threads.id);
 }
 
@@ -55,12 +59,12 @@ function matches(db: Pick<Db, "select">, q: ParsedQuery, tsq: SQL | null) {
  * Threads matching a palette query, best first. Searches everything synced,
  * archived included; trash and spam stay out, as in Gmail.
  */
-export async function searchThreads(db: Db, input: string, limit = 50): Promise<SearchResult> {
+export async function searchThreads(db: Db, input: string, scope: SearchScope = {}, limit = 50): Promise<SearchResult> {
   const query = parseQuery(input);
   if (isEmptyQuery(query)) return { query, hits: [], total: 0 };
   const tsq = tsqueryOf(query);
 
-  const ranked = matches(db, query, tsq).as("ranked");
+  const ranked = matches(db, query, tsq, scope).as("ranked");
   const rows = await db
     .select({
       id: threads.id,
@@ -109,9 +113,9 @@ export async function searchThreads(db: Db, input: string, limit = 50): Promise<
 }
 
 /** Every matching thread id, for bulk actions on a query. */
-export async function searchThreadIds(db: Db, input: string, max = 1000): Promise<string[]> {
+export async function searchThreadIds(db: Db, input: string, scope: SearchScope = {}, max = 1000): Promise<string[]> {
   const query = parseQuery(input);
   if (isEmptyQuery(query)) return [];
-  const rows = await matches(db, query, tsqueryOf(query)).limit(max);
+  const rows = await matches(db, query, tsqueryOf(query), scope).limit(max);
   return rows.map((r) => r.id);
 }

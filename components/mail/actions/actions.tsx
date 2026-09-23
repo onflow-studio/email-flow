@@ -132,9 +132,9 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       const i = sel.threadIds.indexOf(sel.openId);
       const rest = sel.threadIds.filter((id) => !ids.includes(id));
       const next = rest[Math.min(Math.max(i, 0), rest.length - 1)];
-      router.push(mailHref(sel.view, { threadId: next ?? null, account: sel.account }), { scroll: false });
+      router.push(mailHref(sel.view, { threadId: next ?? null }), { scroll: false });
     },
-    [router, sel.openId, sel.threadIds, sel.view, sel.account],
+    [router, sel.openId, sel.threadIds, sel.view],
   );
 
   const run = useCallback(

@@ -5,7 +5,9 @@ import { ActionsProvider } from "@/components/mail/actions/actions";
 import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
 import { FocusPane } from "@/components/mail/focus-pane";
 import { NavKeys } from "@/components/mail/keys/nav-keys";
-import { PaletteProvider, SearchButton } from "@/components/mail/palette/palette";
+import { AccountTogglesProvider } from "@/components/mail/account-toggles";
+import { Header } from "@/components/mail/header";
+import { PaletteProvider } from "@/components/mail/palette/palette";
 import { PaneHandle } from "@/components/mail/pane-handle";
 import { Rail } from "@/components/mail/rail";
 import { ReadingPane } from "@/components/mail/reading-pane";
@@ -15,26 +17,26 @@ import { ThreadList } from "@/components/mail/thread-list";
 import { findView, mailHref, VIEWS } from "@/components/mail/views";
 import { cn } from "@/lib/utils";
 
+import { accountsOff, accountsOn } from "../../_lib/account-filter";
 import { getThread, listAccounts, listThreads, viewCounts } from "../../_lib/queries";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function MailPage({ params, searchParams }: PageProps<"/[view]/[[...thread]]">) {
+export default async function MailPage({ params }: PageProps<"/[view]/[[...thread]]">) {
   const { view: slug, thread } = await params;
-  const { account: accountParam } = await searchParams;
 
   const view = findView(slug);
   if (!view) notFound();
   if (thread && (thread.length > 1 || !UUID.test(thread[0]))) notFound();
   const threadId = thread?.[0] ?? null;
 
-  const accounts = await listAccounts();
-  const account =
-    typeof accountParam === "string" && accounts.some((a) => a.id === accountParam) ? accountParam : null;
+  const [accounts, off] = await Promise.all([listAccounts(), accountsOff()]);
+  const on = accountsOn(accounts, off);
+  const isOn = (id: string) => !on || on.includes(id);
 
   const [counts, threads, detail] = await Promise.all([
-    viewCounts(account),
-    listThreads(view, account),
+    viewCounts(on),
+    listThreads(view, on),
     threadId ? getThread(threadId) : null,
   ]);
   if (threadId && !detail) notFound();
@@ -60,14 +62,18 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
   const unseen = threads.filter((t) => t.unseen).length;
 
   return (
-    <SelectionProvider view={view.slug} account={account} threadIds={threads.map((t) => t.id)} openId={threadId}>
+    <SelectionProvider view={view.slug} account={on?.length === 1 ? on[0] : null} threadIds={threads.map((t) => t.id)} openId={threadId}>
       <NavKeys />
       <ComposeKeys />
       <ActionsProvider targets={targets}>
-        <PaletteProvider accounts={accounts.map((a) => ({ id: a.id, label: a.label, color: a.color }))}>
+        <AccountTogglesProvider
+          accounts={accounts.map((a) => ({ id: a.id, label: a.label, email: a.email, color: a.color, on: isOn(a.id) }))}
+        >
+        <PaletteProvider>
           <div className="flex h-dvh flex-col bg-bg">
+            <Header className={cn(detail && "hidden md:flex")} />
             <div className="flex min-h-0 flex-1">
-              <Rail view={view.slug} account={account} counts={counts} accounts={accounts} />
+              <Rail view={view.slug} counts={counts} />
               <PaneHandle pane="rail" label="resize rail" className="hidden rail:block" />
 
               <FocusPane
@@ -83,7 +89,7 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
                   {VIEWS.map((v) => (
                     <Link
                       key={v.slug}
-                      href={mailHref(v.slug, { account })}
+                      href={mailHref(v.slug)}
                       className={cn(
                         "flex h-touch shrink-0 items-center px-2 whitespace-nowrap",
                         v.slug === view.slug ? "font-medium text-text" : "text-text-muted",
@@ -100,7 +106,6 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
                     <span className="text-11 text-text-muted">
                       {view.bucket ? `${unseen} unseen` : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
                     </span>
-                    <SearchButton />
                     <ComposeButton />
                   </span>
                 </header>
@@ -135,10 +140,12 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
                 lastSyncAt: a.lastSyncAt?.toISOString() ?? null,
                 lastSyncError: a.lastSyncError,
                 catchingUp: a.catchingUp,
+                on: isOn(a.id),
               }))}
             />
           </div>
         </PaletteProvider>
+        </AccountTogglesProvider>
       </ActionsProvider>
     </SelectionProvider>
   );

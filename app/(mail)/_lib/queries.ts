@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 
 import type { View, ViewSlug } from "@/components/mail/views";
 import { VIEWS } from "@/components/mail/views";
@@ -19,7 +19,8 @@ function viewFilter(view: View): SQL | undefined {
   return and(live(), view.bucket === "inbox" ? or(inBucket, isNotNull(threads.pinnedAt), resurfaced()) : inBucket);
 }
 
-const accountFilter = (account: string | null) => (account ? eq(threads.accountId, account) : undefined);
+/** `on` is the accounts toggled on in the header, null for all. */
+const accountFilter = (on: string[] | null) => (on ? inArray(threads.accountId, on) : undefined);
 
 export async function listAccounts() {
   return db
@@ -39,21 +40,21 @@ export async function listAccounts() {
 export type AccountSummary = Awaited<ReturnType<typeof listAccounts>>[number];
 
 /** Unseen count for bucket views, total for snoozed and trash. */
-export async function viewCounts(account: string | null): Promise<Record<ViewSlug, number>> {
+export async function viewCounts(on: string[] | null): Promise<Record<ViewSlug, number>> {
   const rows = await Promise.all(
     VIEWS.map(async (view) => {
       const unseenOnly = !!view.bucket;
       const [row] = await db
         .select({ n: count() })
         .from(threads)
-        .where(and(viewFilter(view), accountFilter(account), unseenOnly ? unseen() : undefined));
+        .where(and(viewFilter(view), accountFilter(on), unseenOnly ? unseen() : undefined));
       return [view.slug, row.n] as const;
     }),
   );
   return Object.fromEntries(rows) as Record<ViewSlug, number>;
 }
 
-export async function listThreads(view: View, account: string | null) {
+export async function listThreads(view: View, on: string[] | null) {
   const last = db
     .select({
       fromName: messages.fromName,
@@ -90,7 +91,7 @@ export async function listThreads(view: View, account: string | null) {
     })
     .from(threads)
     .leftJoinLateral(last, sql`true`)
-    .where(and(viewFilter(view), accountFilter(account)))
+    .where(and(viewFilter(view), accountFilter(on)))
     .orderBy(
       desc(isNotNull(threads.pinnedAt)),
       desc(sql`coalesce(${resurfaced()}, false)`),

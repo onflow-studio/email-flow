@@ -10,6 +10,7 @@ import { needsReconnect } from "@/lib/gmail/status";
 
 import { usePendingKeys } from "./keys/keymap";
 import { useMailSelection } from "./selection";
+import { AccountSquare } from "./account-square";
 import { Time } from "./time";
 import { VIEWS } from "./views";
 
@@ -21,6 +22,8 @@ type SyncAccount = {
   lastSyncError: string | null;
   // First sync or a stale-cursor recovery still working through its backlog, a slice per pass.
   catchingUp: boolean;
+  /** Toggled on in the header. */
+  on: boolean;
 };
 
 export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
@@ -42,7 +45,7 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
     .filter((t): t is string => !!t)
     .sort()
     .at(-1);
-  const active = accounts.find((a) => a.id === sel.account);
+  const on = accounts.filter((a) => a.on);
 
   let state: React.ReactNode;
   if (syncing) state = "syncing";
@@ -108,14 +111,14 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
       </button>
       <span className="truncate">{state}</span>
       <span className="hidden items-center gap-2 sm:flex">
-        {active ? (
-          <>
-            <span aria-hidden className="size-2" style={{ backgroundColor: active.color }} />
-            {active.label}
-          </>
-        ) : (
-          "all accounts"
-        )}
+        {on.length < accounts.length
+          ? on.map((a) => (
+              <span key={a.id} className="flex items-center gap-2">
+                <AccountSquare color={a.color} />
+                {a.label}
+              </span>
+            ))
+          : "all accounts"}
       </span>
       {hint}
     </footer>

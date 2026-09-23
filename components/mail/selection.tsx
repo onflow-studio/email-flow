@@ -15,6 +15,7 @@ export type Pane = "rail" | "list" | "reading";
  */
 export type MailSelection = {
   view: ViewSlug;
+  /** The one account toggled on, when only one is: new mail defaults to it. */
   account: string | null;
   threadIds: string[];
   focusedId: string | null;
@@ -63,7 +64,7 @@ export function stableOrder(prev: string[] | undefined, next: string[]) {
 
 /**
  * Lives in the mail layout. The page remounts when the thread segment
- * changes, so focus and row order are remembered here, per view and account.
+ * changes, so focus and row order are remembered here, per view.
  */
 export function FocusStoreProvider({ children }: { children: React.ReactNode }) {
   const [picked, setPicked] = useState<Record<string, Picked>>({});
@@ -112,7 +113,7 @@ export function SelectionProvider({
   const router = useRouter();
   const store = useContext(FocusStoreContext);
   if (!store) throw new Error("SelectionProvider must be used inside <FocusStoreProvider>");
-  const key = `${view}:${account ?? "all"}`;
+  const key = view;
 
   const prevOrder = store.order(key);
   const serverKey = serverIds.join();
@@ -157,9 +158,9 @@ export function SelectionProvider({
       const target = id ?? focusedId;
       if (!target) return;
       if (!keepPane) setPane("reading");
-      router.push(mailHref(view, { threadId: target, account }), { scroll: false });
+      router.push(mailHref(view, { threadId: target }), { scroll: false });
     },
-    [router, view, account, focusedId, setPane],
+    [router, view, focusedId, setPane],
   );
 
   const value = useMemo<MailSelection>(
@@ -178,9 +179,9 @@ export function SelectionProvider({
       open,
       close: () => {
         setPane("list");
-        router.push(mailHref(view, { account }), { scroll: false });
+        router.push(mailHref(view), { scroll: false });
       },
-      go: (next) => router.push(mailHref(next, { account })),
+      go: (next) => router.push(mailHref(next)),
     }),
     [view, account, threadIds, focusedId, focusedIndex, openId, pane, setPane, focusAt, open, router],
   );
