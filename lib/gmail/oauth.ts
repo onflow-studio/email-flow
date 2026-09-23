@@ -53,13 +53,6 @@ export async function exchangeCode(
   return { email: payload.email.toLowerCase(), tokens };
 }
 
-// DESIGN.md account hues. Never used for anything else.
-export const ACCOUNT_COLORS = [
-  { name: "green", hex: "#39FF9E" },
-  { name: "cyan", hex: "#4FC3F7" },
-  { name: "violet", hex: "#C792EA" },
-] as const;
-
 export function defaultAccountStyle(email: string): { label: string; color: string } {
   const domain = email.split("@")[1] ?? "";
   if (domain === "work1.example") return { label: "work1", color: "#4FC3F7" };
