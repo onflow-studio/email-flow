@@ -219,8 +219,8 @@ function ComposePanel({
         </button>
         <span className="font-medium">{modeLabel}</span>
         {account ? (
-          <span className="flex items-center gap-1 text-11 text-text-muted">
-            <span aria-hidden className="h-3 w-0.5" style={{ backgroundColor: account.color }} />
+          <span className="flex items-center gap-2 text-11 text-text-muted">
+            <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: account.color }} />
             {account.label}
           </span>
         ) : null}
@@ -252,7 +252,7 @@ function ComposePanel({
                       onChange={() => setAccountId(a.id)}
                       className="sr-only"
                     />
-                    <span aria-hidden className="h-3 w-0.5" style={{ backgroundColor: a.color }} />
+                    <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: a.color }} />
                     {a.label}
                   </label>
                 ))}

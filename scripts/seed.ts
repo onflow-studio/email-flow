@@ -30,7 +30,7 @@ type SeedThread = {
 
 const ACCOUNTS = {
   personal: { email: "me@personal.example", label: "personal", color: "#39FF9E" },
-  work1: { email: "me@work1.example", label: "work1", color: "#4FC3F7" },
+  work1: { email: "me@work1.example", label: "work1", color: "#EDE95C" },
   work2: { email: "me@work2.example", label: "work2", color: "#C792EA" },
 } as const;
 

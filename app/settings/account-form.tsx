@@ -20,7 +20,7 @@ export function AccountForm({ account }: { account: Props }) {
     <form action={action} className="flex flex-col gap-3 border-b border-border py-4 last:border-b-0">
       <input type="hidden" name="id" value={account.id} />
       <div className="flex items-center gap-3">
-        <span aria-hidden className="h-4 w-0.5 shrink-0" style={{ backgroundColor: account.color }} />
+        <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: account.color }} />
         <span className="min-w-0 flex-1 truncate font-medium">{account.email}</span>
         {account.lastSyncError ? (
           <span className="text-11 text-warning">{account.lastSyncError}</span>

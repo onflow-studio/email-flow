@@ -55,7 +55,7 @@ export async function exchangeCode(
 
 export function defaultAccountStyle(email: string): { label: string; color: string } {
   const domain = email.split("@")[1] ?? "";
-  if (domain === "work1.example") return { label: "work1", color: "#4FC3F7" };
+  if (domain === "work1.example") return { label: "work1", color: "#EDE95C" };
   if (domain === "work2.example") return { label: "work2", color: "#C792EA" };
   if (domain === "gmail.com") return { label: "personal", color: "#39FF9E" };
   return { label: domain.split(".")[0] || email, color: "#39FF9E" };

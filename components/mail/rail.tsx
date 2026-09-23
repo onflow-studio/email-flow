@@ -158,7 +158,7 @@ function AccountLink({
           className,
         )}
       >
-        <span aria-hidden className="h-3 w-0.5" style={{ backgroundColor: color ?? "var(--text-dim)" }} />
+        <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: color ?? "var(--text-dim)" }} />
         {label}
       </Link>
     </li>

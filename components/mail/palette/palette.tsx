@@ -201,7 +201,7 @@ function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onCl
                     >
                       <span
                         aria-hidden
-                        className="h-3 w-0.5 shrink-0"
+                        className="size-2 shrink-0"
                         style={{ backgroundColor: colorOf.get(hit.accountId) ?? "var(--text-dim)" }}
                       />
                       <span className="w-sender shrink-0 truncate text-text-muted">

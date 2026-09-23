@@ -103,11 +103,11 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
         <AiNote thread={thread} />
         <h1 className="text-20 font-semibold text-text">{thread.subject}</h1>
         <div className="flex flex-wrap items-center gap-2 text-11 text-text-muted">
-          <span className="flex items-center gap-1">
-            <span aria-hidden className="h-3 w-0.5" style={{ backgroundColor: thread.account.color }} />
+          <span className="flex items-center gap-2">
+            <span aria-hidden className="size-2" style={{ backgroundColor: thread.account.color }} />
             {thread.account.label}
           </span>
-          <span className="rounded-sm bg-accent-dim px-1 text-accent">{BUCKET_LABELS[thread.bucket]}</span>
+          <span className="rounded-sm bg-accent-dim px-1 text-text">{BUCKET_LABELS[thread.bucket]}</span>
           <span>
             {thread.messages.length} {thread.messages.length === 1 ? "message" : "messages"}
           </span>

@@ -107,10 +107,10 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
         <RefreshCw aria-hidden className="size-3" strokeWidth={1.5} />
       </button>
       <span className="truncate">{state}</span>
-      <span className="hidden items-center gap-1 sm:flex">
+      <span className="hidden items-center gap-2 sm:flex">
         {active ? (
           <>
-            <span aria-hidden className="h-2 w-0.5" style={{ backgroundColor: active.color }} />
+            <span aria-hidden className="size-2" style={{ backgroundColor: active.color }} />
             {active.label}
           </>
         ) : (

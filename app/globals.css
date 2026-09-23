@@ -17,15 +17,15 @@
   --text: #d6e2ea;
   --text-muted: #7a8b98;
   --text-dim: #4a5966;
-  --accent: #39ff9e;
-  --accent-dim: #1b5e44;
-  --info: #4fc3f7;
+  --accent: #3d8bff;
+  --accent-dim: #1c4480;
+  --info: #4fd1c5;
   --warning: #ffb454;
   --danger: #ff5c7a;
-  --success: #39ff9e;
+  --success: #3d8bff;
 
   --account-personal: #39ff9e;
-  --account-work1: #4fc3f7;
+  --account-work1: #ede95c;
   --account-work2: #c792ea;
 
   /* Pane widths. --rail-w and --list-w are overridden on <html> by the stored drag widths. */
@@ -39,6 +39,8 @@
 
   --duration-fast: 80ms;
   --duration-base: 150ms;
+  /* Radio live border, one turn. The only looping animation. */
+  --duration-drift: 6s;
   --ease-snap: cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -93,6 +95,11 @@
   --spacing-label: 56px;
   --spacing-field: 160px;
   --spacing-editor: 160px;
+  --spacing-header: 32px;
+  --container-search: 480px;
+  --spacing-timeline: 24px;
+  /* Reading pane bottom clearance: action bar 40 + 16 gap + 16 air. */
+  --spacing-action: 72px;
 
   --breakpoint-md: 768px;
   --breakpoint-rail: 1100px;
@@ -145,7 +152,7 @@
   --color-ring: var(--accent);
 }
 
-/* The three sanctioned gradients. Nothing else gets one. */
+/* Sanctioned gradients. Nothing else gets one. radio-live, the fourth, is defined with the radio. */
 @utility glow-focus {
   background-image: linear-gradient(
     to right,

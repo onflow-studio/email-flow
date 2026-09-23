@@ -100,7 +100,7 @@ function ThreadRow({
           : "border-transparent hover:bg-surface-raised",
       )}
     >
-      <span aria-hidden className="h-3 w-0.5 shrink-0" style={{ backgroundColor: accountColor ?? "var(--text-dim)" }} />
+      <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: accountColor ?? "var(--text-dim)" }} />
       <span
         className={cn(
           "w-sender shrink-0 truncate",
