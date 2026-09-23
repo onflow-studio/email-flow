@@ -127,7 +127,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
               >
                 {detail ? (
                   <>
-                    <MarkSeen key={detail.id} threadId={detail.id} />
+                    <MarkSeen key={`seen-${detail.id}`} threadId={detail.id} />
                     <ReadingPane key={detail.id} thread={detail} />
                   </>
                 ) : (
