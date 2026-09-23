@@ -13,6 +13,21 @@ export function restoreRemoteImages(html: string): string {
   return html.replace(REMOTE_SRC, ' src="$1"');
 }
 
+// The only types the attachment route will show in a tab; everything else downloads, so an HTML
+// or SVG attachment can never run on our origin.
+export const INLINE_ATTACHMENT_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "text/plain",
+]);
+
+export function opensInline(mimeType: string): boolean {
+  return INLINE_ATTACHMENT_TYPES.has(mimeType.toLowerCase());
+}
+
 // Attachment bytes via our route. Inline opens safe types (PDF, images, text) in the browser.
 export function attachmentUrl(id: string, { inline = false } = {}): string {
   return `/api/attachments/${id}${inline ? "?inline=1" : ""}`;

@@ -4,11 +4,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { attachments, messages } from "@/lib/db/schema";
 import { ReauthRequiredError, getGmailClient } from "@/lib/gmail/client";
+import { opensInline } from "@/lib/mail/remote";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Only these may open in the browser tab; everything else downloads, so an HTML or SVG
-// attachment can never run on our origin.
-const INLINE_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "text/plain"]);
 
 function contentDisposition(kind: "inline" | "attachment", filename: string) {
   const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
@@ -53,7 +51,7 @@ export async function GET(request: NextRequest, { params }: RouteContext<"/api/a
 
   const bytes = Buffer.from(data, "base64url");
   const mime = row.mimeType.toLowerCase();
-  const inline = request.nextUrl.searchParams.get("inline") === "1" && INLINE_TYPES.has(mime);
+  const inline = request.nextUrl.searchParams.get("inline") === "1" && opensInline(mime);
 
   return new Response(new Uint8Array(bytes), {
     headers: {
