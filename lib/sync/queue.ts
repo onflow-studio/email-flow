@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, lt, lte } from "drizzle-orm";
 import type { Db } from "@/lib/db";
 import { jobs } from "@/lib/db/schema";
 
-import { runJob, type JobContext, type JobOutcome } from "./jobs";
+import { requeue, runJob, type JobContext, type JobOutcome } from "./jobs";
 
 // A running job this old belongs to a crashed pass.
 export const STALE_LOCK_MS = 15 * 60_000;
@@ -11,10 +11,11 @@ export const JOBS_PER_PASS = 100;
 const CLAIM_BATCH = 10;
 
 export async function releaseStaleLocks(db: Db, now = new Date()) {
-  await db
-    .update(jobs)
-    .set({ status: "pending", lockedAt: null })
+  const stale = await db
+    .select({ id: jobs.id })
+    .from(jobs)
     .where(and(eq(jobs.status, "running"), lt(jobs.lockedAt, new Date(now.getTime() - STALE_LOCK_MS))));
+  for (const { id } of stale) await requeue(db, id, { status: "pending", lockedAt: null });
 }
 
 // Due jobs for one account, highest priority first. Skip-locked so parallel passes never share one.
@@ -35,8 +36,7 @@ export async function claimJobs(db: Db, accountId: string, limit: number, now = 
 }
 
 async function releaseClaimed(db: Db, ids: string[]) {
-  if (ids.length === 0) return;
-  await db.update(jobs).set({ status: "pending", lockedAt: null }).where(inArray(jobs.id, ids));
+  for (const id of ids) await requeue(db, id, { status: "pending", lockedAt: null });
 }
 
 export type JobCounts = Record<JobOutcome, number>;
@@ -48,7 +48,7 @@ export async function processJobs(
   ctx: JobContext,
   budget = JOBS_PER_PASS,
 ): Promise<JobCounts> {
-  const counts: JobCounts = { done: 0, retry: 0, failed: 0, skipped: 0 };
+  const counts: JobCounts = { done: 0, retry: 0, failed: 0, skipped: 0, superseded: 0 };
   const seen = new Set<string>();
   while (seen.size < budget) {
     const batch = await claimJobs(ctx.db, accountId, Math.min(CLAIM_BATCH, budget - seen.size));

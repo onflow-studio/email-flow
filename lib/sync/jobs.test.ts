@@ -1,8 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { PgDialect, getTableConfig } from "drizzle-orm/pg-core";
+import { describe, expect, it, vi } from "vitest";
 
 import { classifyJob } from "@/lib/classify/classify";
+import { jobs, type Job } from "@/lib/db/schema";
 
-import { MAX_ATTEMPTS, backoffMs, jobHandler, settle } from "./jobs";
+import {
+  MAX_ATTEMPTS,
+  backoffMs,
+  isUniqueViolation,
+  jobHandler,
+  requeue,
+  runJob,
+  settle,
+  type JobContext,
+} from "./jobs";
 import { writebackJob } from "./writeback";
 
 describe("jobHandler", () => {
@@ -36,5 +47,91 @@ describe("retries", () => {
     const { outcome, set } = settle({ attempts: MAX_ATTEMPTS - 1 }, "boom");
     expect(outcome).toBe("failed");
     expect(set).toMatchObject({ status: "failed", attempts: MAX_ATTEMPTS, error: "boom" });
+  });
+});
+
+// Records every update; the first `failures` updates throw the given error.
+function fakeDb(failures: unknown[] = []) {
+  const sets: Record<string, unknown>[] = [];
+  const queue = [...failures];
+  const db = {
+    update: () => ({
+      set: (set: Record<string, unknown>) => ({
+        where: async () => {
+          const failure = queue.shift();
+          if (failure) throw failure;
+          sets.push(set);
+        },
+      }),
+    }),
+  };
+  return { db: db as unknown as JobContext["db"], sets };
+}
+
+const uniqueViolation = Object.assign(new Error("Failed query: update jobs"), {
+  cause: Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" }),
+});
+
+function job(overrides: Partial<Job> = {}): Job {
+  return {
+    id: "j1",
+    type: "writeback",
+    accountId: "a1",
+    payload: { threadId: "t1" },
+    status: "running",
+    priority: 10,
+    attempts: 0,
+    runAfter: new Date(),
+    lockedAt: new Date(),
+    dedupeKey: "writeback:t1",
+    error: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+describe("dedupe while running", () => {
+  it("detects unique violations, wrapped by drizzle or bare", () => {
+    expect(isUniqueViolation(uniqueViolation)).toBe(true);
+    expect(isUniqueViolation({ code: "23505" })).toBe(true);
+    expect(isUniqueViolation(new Error("gmail 503"))).toBe(false);
+  });
+
+  it("requeue puts a job back to pending when nothing newer is queued", async () => {
+    const { db, sets } = fakeDb();
+    expect(await requeue(db, "j1", { status: "pending", lockedAt: null })).toBe("requeued");
+    expect(sets).toEqual([{ status: "pending", lockedAt: null }]);
+  });
+
+  it("requeue yields to a newer pending job with the same key", async () => {
+    const { db, sets } = fakeDb([uniqueViolation]);
+    expect(await requeue(db, "j1", { status: "pending", lockedAt: null })).toBe("superseded");
+    expect(sets).toEqual([{ status: "done", lockedAt: null, error: "superseded by a newer job" }]);
+  });
+
+  it("requeue rethrows anything else", async () => {
+    const { db } = fakeDb([new Error("connection reset")]);
+    await expect(requeue(db, "j1", { status: "pending", lockedAt: null })).rejects.toThrow("connection reset");
+  });
+
+  it("a failed run whose retry collides with a newer job is superseded, not an error", async () => {
+    const { db, sets } = fakeDb([uniqueViolation]);
+    const gmail = vi.fn(async () => {
+      throw new Error("gmail 503");
+    });
+    const threadRow = { accountId: "a1", gmailThreadId: "g1", bucket: "news", archived: false, trashed: false };
+    const ctxDb = Object.assign(db, {
+      select: () => ({ from: () => ({ where: async () => [threadRow] }) }),
+    }) as unknown as JobContext["db"];
+    expect(await runJob(job(), { db: ctxDb, gmail })).toBe("superseded");
+    expect(sets.at(-1)).toMatchObject({ status: "done", error: "superseded by a newer job" });
+  });
+
+  it("the unique index only covers pending jobs, so one can queue behind a running one", () => {
+    const index = getTableConfig(jobs).indexes.find((i) => i.config.name === "jobs_dedupe_key_pending_idx");
+    expect(index?.config.unique).toBe(true);
+    const where = new PgDialect().sqlToQuery(index!.config.where!).sql;
+    expect(where).toBe("status = 'pending'");
   });
 });
