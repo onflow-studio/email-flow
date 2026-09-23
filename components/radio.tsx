@@ -430,12 +430,19 @@ export function Radio() {
             status === "error" && "text-danger hover:text-danger",
           )}
         >
-          <Icon
-            aria-hidden
-            className={cn("size-3", (status === "loading" || status === "buffering") && "animate-pulse text-text-dim")}
-            strokeWidth={1.5}
-          />
-          <span className={cn(status !== "error" && "radio-text", playing && "radio-live")}>flow state</span>
+          {playing ? (
+            // Playing, the equalizer stands in for the pause icon; a click still pauses.
+            <Equalizer live={status === "playing"} />
+          ) : (
+            <Icon
+              aria-hidden
+              className={cn("size-3", status === "loading" && "animate-pulse text-text-dim")}
+              strokeWidth={1.5}
+            />
+          )}
+          <span className={cn(status !== "error" && "radio-text", playing && "radio-live")}>
+            {status === "error" ? "retry" : on ? "flow ongoing" : "get in flow"}
+          </span>
         </button>
       </div>
       {/* Clipped to 1px rather than display:none, which stops playback. Inert keeps the iframe out of tab order. */}
