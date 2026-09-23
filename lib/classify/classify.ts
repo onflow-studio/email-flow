@@ -1,6 +1,6 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
 
-import { evaluateWithJev, type EvaluationQuestion, type JevState } from "@/lib/ai";
+import { evaluateWithJev, type JevQuestion, type JevState } from "@/lib/ai";
 import type { Db } from "@/lib/db";
 import { classifications, senders, threads, type Job } from "@/lib/db/schema";
 import { enqueueWriteback, type JobContext } from "@/lib/sync/jobs";
@@ -13,12 +13,10 @@ import type { ClassifyContext, Decision, ModelResult } from "./types";
 
 export type Evaluator = (
   state: JevState,
-  questions: Record<string, EvaluationQuestion>,
+  questions: Record<string, JevQuestion>,
 ) => Promise<{
   answers: Record<string, JevAnswer>;
   response: { modelId: string };
-  usage?: unknown;
-  providerMetadata?: unknown;
 }>;
 
 export type ClassifierRun = {
@@ -55,11 +53,7 @@ export async function runClassifier(
     decision,
     model: {
       id: response.response.modelId,
-      raw: {
-        answers: response.answers,
-        usage: response.usage ?? null,
-        providerMetadata: response.providerMetadata ?? null,
-      },
+      raw: { answers: response.answers },
       result,
     },
   };
