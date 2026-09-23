@@ -29,7 +29,7 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: Record<ViewSlug
 
   const item = (v: View): RailItem => ({
     key: v.slug,
-    label: v.label,
+    label: sentenceCase(v.label),
     href: mailHref(v.slug),
     icon: ICONS[v.slug],
     // Trash carries no count.
@@ -40,7 +40,7 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: Record<ViewSlug
   const later = VIEWS.filter((v) => v.group === "later").map(item);
   const bottom = [
     ...VIEWS.filter((v) => v.group === "bottom").map(item),
-    { key: "settings", label: "settings", href: "/settings", icon: Settings },
+    { key: "settings", label: "Settings", href: "/settings", icon: Settings },
   ];
 
   // Keyboard items in screen order.
@@ -116,4 +116,9 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: Record<ViewSlug
       <ul className="mt-auto flex flex-col gap-1">{bottom.map((it, i) => row(it, act.length + later.length + i, true))}</ul>
     </nav>
   );
+}
+
+/** The rail is the one list in sentence case: `paper trail` reads `Paper trail`. */
+function sentenceCase(label: string) {
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }

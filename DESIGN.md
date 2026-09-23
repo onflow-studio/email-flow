@@ -34,7 +34,7 @@ Account identity uses hue, not a full palette: one hue per account, chosen at se
 - Weights: 400 regular, 500 for unseen threads and active items, 600 for the reading pane subject. Bold at 700 is never used, it smears in monospace at small sizes.
 - Line height: 1.45 for lists, 1.6 for prose.
 - Tabular numbers everywhere so counts and times align in columns.
-- Case: lowercase everywhere. Exceptions: the radio's own labels, `Get in Flow` and `Flow Ongoing`, written as titles because they are a name, not a control label; and command palette section headers, 11px uppercase, because they are the only labels that sit between rows of lowercase results and must not read as a result.
+- Case: lowercase everywhere. Exceptions: the rail's items in sentence case (`Triage`, `Inbox`, `Paper trail`, `Settings`), because they are names of places, not commands; the radio's own labels, `Get in Flow` and `Flow Ongoing`, written as titles because they are a name, not a control label; and command palette section headers, 11px uppercase, because they are the only labels that sit between rows of lowercase results and must not read as a result.
 
 ## Spacing
 
