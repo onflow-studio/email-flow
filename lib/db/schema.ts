@@ -71,6 +71,18 @@ export type MessageHeaders = {
   autoSubmitted?: string;
 };
 
+// A listing sync still working through its backlog: first sync, or recovery from a stale cursor.
+// Epoch seconds; `before` is pinned at start so the listing stays stable across passes.
+export type CatchUpState = {
+  mode: "initial" | "fallback";
+  after: number;
+  before: number;
+  pageToken: string | null;
+  // Threads of that page already stored.
+  offset: number;
+  seen: number;
+};
+
 export const accounts = pgTable("accounts", {
   id: id(),
   email: text().notNull().unique(),
@@ -84,6 +96,7 @@ export const accounts = pgTable("accounts", {
   historyId: text(),
   lastSyncAt: timestamp({ withTimezone: true }),
   lastSyncError: text(),
+  catchUp: jsonb().$type<CatchUpState>(),
   signatureHtml: text(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
