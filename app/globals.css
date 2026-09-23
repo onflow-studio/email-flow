@@ -19,6 +19,8 @@
   --text-dim: #4a5966;
   --accent: #3d8bff;
   --accent-dim: #1c4480;
+  /* Primary button hover: the accent brightened toward the text color. */
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, var(--text));
   --info: #4fd1c5;
   --warning: #ffb454;
   --danger: #ff5c7a;
@@ -126,6 +128,7 @@
   --color-text-dim: var(--text-dim);
   --color-accent: var(--accent);
   --color-accent-dim: var(--accent-dim);
+  --color-accent-hover: var(--accent-hover);
   --color-info: var(--info);
   --color-warning: var(--warning);
   --color-danger: var(--danger);

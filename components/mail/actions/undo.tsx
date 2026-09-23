@@ -1,9 +1,10 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { undo } from "@/app/(mail)/thread-actions";
-import { Kbd } from "@/components/ui/kbd";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Toast = { id: number; message: string; token: string | null; leaving: boolean };
@@ -13,6 +14,8 @@ type UndoContextValue = {
   report: (message: string, token?: string | null) => void;
   undoLast: () => void;
   undoToken: (token: string) => void;
+  /** Where the toast shows instead of the corner: the action bar, so the two never overlap. */
+  setAnchor: (el: HTMLElement | null) => void;
 };
 
 const UndoContext = createContext<UndoContextValue | null>(null);
@@ -35,6 +38,7 @@ const STACK_LIMIT = 50;
  */
 export function UndoProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const stack = useRef<string[]>([]);
   const nextId = useRef(0);
 
@@ -78,33 +82,32 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
     };
   }, [toastId, undoable]);
 
-  const value = useMemo(() => ({ report, undoLast, undoToken }), [report, undoLast, undoToken]);
+  const value = useMemo(() => ({ report, undoLast, undoToken, setAnchor }), [report, undoLast, undoToken]);
+
+  const toastEl = toast ? (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "pointer-events-auto z-40 flex h-row items-center gap-4 rounded-sm border border-border bg-surface-raised px-3 transition-opacity duration-150 ease-snap",
+        !anchor && "fixed right-3 bottom-8",
+        toast.leaving && "opacity-0",
+      )}
+    >
+      <span>{toast.message}</span>
+      {toast.token ? (
+        <Button variant="ghost" size="sm" shortcut="z" className="h-6" onClick={() => undoToken(toast.token!)}>
+          undo
+        </Button>
+      ) : null}
+      {toast.token ? <span className="w-6 text-right text-11 text-text-muted">{left}s</span> : null}
+    </div>
+  ) : null;
 
   return (
     <UndoContext.Provider value={value}>
       {children}
-      {toast ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className={cn(
-            "fixed right-3 bottom-8 z-40 flex h-row items-center gap-4 rounded-sm border border-border bg-surface-raised px-3 transition-opacity duration-150 ease-snap",
-            toast.leaving && "opacity-0",
-          )}
-        >
-          <span>{toast.message}</span>
-          {toast.token ? (
-            <button
-              type="button"
-              onClick={() => undoToken(toast.token!)}
-              className="flex items-center gap-2 text-text-muted transition-colors duration-80 ease-snap hover:text-text"
-            >
-              undo <Kbd keys="z" />
-            </button>
-          ) : null}
-          {toast.token ? <span className="w-6 text-right text-11 text-text-muted">{left}s</span> : null}
-        </div>
-      ) : null}
+      {toastEl ? (anchor ? createPortal(toastEl, anchor) : toastEl) : null}
     </UndoContext.Provider>
   );
 }

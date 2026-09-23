@@ -25,7 +25,7 @@ export function ComposeButton() {
   const sel = useMailSelection();
   const compose = useCompose();
   return (
-    <Button variant="ghost" shortcut="c" onClick={() => compose.open("new", null, sel.account)} className="h-touch px-2 md:h-6">
+    <Button variant="ghost" size="sm" shortcut="c" onClick={() => compose.open("new", null, sel.account)}>
       compose
     </Button>
   );

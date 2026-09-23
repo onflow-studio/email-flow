@@ -24,9 +24,9 @@ export function MessageContent({ message: m, quoteLabel = null }: { message: Mes
     <div className="flex flex-col gap-3">
       <div className="flex min-w-0 flex-col">
         <div className="flex min-w-0 items-baseline gap-2">
-          <span className="shrink-0 font-medium text-text">{displayName(m)}</span>
+          <span className="min-w-0 truncate font-medium text-text">{displayName(m)}</span>
           {m.fromName || !m.isInbound ? (
-            <span className="hidden min-w-0 truncate text-12 text-text-muted md:inline">{m.fromEmail}</span>
+            <span className="hidden min-w-0 shrink-2 truncate text-12 text-text-muted md:inline">{m.fromEmail}</span>
           ) : null}
           <Time iso={m.date} format="full" className="ml-auto shrink-0 text-12 text-text-muted" />
         </div>

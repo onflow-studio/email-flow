@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Kbd, KeyHints } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 
@@ -105,12 +106,9 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
             onChange={(e) => setCustom(e.target.value)}
             className="h-touch min-w-0 flex-1 rounded-sm md:h-row border border-border bg-surface px-2 outline-none focus:border-accent"
           />
-          <button
-            type="submit"
-            className="flex h-touch shrink-0 items-center gap-2 rounded-sm border border-border px-3 md:h-row transition-colors duration-80 ease-snap hover:bg-surface-raised"
-          >
-            snooze <Kbd keys="enter" />
-          </button>
+          <Button type="submit" shortcut="enter">
+            snooze
+          </Button>
         </form>
 
         <div className="flex flex-wrap items-center gap-4 border-t border-border px-2 pt-3">

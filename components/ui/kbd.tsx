@@ -38,6 +38,26 @@ function Kbd({
   )
 }
 
+/** The keys inside a button's shortcut segment: bare text, so combos sit 4px apart and sequences 8px. */
+function ShortcutKeys({ keys }: { keys: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 leading-none">
+      {keys
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((step, i) => (
+          <span key={i} className="inline-flex items-center gap-1">
+            {step.split("+").map((key, j) => (
+              <kbd key={j} className="font-mono">
+                {NAMES[key] ?? key}
+              </kbd>
+            ))}
+          </span>
+        ))}
+    </span>
+  )
+}
+
 /** A row of `keys label` hints. An array of keys means alternatives, shown as `j/k`. */
 function KeyHints({
   hints,
@@ -63,4 +83,4 @@ function KeyHints({
   )
 }
 
-export { Kbd, KeyHints }
+export { Kbd, KeyHints, ShortcutKeys }

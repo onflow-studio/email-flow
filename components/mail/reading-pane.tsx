@@ -1,14 +1,14 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
 
 import { useThreadActions } from "./actions/actions";
 import { AiNote } from "./actions/ai-note";
-import { ActionToolbar } from "./actions/toolbar";
-import { ReplyBar } from "./compose/reply-bar";
+import { ActionBar } from "./actions/action-bar";
+import { rememberAccount } from "./compose/last-account";
 import { useKeys } from "./keys/keymap";
 import { MessageContent } from "./message";
 import { useMailSelection } from "./selection";
@@ -39,8 +39,13 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
     { keys: "arrowup", when: reading, run: () => scroll(-1) },
   ]);
 
+  // Reading a thread makes its account the default for new mail.
+  useEffect(() => {
+    rememberAccount(thread.account.id);
+  }, [thread.account.id]);
+
   return (
-    <article ref={articleRef} className="flex w-full flex-col gap-4 px-3 pt-8 pb-8 md:px-6">
+    <article ref={articleRef} className="flex min-h-full w-full flex-col gap-4 px-3 pt-8 md:px-6 md:pb-4">
       <div className="sticky top-0 z-10 -mx-3 -mt-8 flex h-touch shrink-0 items-center border-b border-border bg-surface px-1 md:hidden">
         <button type="button" onClick={sel.close} className="flex h-touch items-center gap-2 px-2 text-text-muted">
           <ArrowLeft aria-hidden className="size-4" strokeWidth={1.5} />
@@ -77,7 +82,6 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           {thread.pinned ? <span>pinned</span> : null}
           {thread.trashed ? <span className="text-danger">in trash</span> : null}
         </div>
-        <ActionToolbar thread={thread} />
       </header>
 
       {single ? (
@@ -87,7 +91,11 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
         <ThreadTimeline messages={thread.messages} />
       )}
 
-      <ReplyBar threadId={thread.id} accountId={thread.account.id} />
+      {/* Sticks to the pane bottom, 16px up on desktop, docked flat on phone. Clearance under the last
+          message is the gap (16) + the bar (40) + the bottom offset (16): pb-action's 72. */}
+      <div className="pointer-events-none sticky bottom-0 z-10 -mx-3 mt-auto flex justify-center md:bottom-4 md:mx-0">
+        <ActionBar thread={thread} />
+      </div>
     </article>
   );
 }
