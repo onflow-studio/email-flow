@@ -441,7 +441,7 @@ export function Radio() {
             />
           )}
           <span className={cn(status !== "error" && "radio-text", playing && "radio-live")}>
-            {status === "error" ? "retry" : on ? "flow ongoing" : "get in flow"}
+            {status === "error" ? "retry" : on ? "Flow Ongoing" : "Get in Flow"}
           </span>
         </button>
       </div>
