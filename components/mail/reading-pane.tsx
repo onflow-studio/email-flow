@@ -33,6 +33,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
   const sel = useMailSelection();
   const { run } = useThreadActions();
   const lastId = thread.messages.at(-1)?.id;
+  const single = thread.messages.length === 1;
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(lastId ? [lastId] : []));
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -70,7 +71,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
       label: "expand message",
       group: "panes",
       // A focused button or link keeps its own enter.
-      when: () => reading() && !!thread.messages[cursor] && !document.activeElement?.closest("button, a"),
+      when: () => reading() && !single && !!thread.messages[cursor] && !document.activeElement?.closest("button, a"),
       run: () => toggle(thread.messages[cursor].id),
     },
   ]);
@@ -102,9 +103,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
             {thread.account.label}
           </span>
           <span className="rounded-sm bg-accent-dim px-1 text-text">{BUCKET_LABELS[thread.bucket]}</span>
-          <span>
-            {thread.messages.length} {thread.messages.length === 1 ? "message" : "messages"}
-          </span>
+          {single ? null : <span>{thread.messages.length} messages</span>}
           {thread.snoozedUntil ? (
             <span>
               snoozed until <Time iso={thread.snoozedUntil} format="full" />
@@ -118,62 +117,75 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
         <ActionToolbar thread={thread} />
       </header>
 
-      <ol className="flex flex-col gap-2">
-        {thread.messages.map((m, i) => (
-          <li
-            key={m.id}
-            data-message
-            onPointerDown={() => setCursor(i)}
-            className={cn(
-              "rounded-sm border border-border bg-surface transition-colors duration-80 ease-snap",
-              sel.pane === "reading" && i === cursor && thread.messages.length > 1 && "md:border-accent-dim",
-            )}
-          >
-            {expanded.has(m.id) ? (
-              <ExpandedMessage message={m} onCollapse={() => toggle(m.id)} />
-            ) : (
-              <button
-                type="button"
-                onClick={() => toggle(m.id)}
-                className="flex h-touch w-full items-center gap-2 px-3 text-left md:h-row transition-colors duration-80 ease-snap hover:bg-surface-raised"
-              >
-                <span className="w-sender shrink-0 truncate text-text-muted">{displayName(m)}</span>
-                <span className="min-w-0 flex-1 truncate text-text-dim">{m.snippet}</span>
-                {m.attachments.length ? <Paperclip aria-hidden className="size-3 text-text-dim" /> : null}
-                <Time iso={m.date} className="shrink-0 text-11 text-text-muted" />
-              </button>
-            )}
-          </li>
-        ))}
-      </ol>
+      {single ? (
+        // One message: no collapsing, no card. It sits on the pane, aligned with the subject.
+        <div data-message>
+          <MessageContent message={thread.messages[0]} />
+        </div>
+      ) : (
+        <ol className="flex flex-col gap-2">
+          {thread.messages.map((m, i) => (
+            <li
+              key={m.id}
+              data-message
+              onPointerDown={() => setCursor(i)}
+              className={cn(
+                "rounded-sm border border-border bg-surface transition-colors duration-80 ease-snap",
+                sel.pane === "reading" && i === cursor && "md:border-accent-dim",
+              )}
+            >
+              {expanded.has(m.id) ? (
+                <div className="p-3">
+                  <MessageContent message={m} onHeaderClick={() => toggle(m.id)} />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => toggle(m.id)}
+                  className="flex h-touch w-full items-center gap-2 px-3 text-left md:h-row transition-colors duration-80 ease-snap hover:bg-surface-raised"
+                >
+                  <span className="w-sender shrink-0 truncate text-text-muted">{displayName(m)}</span>
+                  <span className="min-w-0 flex-1 truncate text-text-dim">{m.snippet}</span>
+                  {m.attachments.length ? <Paperclip aria-hidden className="size-3 text-text-dim" /> : null}
+                  <Time iso={m.date} className="shrink-0 text-11 text-text-muted" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
 
       <ReplyBar threadId={thread.id} accountId={thread.account.id} />
     </article>
   );
 }
 
-function ExpandedMessage({
-  message: m,
-  onCollapse,
-}: {
-  message: MessageItem;
-  onCollapse: () => void;
-}) {
+/** Header line, recipients, body and attachments. The header collapses the message when it can. */
+function MessageContent({ message: m, onHeaderClick }: { message: MessageItem; onHeaderClick?: () => void }) {
+  const header = (
+    <>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className={cn("shrink-0 font-medium", m.isInbound ? "text-text" : "text-text-muted")}>{displayName(m)}</span>
+          {m.fromName ? <span className="hidden truncate text-12 text-text-muted md:inline">{m.fromEmail}</span> : null}
+        </span>
+        <span className="truncate text-11 text-text-muted">
+          to {formatAddresses(m.to)}
+          {m.cc.length ? `, cc ${formatAddresses(m.cc)}` : ""}
+        </span>
+      </div>
+      <Time iso={m.date} format="full" className="shrink-0 text-12 text-text-muted" />
+    </>
+  );
   return (
-    <div className="flex flex-col gap-3 p-3">
-      <button type="button" onClick={onCollapse} className="flex items-start gap-2 text-left">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate">
-            <span className={cn("font-medium", m.isInbound ? "text-text" : "text-text-muted")}>{displayName(m)}</span>
-            {m.fromName ? <span className="text-text-muted"> {m.fromEmail}</span> : null}
-          </span>
-          <span className="truncate text-11 text-text-muted">
-            to {formatAddresses(m.to)}
-            {m.cc.length ? `, cc ${formatAddresses(m.cc)}` : ""}
-          </span>
-        </div>
-        <Time iso={m.date} format="full" className="shrink-0 text-11 text-text-muted" />
-      </button>
+    <div className="flex flex-col gap-3">
+      {onHeaderClick ? (
+        <button type="button" onClick={onHeaderClick} className="flex items-start gap-2 text-left">
+          {header}
+        </button>
+      ) : (
+        <div className="flex items-start gap-2">{header}</div>
+      )}
 
       {m.htmlSanitized ? (
         <EmailFrame html={m.htmlSanitized} imagesAllowed={m.imagesAllowed} senderId={m.senderId} />
