@@ -11,7 +11,8 @@
     "test": "vitest run",
     "sync": "tsx scripts/sync.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.60",
