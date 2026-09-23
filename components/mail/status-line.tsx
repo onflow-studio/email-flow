@@ -12,7 +12,15 @@ import { useMailSelection } from "./selection";
 import { Time } from "./time";
 import { VIEWS } from "./views";
 
-type SyncAccount = { id: string; label: string; color: string; lastSyncAt: string | null; lastSyncError: string | null };
+type SyncAccount = {
+  id: string;
+  label: string;
+  color: string;
+  lastSyncAt: string | null;
+  lastSyncError: string | null;
+  // First sync or a stale-cursor recovery still working through its backlog, a slice per pass.
+  catchingUp: boolean;
+};
 
 export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
   const sel = useMailSelection();
@@ -27,6 +35,7 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
     });
 
   const failed = accounts.filter((a) => a.lastSyncError);
+  const catchingUp = accounts.filter((a) => a.catchingUp);
   const lastSync = accounts
     .map((a) => a.lastSyncAt)
     .filter((t): t is string => !!t)
@@ -55,6 +64,7 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
       </span>
     );
   }
+  else if (catchingUp.length) state = `catching up ${catchingUp.map((a) => a.label).join(", ")}`;
   else if (!accounts.length) state = "no accounts";
   else if (lastSync) state = <>synced <Time iso={lastSync} format="ago" /></>;
   else state = "never synced";

@@ -30,6 +30,7 @@ export async function listAccounts() {
       color: accounts.color,
       lastSyncAt: accounts.lastSyncAt,
       lastSyncError: accounts.lastSyncError,
+      catchingUp: isNotNull(accounts.catchUp).mapWith(Boolean),
     })
     .from(accounts)
     .orderBy(asc(accounts.createdAt));

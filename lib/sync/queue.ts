@@ -56,9 +56,10 @@ export async function processJobs(
   ctx: JobContext,
   budget = JOBS_PER_PASS,
 ): Promise<JobCounts> {
-  const counts: JobCounts = { done: 0, retry: 0, failed: 0, skipped: 0, superseded: 0 };
+  const counts: JobCounts = { done: 0, retry: 0, failed: 0, skipped: 0, superseded: 0, throttled: 0 };
   const seen = new Set<string>();
-  while (seen.size < budget) {
+  let throttled = false;
+  while (seen.size < budget && !throttled) {
     const batch = await claimJobs(ctx.db, accountId, Math.min(CLAIM_BATCH, budget - seen.size));
     // Skipped jobs (no handler yet) go straight back to pending; don't spin on them.
     const fresh = batch.filter((job) => !seen.has(job.id));
@@ -67,12 +68,15 @@ export async function processJobs(
       break;
     }
     for (const job of batch) {
-      if (seen.has(job.id)) {
+      // Once Gmail says wait, the rest of the batch would only be refused too.
+      if (seen.has(job.id) || throttled) {
         await releaseClaimed(ctx.db, [job.id]);
         continue;
       }
       seen.add(job.id);
-      counts[await runJob(job, ctx)]++;
+      const outcome = await runJob(job, ctx);
+      counts[outcome]++;
+      if (outcome === "throttled") throttled = true;
     }
   }
   return counts;

@@ -7,6 +7,7 @@ loadEnvConfig(process.cwd());
 
 const MAX_CONSECUTIVE_ERRORS = 5;
 const ERROR_PAUSE_MS = 30_000;
+const RATE_LIMIT_PAUSE_MS = 60_000;
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -20,6 +21,7 @@ async function main() {
   const { db } = await import("@/lib/db");
   const { accounts } = await import("@/lib/db/schema");
   const { ReauthRequiredError, getGmailLabelsAdapter } = await import("@/lib/gmail/client");
+  const { isRateLimitError } = await import("@/lib/gmail/errors");
   const { withLock } = await import("@/lib/sync");
   const { BACKFILL_BATCH, backfillStep, knownThreadIds, loadBackfill, saveBackfill } = await import(
     "@/lib/sync/backfill"
@@ -85,6 +87,12 @@ async function main() {
           errors = 0;
         } catch (error) {
           if (error instanceof ReauthRequiredError) throw error;
+          // Progress is saved per batch; wait out the quota minute without counting it as a failure.
+          if (isRateLimitError(error)) {
+            console.log(`${account.email} rate limited by Gmail, pausing`);
+            await sleep(RATE_LIMIT_PAUSE_MS);
+            continue;
+          }
           errors++;
           console.error(`${account.email} backfill batch failed (${errors}/${MAX_CONSECUTIVE_ERRORS})`, error);
           if (errors >= MAX_CONSECUTIVE_ERRORS) {
