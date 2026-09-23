@@ -7,6 +7,7 @@ export type ThreadAction =
   | { type: "archive" }
   | { type: "unarchive" }
   | { type: "trash" }
+  | { type: "restore" }
   | { type: "spam" }
   | { type: "read" }
   | { type: "unread" }

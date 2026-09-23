@@ -21,6 +21,8 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
       return { archived: false, trashed: false, spam: false };
     case "trash":
       return { trashed: true };
+    case "restore":
+      return { trashed: false };
     case "spam":
       return { spam: true };
     case "read":

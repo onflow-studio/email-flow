@@ -13,6 +13,7 @@ const unseen = () => or(isNull(threads.seenAt), resurfaced());
 
 function viewFilter(view: View): SQL | undefined {
   if (view.slug === "snoozed") return and(live(), gt(threads.snoozedUntil, sql`now()`));
+  if (view.slug === "trash") return and(eq(threads.trashed, true), eq(threads.spam, false));
   if (view.slug === "set-aside") return and(live(), isNotNull(threads.setAsideAt));
   const inBucket = and(eq(threads.bucket, view.bucket!), isNull(threads.snoozedUntil), isNull(threads.setAsideAt));
   // Resurfaced snoozes come back to the top of Inbox whatever their bucket.
@@ -37,7 +38,7 @@ export async function listAccounts() {
 
 export type AccountSummary = Awaited<ReturnType<typeof listAccounts>>[number];
 
-/** Unseen count for bucket views, total for snoozed and set aside. */
+/** Unseen count for bucket views, total for snoozed, set aside and trash. */
 export async function viewCounts(account: string | null): Promise<Record<ViewSlug, number>> {
   const rows = await Promise.all(
     VIEWS.map(async (view) => {
@@ -165,6 +166,7 @@ export async function getThread(id: string) {
     needsReply: thread.needsReply,
     deadlineAt: thread.deadlineAt?.toISOString() ?? null,
     setAside: thread.setAsideAt !== null,
+    trashed: thread.trashed,
     account: thread.account,
     messages: thread.messages.map((m) => ({
       ...m,

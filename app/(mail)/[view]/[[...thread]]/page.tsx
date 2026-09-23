@@ -105,7 +105,7 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
                   <ThreadList
                     threads={threads}
                     accountColors={accountColors}
-                    emptyLabel={view.bucket ? `${view.label} clear` : `nothing ${view.label}`}
+                    emptyLabel={view.bucket ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
                   />
                 </div>
               </section>

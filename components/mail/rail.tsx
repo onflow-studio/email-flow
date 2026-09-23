@@ -1,4 +1,4 @@
-import { Bookmark, Clock, Inbox, Newspaper, Receipt, ShieldQuestionMark, type LucideIcon } from "lucide-react";
+import { Bookmark, Clock, Inbox, Newspaper, Receipt, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ const ICONS: Record<ViewSlug, LucideIcon> = {
   triage: ShieldQuestionMark,
   snoozed: Clock,
   "set-aside": Bookmark,
+  trash: Trash2,
 };
 
 type RailAccount = { id: string; label: string; color: string };

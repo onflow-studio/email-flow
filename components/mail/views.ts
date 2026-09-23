@@ -1,11 +1,11 @@
 import type { Bucket } from "@/lib/db/schema";
 
-export type ViewSlug = "inbox" | "news" | "paper-trail" | "triage" | "snoozed" | "set-aside";
+export type ViewSlug = "inbox" | "news" | "paper-trail" | "triage" | "snoozed" | "set-aside" | "trash";
 
 export type View = {
   slug: ViewSlug;
   label: string;
-  /** Set for bucket views; snoozed and set aside cut across buckets. */
+  /** Set for bucket views; snoozed, set aside and trash cut across buckets. */
   bucket?: Bucket;
   /** Second key after `g`. */
   goKey?: string;
@@ -18,6 +18,7 @@ export const VIEWS: View[] = [
   { slug: "triage", label: "triage", bucket: "triage", goKey: "t" },
   { slug: "snoozed", label: "snoozed" },
   { slug: "set-aside", label: "set aside" },
+  { slug: "trash", label: "trash" },
 ];
 
 export function findView(slug: string): View | undefined {
