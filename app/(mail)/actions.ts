@@ -10,7 +10,11 @@ import { syncAllAccounts } from "@/lib/sync";
  */
 export async function refreshSync(): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    await syncAllAccounts();
+    const outcomes = await syncAllAccounts();
+    const reauth = outcomes.filter((o) => o.status === "reauth").map((o) => o.label);
+    const failed = outcomes.filter((o) => o.status === "error").map((o) => o.label);
+    if (reauth.length) return { ok: false, error: `reconnect ${reauth.join(", ")} in settings` };
+    if (failed.length) return { ok: false, error: `sync failed for ${failed.join(", ")}, retry` };
     return { ok: true };
   } catch (error) {
     console.error("refresh sync failed", error);

@@ -11,8 +11,8 @@ import { syncAccount, type SyncResult } from "./run";
 export const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 export type AccountSyncOutcome =
-  | { accountId: string; email: string; status: "ok"; result: SyncResult }
-  | { accountId: string; email: string; status: "busy" | "reauth" | "error"; error?: string };
+  | { accountId: string; email: string; label: string; status: "ok"; result: SyncResult }
+  | { accountId: string; email: string; label: string; status: "busy" | "reauth" | "error"; error?: string };
 
 // Session advisory lock on a reserved connection, so the loop and the API route never run
 // the same account at once. Needs a direct (session) connection, not a transaction pooler.
@@ -33,7 +33,7 @@ async function withAccountLock<T>(accountId: string, fn: () => Promise<T>): Prom
 }
 
 async function syncOne(account: typeof accounts.$inferSelect): Promise<AccountSyncOutcome> {
-  const base = { accountId: account.id, email: account.email };
+  const base = { accountId: account.id, email: account.email, label: account.label };
   try {
     const outcome = await withAccountLock(account.id, async () => {
       const gmail = await getGmailSyncAdapter(account.id);
