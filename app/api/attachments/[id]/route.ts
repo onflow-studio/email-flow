@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { attachments, messages } from "@/lib/db/schema";
 import { ReauthRequiredError, getGmailClient } from "@/lib/gmail/client";
+import { gmailLimiter } from "@/lib/gmail/quota";
 import { opensInline } from "@/lib/mail/remote";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,11 +35,9 @@ export async function GET(request: NextRequest, { params }: RouteContext<"/api/a
   let data: string | null | undefined;
   try {
     const gmail = await getGmailClient(row.accountId);
-    const res = await gmail.users.messages.attachments.get({
-      userId: "me",
-      messageId: row.gmailMessageId,
-      id: row.gmailAttachmentId,
-    });
+    const res = await gmailLimiter(row.accountId).run("messages.attachments.get", () =>
+      gmail.users.messages.attachments.get({ userId: "me", messageId: row.gmailMessageId, id: row.gmailAttachmentId }),
+    );
     data = res.data.data;
   } catch (error) {
     if (error instanceof ReauthRequiredError) {

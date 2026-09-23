@@ -4,7 +4,7 @@ import type { Db } from "@/lib/db";
 import { jobs, threads } from "@/lib/db/schema";
 
 import type { GmailSyncPort } from "./gmail";
-import { httpStatus } from "./http";
+import { httpStatus } from "@/lib/gmail/errors";
 import { PRIORITY_BACKFILL } from "./jobs";
 
 // Year-to-date import, newest first. Progress lives in one `backfill` row in `jobs` per account,

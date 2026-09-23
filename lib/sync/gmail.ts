@@ -1,8 +1,8 @@
 import type { gmail_v1 } from "@googleapis/gmail";
 
 import { getGmailClient } from "@/lib/gmail/client";
-
-import { httpStatus } from "./http";
+import { httpStatus } from "@/lib/gmail/errors";
+import { gmailLimiter, type GmailLimiter } from "@/lib/gmail/quota";
 
 export type HistoryPage = {
   history: gmail_v1.Schema$History[];
@@ -36,23 +36,27 @@ async function orNull<T>(call: Promise<T>): Promise<T | null> {
   }
 }
 
-export async function getGmailSyncAdapter(accountId: string): Promise<GmailSyncPort> {
-  const gmail = await getGmailClient(accountId);
+export type GmailSyncClient = Pick<gmail_v1.Gmail, "users">;
+
+// Every call goes through the account's limiter: paced, capped in flight, retried on rate limits.
+export function createGmailSyncAdapter(gmail: GmailSyncClient, limiter: GmailLimiter): GmailSyncPort {
   return {
     async getProfile() {
-      const { data } = await gmail.users.getProfile({ userId: "me" });
+      const { data } = await limiter.run("users.getProfile", () => gmail.users.getProfile({ userId: "me" }));
       if (!data.emailAddress || !data.historyId) throw new Error("Gmail profile incomplete");
       return { emailAddress: data.emailAddress, historyId: data.historyId };
     },
     async listHistory(startHistoryId, pageToken) {
       const res = await orNull(
-        gmail.users.history.list({
-          userId: "me",
-          startHistoryId,
-          pageToken,
-          maxResults: 500,
-          historyTypes: ["messageAdded", "messageDeleted", "labelAdded", "labelRemoved"],
-        }),
+        limiter.run("history.list", () =>
+          gmail.users.history.list({
+            userId: "me",
+            startHistoryId,
+            pageToken,
+            maxResults: 500,
+            historyTypes: ["messageAdded", "messageDeleted", "labelAdded", "labelRemoved"],
+          }),
+        ),
       );
       if (!res) return null;
       return {
@@ -62,20 +66,18 @@ export async function getGmailSyncAdapter(accountId: string): Promise<GmailSyncP
       };
     },
     async listThreadIds(query, pageToken) {
-      const { data } = await gmail.users.threads.list({
-        userId: "me",
-        q: query,
-        pageToken,
-        maxResults: 500,
-        includeSpamTrash: true,
-      });
+      const { data } = await limiter.run("threads.list", () =>
+        gmail.users.threads.list({ userId: "me", q: query, pageToken, maxResults: 500, includeSpamTrash: true }),
+      );
       return {
         threadIds: (data.threads ?? []).flatMap((t) => (t.id ? [t.id] : [])),
         nextPageToken: data.nextPageToken ?? null,
       };
     },
     async getThreadLabels(gmailThreadId) {
-      const res = await orNull(gmail.users.threads.get({ userId: "me", id: gmailThreadId, format: "minimal" }));
+      const res = await orNull(
+        limiter.run("threads.get", () => gmail.users.threads.get({ userId: "me", id: gmailThreadId, format: "minimal" })),
+      );
       if (!res?.data.id) return null;
       return {
         id: res.data.id,
@@ -85,8 +87,14 @@ export async function getGmailSyncAdapter(accountId: string): Promise<GmailSyncP
       };
     },
     async getMessage(gmailMessageId) {
-      const res = await orNull(gmail.users.messages.get({ userId: "me", id: gmailMessageId, format: "full" }));
+      const res = await orNull(
+        limiter.run("messages.get", () => gmail.users.messages.get({ userId: "me", id: gmailMessageId, format: "full" })),
+      );
       return res?.data ?? null;
     },
   };
+}
+
+export async function getGmailSyncAdapter(accountId: string): Promise<GmailSyncPort> {
+  return createGmailSyncAdapter(await getGmailClient(accountId), gmailLimiter(accountId));
 }
