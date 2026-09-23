@@ -61,13 +61,23 @@ const sameIds = (a: string[] | undefined, b: string[]) => !!a && a.length === b.
 /**
  * Keeps rows where they were while you work a view: opening a thread moves it
  * to the seen group on the server, but the list should not jump under the
- * keyboard. Rows that left are dropped; rows that appeared go on top.
+ * keyboard. Rows that left are dropped. Rows that appeared (new mail, an
+ * unsnoozed thread, a twin's shown copy changing) go where the server puts
+ * them: just before the first kept row that the server orders after them.
  */
 export function stableOrder(prev: string[] | undefined, next: string[]) {
   if (!prev) return next;
-  const present = new Set(next);
-  const known = new Set(prev);
-  return [...next.filter((id) => !known.has(id)), ...prev.filter((id) => present.has(id))];
+  const pos = new Map(next.map((id, i) => [id, i]));
+  const out = prev.filter((id) => pos.has(id));
+  const kept = new Set(out);
+  for (const id of next) {
+    if (kept.has(id)) continue;
+    const p = pos.get(id)!;
+    const before = out.findIndex((other) => pos.get(other)! > p);
+    if (before < 0) out.push(id);
+    else out.splice(before, 0, id);
+  }
+  return out;
 }
 
 /**
