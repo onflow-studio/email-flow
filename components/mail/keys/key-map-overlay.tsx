@@ -16,7 +16,7 @@ function KeyMapDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-4 pt-[15vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-4 pt-palette-top"
       onClick={() => setOpen(false)}
     >
       <div

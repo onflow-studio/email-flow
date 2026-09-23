@@ -59,7 +59,8 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 ## Layout
 
 - Desktop: three panes. Left rail 200px with buckets and counts. Thread list 360px. Reading pane takes the rest. Rail collapses to icons below 1100px.
-- Phone: single pane, list then thread, back via header. Touch targets 44px.
+- Phone: single pane, list then thread, back via a sticky header. Touch targets 44px. Keyboard hints are hidden, since there is no keyboard; search opens from a `search` button in the list header.
+- Home-screen icon: a `>_` prompt in `--accent` on `--bg`, square, with the prompt inside the maskable safe zone.
 - Command palette: centered, 640px max, top-aligned at 15vh so results grow downward.
 - Status line: a 24px bar at the bottom of the window, terminal-style, showing sync state, account, and the active keyboard hint. This is where "what to do next" lives.
 - Compose: a panel docked bottom-right over the reading pane, 640px wide, at most 70vh tall, sitting just above the status line with a 16px right gap. No backdrop, so the thread stays readable above it. Phone: a full-screen sheet.
@@ -71,7 +72,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
   - Secondary: transparent, `--border` border, `--text`. Most actions.
   - Ghost: no border, `--text-muted`, text turns `--text` on hover. Toolbar and inline actions.
   - Destructive: transparent with `--danger` text and border. Fills `--danger` only on hover.
-  - All buttons show their keyboard shortcut as a dim suffix, e.g. `Archive  e`.
+  - All buttons show their keyboard shortcut as a dim suffix, e.g. `Archive  e`: 11px at 60% opacity (`opacity-60`), so it dims on any button fill. The only opacity in the UI besides fades.
 - Thread row: account bar, sender at 500 if unseen, subject, snippet in `--text-muted`, time right-aligned in tabular 11px. Seen rows drop to 400 and `--text-dim` subject.
 - Badge: 11px, 2px radius, `--surface-raised` background, `--text-muted` text. Bucket badges use `--accent-dim` with `--accent` text. AI suggestions use `--info`.
 - Inline AI note: a single line above a thread in `--info`, prefixed with `>>`, e.g. `>> new sender, let in by AI. undo?`. Never a card, never a modal.
@@ -92,10 +93,11 @@ Tokens live in `app/globals.css`: raw values as CSS variables on `:root` with th
 
 - Color: `bg-bg`, `bg-surface`, `bg-surface-raised`, `bg-surface-top`, `border-border`, `text-text`, `text-text-muted`, `text-text-dim`, `*-accent`, `*-accent-dim`, `*-info`, `*-warning`, `*-danger`, `*-success`. shadcn names (`primary`, `muted`, `popover`, `destructive`, `ring`) alias these; `accent` keeps its meaning here.
 - Type: `text-11` `text-12` `text-13` `text-15` `text-20`, `font-normal` `font-medium` `font-semibold`, `leading-list` `leading-prose`. One family, `font-mono`.
-- Space: the default 4px scale (`p-1` 4, `p-2` 8, `p-3` 12, `p-4` 16, `p-6` 24, `p-8` 32). Layout sizes: `h-row` 32, `h-touch` 44, `h-status` 24, `w-rail` 200, `w-list` 360, `max-w-palette` 640, `w-compose` 640, `max-h-compose-h` 70vh.
+- Space: the default 4px scale (`p-1` 4, `p-2` 8, `p-3` 12, `p-4` 16, `p-6` 24, `p-8` 32). Layout sizes: `h-row` 32, `h-touch` 44, `h-status` 24, `w-rail` 200, `w-list` 360, `max-w-palette` 640, `pt-palette-top` 15vh (palette and other overlays), `w-compose` 640, `max-h-compose-h` 70vh, `w-rail-icons` 48 (rail below 1100), `w-sender` 112 (sender column in rows), `w-label` 56 (label column in forms), `w-field` 160 (short inputs), `min-h-editor` 160 (compose body).
 - Shape: `rounded-sm` 2px, `rounded-md` 4px.
 - Motion: `duration-80`, `duration-150`, `ease-snap`. Reduced motion zeroes all durations globally.
 - Gradients: `glow-focus`, `pane-depth`, `status-rule`. The only three.
-- Breakpoints: `md` 768, `rail` 1100.
+- Breakpoints: `md` 768, `rail` 1100. Below `md`, interactive rows and buttons are `h-touch`, and keyboard hints are hidden.
+- Safe area: `pb-safe` (with `box-content`) on bottom bars, so the installed app clears the phone's home indicator.
 
 Merge classes with `cn` from `lib/utils`, which knows this scale.

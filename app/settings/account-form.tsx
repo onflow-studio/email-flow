@@ -36,7 +36,7 @@ export function AccountForm({ account }: { account: Props }) {
       <div className="flex flex-wrap items-end gap-4 pl-4">
         <label className="flex flex-col gap-1">
           <span className="text-11 text-text-muted">label</span>
-          <input name="label" defaultValue={account.label} maxLength={32} required className={`${input} h-row w-40`} />
+          <input name="label" defaultValue={account.label} maxLength={32} required className={`${input} h-row w-field`} />
         </label>
         <fieldset className="flex flex-col gap-1">
           <legend className="mb-1 text-11 text-text-muted">color</legend>

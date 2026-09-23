@@ -30,7 +30,7 @@ export function Rail({
   return (
     <nav
       aria-label="views"
-      className="hidden w-12 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface py-3 md:flex rail:w-rail rail:px-3"
+      className="hidden w-rail-icons shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface py-3 md:flex rail:w-rail rail:px-3"
     >
       <ul className="flex flex-col gap-1">
         {VIEWS.map((v, i) => {

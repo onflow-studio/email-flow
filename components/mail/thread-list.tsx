@@ -103,7 +103,7 @@ function ThreadRow({
       <span aria-hidden className="h-3 w-0.5 shrink-0" style={{ backgroundColor: accountColor ?? "var(--text-dim)" }} />
       <span
         className={cn(
-          "w-28 shrink-0 truncate",
+          "w-sender shrink-0 truncate",
           t.unseen ? "font-medium text-text" : "text-text-muted",
         )}
       >

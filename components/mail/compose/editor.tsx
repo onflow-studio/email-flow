@@ -111,7 +111,7 @@ export function useComposeEditor({
 }
 
 const body = cn(
-  "min-h-40 px-3 py-2 leading-prose text-text",
+  "min-h-editor px-3 py-2 leading-prose text-text",
   "[&_h1]:text-20 [&_h1]:font-semibold [&_h2]:text-15 [&_h2]:font-semibold [&_h3]:text-13 [&_h3]:font-semibold",
   "[&_a]:text-text [&_a]:underline [&_img]:inline [&_img]:max-w-full [&_img]:rounded-sm",
   "[&_.is-editor-empty:first-child]:before:pointer-events-none [&_.is-editor-empty:first-child]:before:float-left [&_.is-editor-empty:first-child]:before:h-0 [&_.is-editor-empty:first-child]:before:text-text-dim [&_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]",

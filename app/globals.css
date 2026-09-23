@@ -79,6 +79,12 @@
   --container-palette: 640px;
   --spacing-compose: 640px;
   --spacing-compose-h: 70vh;
+  --spacing-palette-top: 15vh;
+  --spacing-rail-icons: 48px;
+  --spacing-sender: 112px;
+  --spacing-label: 56px;
+  --spacing-field: 160px;
+  --spacing-editor: 160px;
 
   --breakpoint-md: 768px;
   --breakpoint-rail: 1100px;
@@ -140,6 +146,11 @@
 @utility status-rule {
   border-top: 1px solid;
   border-image: linear-gradient(to right, var(--accent-dim), transparent) 1;
+}
+
+/* Clears the home indicator when installed on a phone. Pair with box-content so fixed heights hold. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 @layer base {
