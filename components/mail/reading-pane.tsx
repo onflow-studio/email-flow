@@ -182,7 +182,7 @@ function ExpandedMessage({
       </button>
 
       {m.htmlSanitized ? (
-        <EmailFrame html={m.htmlSanitized} imagesAllowed={m.imagesAllowed} />
+        <EmailFrame html={m.htmlSanitized} imagesAllowed={m.imagesAllowed} senderId={m.senderId} />
       ) : (
         <div className="leading-prose whitespace-pre-wrap text-text">{m.text}</div>
       )}

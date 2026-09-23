@@ -134,6 +134,7 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
                 color: a.color,
                 lastSyncAt: a.lastSyncAt?.toISOString() ?? null,
                 lastSyncError: a.lastSyncError,
+                catchingUp: a.catchingUp,
               }))}
             />
           </div>

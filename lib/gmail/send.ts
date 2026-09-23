@@ -5,6 +5,7 @@ import { convert } from "html-to-text";
 import type { Address } from "@/lib/db/schema";
 
 import { getGmailClient } from "./client";
+import { gmailLimiter } from "./quota";
 
 export type OutgoingAttachment = {
   filename: string;
@@ -169,11 +170,13 @@ export async function sendMessage(
 ): Promise<{ gmailMessageId: string; gmailThreadId: string }> {
   const gmail = await getGmailClient(accountId);
   // Media upload rather than `raw` in the body: allows up to 35 MB with attachments.
-  const res = await gmail.users.messages.send({
-    userId: "me",
-    requestBody: gmailThreadId ? { threadId: gmailThreadId } : {},
-    media: { mimeType: "message/rfc822", body: buildMime(message) },
-  });
+  const res = await gmailLimiter(accountId).run("messages.send", () =>
+    gmail.users.messages.send({
+      userId: "me",
+      requestBody: gmailThreadId ? { threadId: gmailThreadId } : {},
+      media: { mimeType: "message/rfc822", body: buildMime(message) },
+    }),
+  );
   if (!res.data.id || !res.data.threadId) throw new Error("Gmail did not return the sent message");
   return { gmailMessageId: res.data.id, gmailThreadId: res.data.threadId };
 }
@@ -184,11 +187,9 @@ export async function fetchAttachment(
   gmailAttachmentId: string,
 ): Promise<Buffer> {
   const gmail = await getGmailClient(accountId);
-  const res = await gmail.users.messages.attachments.get({
-    userId: "me",
-    messageId: gmailMessageId,
-    id: gmailAttachmentId,
-  });
+  const res = await gmailLimiter(accountId).run("messages.attachments.get", () =>
+    gmail.users.messages.attachments.get({ userId: "me", messageId: gmailMessageId, id: gmailAttachmentId }),
+  );
   if (!res.data.data) throw new Error("Gmail returned an empty attachment");
   return Buffer.from(res.data.data, "base64url");
 }
@@ -198,12 +199,14 @@ export type ReplyHeaders = { messageId: string | null; references: string | null
 /** Threading and Reply-To headers of one message, read from Gmail. */
 export async function fetchReplyHeaders(accountId: string, gmailMessageId: string): Promise<ReplyHeaders> {
   const gmail = await getGmailClient(accountId);
-  const res = await gmail.users.messages.get({
-    userId: "me",
-    id: gmailMessageId,
-    format: "metadata",
-    metadataHeaders: ["Message-ID", "References", "Reply-To"],
-  });
+  const res = await gmailLimiter(accountId).run("messages.get", () =>
+    gmail.users.messages.get({
+      userId: "me",
+      id: gmailMessageId,
+      format: "metadata",
+      metadataHeaders: ["Message-ID", "References", "Reply-To"],
+    }),
+  );
   const find = (name: string) =>
     res.data.payload?.headers?.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? null;
   return { messageId: find("Message-ID"), references: find("References"), replyTo: find("Reply-To") };

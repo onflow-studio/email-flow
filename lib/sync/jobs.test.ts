@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { classifyJob } from "@/lib/classify/classify";
 import { jobs, type Job } from "@/lib/db/schema";
+import { GmailRateLimitError } from "@/lib/gmail/errors";
 
 import {
   MAX_ATTEMPTS,
@@ -41,6 +42,18 @@ describe("retries", () => {
     expect(outcome).toBe("retry");
     expect(set).toMatchObject({ status: "pending", attempts: 1, error: "gmail 503", lockedAt: null });
     expect(set.runAfter?.getTime()).toBe(now.getTime() + 60_000);
+  });
+
+  it("a Gmail rate limit waits it out without using up an attempt", () => {
+    const now = new Date("2026-09-23T10:00:00Z");
+    const tooMany = Object.assign(new Error("Quota exceeded"), { status: 429 });
+    const { outcome, set } = settle({ attempts: MAX_ATTEMPTS - 1 }, tooMany, now);
+    expect(outcome).toBe("throttled");
+    expect(set).toMatchObject({ status: "pending", attempts: MAX_ATTEMPTS - 1, lockedAt: null });
+    expect(set.runAfter?.getTime()).toBe(now.getTime() + 60_000);
+    expect(settle({ attempts: 0 }, new GmailRateLimitError(90_000), now).set.runAfter?.getTime()).toBe(
+      now.getTime() + 90_000,
+    );
   });
 
   it("gives up after the last attempt", () => {

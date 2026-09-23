@@ -3,6 +3,7 @@ import { asc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { ReauthRequiredError, getGmailLabelsAdapter } from "@/lib/gmail/client";
+import { isRateLimitError } from "@/lib/gmail/errors";
 
 import { getGmailSyncAdapter } from "./gmail";
 import { releaseStaleLocks } from "./queue";
@@ -12,7 +13,7 @@ export const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 export type AccountSyncOutcome =
   | { accountId: string; email: string; label: string; status: "ok"; result: SyncResult }
-  | { accountId: string; email: string; label: string; status: "busy" | "reauth" | "error"; error?: string };
+  | { accountId: string; email: string; label: string; status: "busy" | "reauth" | "throttled" | "error"; error?: string };
 
 // Session advisory lock on a reserved connection, so the loop and the API route never run
 // the same account at once. Needs a direct (session) connection, not a transaction pooler.
@@ -43,6 +44,12 @@ async function syncOne(account: typeof accounts.$inferSelect): Promise<AccountSy
   } catch (error) {
     // getGmailClient already recorded "reconnect required" on the account.
     if (error instanceof ReauthRequiredError) return { ...base, status: "reauth" };
+    // Gmail asked us to slow down. Progress is saved and the next pass picks up from there, so this
+    // is not a failure to show; it also proves the account is reachable, so an old error is stale.
+    if (isRateLimitError(error)) {
+      await db.update(accounts).set({ lastSyncError: null }).where(eq(accounts.id, account.id));
+      return { ...base, status: "throttled" };
+    }
     const message = error instanceof Error ? error.message : String(error);
     await db.update(accounts).set({ lastSyncError: message }).where(eq(accounts.id, account.id));
     return { ...base, status: "error", error: message };

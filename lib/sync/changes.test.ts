@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { FALLBACK_OVERLAP_MS, INITIAL_WINDOW_DAYS, collectChanges, fallbackQuery, historyThreadIds } from "./changes";
+import { FALLBACK_OVERLAP_MS, INITIAL_WINDOW_DAYS, collectChanges, historyThreadIds, newCatchUp } from "./changes";
 import type { GmailSyncPort, HistoryPage } from "./gmail";
 
 function mockGmail(opts: {
@@ -38,14 +38,21 @@ describe("historyThreadIds", () => {
   });
 });
 
-describe("fallbackQuery", () => {
-  it("re-reads an hour before the last good sync", () => {
+describe("newCatchUp", () => {
+  it("re-reads an hour before the last good sync, up to now", () => {
     const last = new Date("2026-09-23T10:00:00Z");
-    expect(fallbackQuery(last, now)).toBe(`after:${(last.getTime() - FALLBACK_OVERLAP_MS) / 1000}`);
+    expect(newCatchUp("fallback", last, now)).toEqual({
+      mode: "fallback",
+      after: (last.getTime() - FALLBACK_OVERLAP_MS) / 1000,
+      before: now.getTime() / 1000,
+      pageToken: null,
+      offset: 0,
+      seen: 0,
+    });
   });
 
   it("looks back the initial window without a last sync", () => {
-    expect(fallbackQuery(null, now)).toBe(`after:${(now.getTime() - INITIAL_WINDOW_DAYS * 86_400_000) / 1000}`);
+    expect(newCatchUp("initial", null, now).after).toBe((now.getTime() - INITIAL_WINDOW_DAYS * 86_400_000) / 1000);
   });
 });
 
@@ -58,7 +65,7 @@ describe("collectChanges", () => {
       ],
     });
     const changes = await collectChanges(gmail, { historyId: "100", lastSyncAt: now }, now);
-    expect(changes).toEqual({ mode: "history", gmailThreadIds: ["t1", "t2"], cursor: "160" });
+    expect(changes).toEqual({ mode: "history", gmailThreadIds: ["t1", "t2"], cursor: "160", catchUp: null });
     expect(gmail.listHistory).toHaveBeenNthCalledWith(1, "100", undefined);
     expect(gmail.listHistory).toHaveBeenNthCalledWith(2, "100", "p2");
     expect(gmail.listThreadIds).not.toHaveBeenCalled();
@@ -70,41 +77,37 @@ describe("collectChanges", () => {
       mode: "history",
       gmailThreadIds: [],
       cursor: "120",
+      catchUp: null,
     });
   });
 
-  it("falls back to listing since the last sync when the cursor is stale", async () => {
+  it("on a stale cursor, takes a new one and leaves the listing since the last sync to catch-up", async () => {
     const lastSyncAt = new Date("2026-09-20T08:00:00Z");
-    const gmail = mockGmail({ history: [null], threadPages: [["t1", "t2"], ["t2", "t3"]], profileHistoryId: "999" });
+    const gmail = mockGmail({ history: [null], profileHistoryId: "999" });
     const changes = await collectChanges(gmail, { historyId: "5", lastSyncAt }, now);
-    expect(changes).toEqual({ mode: "fallback", gmailThreadIds: ["t1", "t2", "t3"], cursor: "999" });
-    expect(gmail.listThreadIds).toHaveBeenCalledWith(fallbackQuery(lastSyncAt, now), undefined);
-    expect(gmail.listThreadIds).toHaveBeenCalledWith(fallbackQuery(lastSyncAt, now), "next");
-  });
-
-  it("takes the new cursor before listing, so mail arriving mid-list is read next pass", async () => {
-    const gmail = mockGmail({ history: [null], threadPages: [["t1"]] });
-    await collectChanges(gmail, { historyId: "5", lastSyncAt: now }, now);
-    expect(gmail.getProfile.mock.invocationCallOrder[0]).toBeLessThan(
-      gmail.listThreadIds.mock.invocationCallOrder[0],
-    );
+    expect(changes).toEqual({
+      mode: "fallback",
+      gmailThreadIds: [],
+      cursor: "999",
+      catchUp: newCatchUp("fallback", lastSyncAt, now),
+    });
+    // Nothing listed yet: that runs in saved batches, so a quota error mid-way keeps what was done.
+    expect(gmail.listThreadIds).not.toHaveBeenCalled();
   });
 
   it("drops history pages read before the cursor turned out stale", async () => {
     const gmail = mockGmail({
       history: [{ history: [{ messagesAdded: [{ message: { threadId: "old" } }] }], historyId: "7", nextPageToken: "p2" }, null],
-      threadPages: [["t9"]],
     });
     const changes = await collectChanges(gmail, { historyId: "5", lastSyncAt: now }, now);
     expect(changes.mode).toBe("fallback");
-    expect(changes.gmailThreadIds).toEqual(["t9"]);
+    expect(changes.gmailThreadIds).toEqual([]);
   });
 
-  it("first sync of an account lists the initial window", async () => {
-    const gmail = mockGmail({ threadPages: [["t1"]], profileHistoryId: "42" });
+  it("first sync of an account takes a cursor and a catch-up over the initial window", async () => {
+    const gmail = mockGmail({ profileHistoryId: "42" });
     const changes = await collectChanges(gmail, { historyId: null, lastSyncAt: null }, now);
-    expect(changes).toEqual({ mode: "initial", gmailThreadIds: ["t1"], cursor: "42" });
+    expect(changes).toEqual({ mode: "initial", gmailThreadIds: [], cursor: "42", catchUp: newCatchUp("initial", null, now) });
     expect(gmail.listHistory).not.toHaveBeenCalled();
-    expect(gmail.listThreadIds).toHaveBeenCalledWith(fallbackQuery(null, now), undefined);
   });
 });

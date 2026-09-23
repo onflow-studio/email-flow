@@ -14,12 +14,16 @@ async function main() {
       for (const o of outcomes) {
         if (o.status === "ok") {
           const r = o.result;
+          const catchUp = r.catchUp ? `, ${r.catchUp.mode} catch-up at ${r.catchUp.seen} threads` : "";
           console.log(
             `${stamp} ${o.email} ${r.mode}: ${r.threads} threads, ${r.newMessages} new messages, ` +
-              `${r.classifyQueued} to classify, jobs ${r.jobs.done} done ${r.jobs.retry} retry ${r.jobs.failed} failed`,
+              `${r.classifyQueued} to classify, jobs ${r.jobs.done} done ${r.jobs.retry} retry ${r.jobs.failed} failed` +
+              `${r.jobs.throttled ? ` ${r.jobs.throttled} throttled` : ""}${catchUp}`,
           );
         } else if (o.status === "error") {
           console.error(`${stamp} ${o.email} sync failed: ${o.error}`);
+        } else if (o.status === "throttled") {
+          console.log(`${stamp} ${o.email} rate limited by Gmail, progress saved, resuming next pass`);
         } else {
           console.log(`${stamp} ${o.email} ${o.status === "busy" ? "skipped, another sync running" : "reconnect required"}`);
         }

@@ -4,12 +4,15 @@ import type { Evaluator } from "@/lib/classify/classify";
 import { classifyJob } from "@/lib/classify/classify";
 import type { Db } from "@/lib/db";
 import { jobs, type Job, type JobType } from "@/lib/db/schema";
+import { GmailRateLimitError, isRateLimitError } from "@/lib/gmail/errors";
 
 import { writebackJob, type GmailLabelsPort } from "./writeback";
 
 export const MAX_ATTEMPTS = 8;
 const BASE_BACKOFF_MS = 60_000;
 const MAX_BACKOFF_MS = 6 * 60 * 60_000;
+// Gmail's per-user quota is per minute, so a throttled job is due again within about that.
+const THROTTLE_PAUSE_MS = 60_000;
 
 export const PRIORITY_LIVE = 10;
 export const PRIORITY_BACKFILL = 0;
@@ -86,7 +89,7 @@ export function enqueueWriteback(db: Pick<Db, "insert">, thread: { id: string; a
   });
 }
 
-export type JobOutcome = "done" | "retry" | "failed" | "skipped" | "superseded";
+export type JobOutcome = "done" | "retry" | "failed" | "skipped" | "superseded" | "throttled";
 
 export function isUniqueViolation(error: unknown): boolean {
   const e = error as { code?: string; cause?: { code?: string } } | null;
@@ -111,10 +114,24 @@ export async function requeue(db: Pick<Db, "update">, id: string, set: PendingSe
   }
 }
 
-// Settle one job the runner has already claimed (status running, locked).
+// Settle one job the runner has already claimed (status running, locked). A rate limit is Gmail
+// asking us to wait, not the job failing, so it does not use up an attempt.
 export function settle(job: Pick<Job, "attempts">, error: unknown, now = new Date()) {
-  const attempts = job.attempts + 1;
   const message = error instanceof Error ? error.message : String(error);
+  if (isRateLimitError(error)) {
+    const pause = Math.max(THROTTLE_PAUSE_MS, error instanceof GmailRateLimitError ? error.retryAfterMs : 0);
+    return {
+      outcome: "throttled" as const,
+      set: {
+        status: "pending" as const,
+        attempts: job.attempts,
+        error: message,
+        lockedAt: null,
+        runAfter: new Date(now.getTime() + pause),
+      },
+    };
+  }
+  const attempts = job.attempts + 1;
   if (attempts >= MAX_ATTEMPTS) {
     return { outcome: "failed" as const, set: { status: "failed" as const, attempts, error: message, lockedAt: null } };
   }

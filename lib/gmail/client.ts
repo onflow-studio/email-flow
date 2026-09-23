@@ -7,6 +7,7 @@ import { accounts } from "@/lib/db/schema";
 
 import { decryptToken, encryptToken } from "./crypto";
 import { createOAuthClient } from "./oauth";
+import { gmailLimiter } from "./quota";
 import { REAUTH_MESSAGE } from "./status";
 
 // Refresh token revoked or expired. Only a new OAuth consent fixes it.
@@ -89,8 +90,14 @@ export async function getAuthClient(accountId: string): Promise<OAuth2Client> {
   return auth;
 }
 
+// The library's own retries would resend 429s at once and outside the quota budget; lib/gmail/quota
+// handles those, so the library only retries server errors.
 export async function getGmailClient(accountId: string): Promise<gmail_v1.Gmail> {
-  return gmail({ version: "v1", auth: await getAuthClient(accountId) });
+  return gmail({
+    version: "v1",
+    auth: await getAuthClient(accountId),
+    retryConfig: { statusCodesToRetry: [[500, 599]] },
+  });
 }
 
 // Structurally matches GmailLabelsPort in lib/sync/writeback.ts.
@@ -105,27 +112,28 @@ export interface GmailLabelsAdapter {
 
 export async function getGmailLabelsAdapter(accountId: string): Promise<GmailLabelsAdapter> {
   const client = await getGmailClient(accountId);
+  const limiter = gmailLimiter(accountId);
   return {
     async listLabels() {
-      const res = await client.users.labels.list({ userId: "me" });
+      const res = await limiter.run("labels.list", () => client.users.labels.list({ userId: "me" }));
       return (res.data.labels ?? []).flatMap((l) =>
         l.id && l.name ? [{ id: l.id, name: l.name }] : [],
       );
     },
     async createLabel(name) {
-      const res = await client.users.labels.create({
-        userId: "me",
-        requestBody: { name, labelListVisibility: "labelShow", messageListVisibility: "show" },
-      });
+      const res = await limiter.run("labels.create", () =>
+        client.users.labels.create({
+          userId: "me",
+          requestBody: { name, labelListVisibility: "labelShow", messageListVisibility: "show" },
+        }),
+      );
       if (!res.data.id || !res.data.name) throw new Error(`Gmail did not return label ${name}`);
       return { id: res.data.id, name: res.data.name };
     },
     async modifyThread(gmailThreadId, change) {
-      await client.users.threads.modify({
-        userId: "me",
-        id: gmailThreadId,
-        requestBody: change,
-      });
+      await limiter.run("threads.modify", () =>
+        client.users.threads.modify({ userId: "me", id: gmailThreadId, requestBody: change }),
+      );
     },
   };
 }

@@ -1,5 +1,7 @@
 import type { gmail_v1 } from "@googleapis/gmail";
 
+import type { CatchUpState } from "@/lib/db/schema";
+
 import type { GmailSyncPort } from "./gmail";
 
 // First sync of an account only looks back this far. Older mail is the backfill's job.
@@ -13,6 +15,8 @@ export type Changes = {
   mode: ChangeMode;
   gmailThreadIds: string[];
   cursor: string;
+  // Set when there is no usable cursor: the listing to work through, a page at a time.
+  catchUp: CatchUpState | null;
 };
 
 // Every thread touched by a history page: new, deleted, or relabelled messages.
@@ -30,26 +34,25 @@ export function historyThreadIds(history: gmail_v1.Schema$History[]): string[] {
   return [...ids];
 }
 
-export function fallbackQuery(lastSyncAt: Date | null, now: Date): string {
+// What a listing sync has to cover: since the last good sync, or the initial window on a first sync.
+export function newCatchUp(mode: CatchUpState["mode"], lastSyncAt: Date | null, now: Date): CatchUpState {
   const since = lastSyncAt
     ? new Date(lastSyncAt.getTime() - FALLBACK_OVERLAP_MS)
     : new Date(now.getTime() - INITIAL_WINDOW_DAYS * 86_400_000);
-  // `after:` takes epoch seconds.
-  return `after:${Math.floor(since.getTime() / 1000)}`;
+  return {
+    mode,
+    // `after:` and `before:` take epoch seconds.
+    after: Math.floor(since.getTime() / 1000),
+    before: Math.ceil(now.getTime() / 1000),
+    pageToken: null,
+    offset: 0,
+    seen: 0,
+  };
 }
 
-async function listAll(gmail: GmailSyncPort, query: string): Promise<string[]> {
-  const ids = new Set<string>();
-  let pageToken: string | undefined;
-  do {
-    const page = await gmail.listThreadIds(query, pageToken);
-    page.threadIds.forEach((id) => ids.add(id));
-    pageToken = page.nextPageToken ?? undefined;
-  } while (pageToken);
-  return [...ids];
-}
-
-// Which threads changed since the cursor, and the cursor to store once they are ingested.
+// Which threads changed since the cursor, and the cursor to store once they are ingested. Without a
+// usable cursor, a fresh one plus a catch-up listing: the listing can take several passes, and the
+// cursor covers anything that arrives meanwhile.
 export async function collectChanges(
   gmail: GmailSyncPort,
   account: { historyId: string | null; lastSyncAt: Date | null },
@@ -70,12 +73,15 @@ export async function collectChanges(
       cursor = page.historyId;
       pageToken = page.nextPageToken ?? undefined;
     } while (pageToken);
-    if (!stale) return { mode: "history", gmailThreadIds: [...ids], cursor };
+    if (!stale) return { mode: "history", gmailThreadIds: [...ids], cursor, catchUp: null };
   }
 
-  // Take the cursor before listing so nothing arriving mid-list is skipped next pass.
   const { historyId } = await gmail.getProfile();
-  const mode: ChangeMode = account.historyId ? "fallback" : "initial";
-  const since = mode === "initial" ? null : account.lastSyncAt;
-  return { mode, gmailThreadIds: await listAll(gmail, fallbackQuery(since, now)), cursor: historyId };
+  const mode = account.historyId ? "fallback" : "initial";
+  return {
+    mode,
+    gmailThreadIds: [],
+    cursor: historyId,
+    catchUp: newCatchUp(mode, mode === "initial" ? null : account.lastSyncAt, now),
+  };
 }
