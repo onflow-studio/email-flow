@@ -1,11 +1,11 @@
-import { and, eq, isNull, ne, or } from "drizzle-orm";
+import { and, eq, isNull, lt, ne, or } from "drizzle-orm";
 
 import type { LanguageModel } from "ai";
 
 import { generateStructured } from "@/lib/ai";
 import type { Db } from "@/lib/db";
 import { classifications, senders, threads, type Job } from "@/lib/db/schema";
-import { enqueueWriteback, type JobContext } from "@/lib/sync/jobs";
+import { enqueueSummary, enqueueWriteback, type JobContext } from "@/lib/sync/jobs";
 
 import { loadContext } from "./context";
 import {
@@ -15,6 +15,7 @@ import {
   type ClassifierAnswer,
   type ClassifierRequest,
 } from "./prompt";
+import { wantsSummary } from "./summary";
 import { evaluateRules, modelConfirms, ruleDecision } from "./rules";
 import { decide, needsScreening } from "./thresholds";
 import type { ClassifyContext, Decision, ModelResult } from "./types";
@@ -53,8 +54,7 @@ export async function runClassifier(
     return { decision: ruleDecision(rules.direct.bucket, ctx.sender), model: null };
   }
 
-  const response = await evaluate(buildClassifierRequest({ ...ctx, rules: rules.hints }));
-  const result = parseAnswer(response.output, needsScreening(ctx.sender));
+  const { result, response } = await callModel(ctx, rules.hints, evaluate);
   const decision =
     rules.conditional && modelConfirms(rules.conditional, result)
       ? ruleDecision(rules.conditional.bucket, ctx.sender)
@@ -63,6 +63,34 @@ export async function runClassifier(
     decision,
     model: { id: response.modelId, raw: response.raw, result },
   };
+}
+
+async function callModel(ctx: ClassifyContext, hints: ClassifyContext["rules"], evaluate: Evaluator) {
+  const response = await evaluate(buildClassifierRequest({ ...ctx, rules: hints }));
+  return { response, result: parseAnswer(response.output, needsScreening(ctx.sender)) };
+}
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+function recordModel(tx: Tx, threadId: string, model: NonNullable<ClassifierRun["model"]>) {
+  return tx.insert(classifications).values({
+    threadId,
+    model: model.id,
+    rawResponse: model.raw,
+    bucket: model.result.bucket,
+    bucketProbabilities: model.result.bucketProbabilities,
+    urgency: model.result.urgency,
+    humanWritten: model.result.humanWritten >= 0.5,
+    legitNewSender: model.result.legitNewSender === null ? null : model.result.legitNewSender >= 0.5,
+  });
+}
+
+// Only moves forward: a slower call must not overwrite a summary of a newer message.
+function storeSummary(tx: Tx, threadId: string, summary: string | null, upTo: Date) {
+  return tx
+    .update(threads)
+    .set({ summary, summaryMessageAt: upTo })
+    .where(and(eq(threads.id, threadId), or(isNull(threads.summaryMessageAt), lt(threads.summaryMessageAt, upTo))));
 }
 
 // Classify one thread and apply the decision. Skips threads the user already placed.
@@ -79,17 +107,11 @@ export async function classifyThread(
 
   await db.transaction(async (tx) => {
     if (model) {
-      await tx.insert(classifications).values({
-        threadId,
-        model: model.id,
-        rawResponse: model.raw,
-        bucket: model.result.bucket,
-        bucketProbabilities: model.result.bucketProbabilities,
-        urgency: model.result.urgency,
-        humanWritten: model.result.humanWritten >= 0.5,
-        legitNewSender:
-          model.result.legitNewSender === null ? null : model.result.legitNewSender >= 0.5,
-      });
+      await recordModel(tx, threadId, model);
+      await storeSummary(tx, threadId, model.result.summary, thread.lastMessageAt);
+    } else if (wantsSummary(decision.bucket)) {
+      // A rule or the screener decided without the model; ask it for the summary alone.
+      await enqueueSummary(tx, thread);
     }
 
     // Re-check inside the transaction: a user move may have landed during the model call.
@@ -120,13 +142,42 @@ export async function classifyThread(
   return decision;
 }
 
+export type SummaryRun = { summary: string | null; raw: unknown } | null;
+
+// Refresh the list summary without touching the bucket: new messages, and threads imported before
+// summaries existed. Same call as classification, so the answer is also kept in classifications.
+// Null when skipped: nothing inbound, a bucket that keeps its snippet, or already up to date.
+export async function summarizeThread(
+  db: Db,
+  threadId: string,
+  evaluate: Evaluator = defaultEvaluator,
+): Promise<SummaryRun> {
+  const loaded = await loadContext(db, threadId);
+  if (!loaded) return null;
+  const { thread, ctx } = loaded;
+  if (!wantsSummary(thread.bucket)) return null;
+  if (thread.summaryMessageAt && thread.summaryMessageAt >= thread.lastMessageAt) return null;
+
+  const rules = evaluateRules(ctx.rules, ctx.thread, {
+    senderCorrectedAt: ctx.senderCorrectedAt ?? null,
+    screening: needsScreening(ctx.sender),
+  });
+  const { response, result } = await callModel(ctx, rules.hints, evaluate);
+  await db.transaction(async (tx) => {
+    await recordModel(tx, threadId, { id: response.modelId, raw: response.raw, result });
+    await storeSummary(tx, threadId, result.summary, thread.lastMessageAt);
+  });
+  return { summary: result.summary, raw: response.raw };
+}
+
 // bucket_source is null until first placement; `<> 'user'` alone would drop nulls.
 function notUserPlaced() {
   return or(isNull(threads.bucketSource), ne(threads.bucketSource, "user"));
 }
 
 export async function classifyJob(job: Job, ctx: JobContext) {
-  const { threadId } = job.payload as { threadId?: string };
+  const { threadId, summaryOnly } = job.payload as { threadId?: string; summaryOnly?: boolean };
   if (!threadId) throw new Error("classify job without threadId");
-  await classifyThread(ctx.db, threadId, ctx.evaluate);
+  if (summaryOnly) await summarizeThread(ctx.db, threadId, ctx.evaluate);
+  else await classifyThread(ctx.db, threadId, ctx.evaluate);
 }

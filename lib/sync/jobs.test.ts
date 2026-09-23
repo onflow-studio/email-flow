@@ -8,6 +8,8 @@ import { GmailRateLimitError } from "@/lib/gmail/errors";
 import {
   MAX_ATTEMPTS,
   backoffMs,
+  enqueueClassify,
+  enqueueSummary,
   isUniqueViolation,
   jobHandler,
   requeue,
@@ -25,6 +27,34 @@ describe("jobHandler", () => {
 
   it("has no backfill handler yet", () => {
     expect(jobHandler("backfill")).toBeUndefined();
+  });
+});
+
+describe("summary refresh", () => {
+  function capture() {
+    const values: Record<string, unknown>[] = [];
+    const db = {
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          values.push(v);
+          return { onConflictDoNothing: async () => undefined };
+        },
+      }),
+    } as unknown as Parameters<typeof enqueueSummary>[0];
+    return { db, values };
+  }
+
+  it("is a classify job told to refresh the summary only, with a key of its own", async () => {
+    const { db, values } = capture();
+    const thread = { id: "t1", accountId: "a1" };
+    await enqueueClassify(db, thread);
+    await enqueueSummary(db, thread);
+    expect(values[0]).toMatchObject({ type: "classify", payload: { threadId: "t1" }, dedupeKey: "classify:t1" });
+    expect(values[1]).toMatchObject({
+      type: "classify",
+      payload: { threadId: "t1", summaryOnly: true },
+      dedupeKey: "summary:t1",
+    });
   });
 });
 

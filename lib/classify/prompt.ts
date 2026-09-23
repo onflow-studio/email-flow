@@ -1,13 +1,18 @@
 import { z } from "zod";
 
+import { parseSummary } from "./summary";
 import { needsScreening } from "./thresholds";
 import { MODEL_BUCKETS, type ClassifyContext, type ModelBucket, type ModelResult } from "./types";
 
 export const TEXT_LIMIT = 2000;
+export const LATEST_TEXT_LIMIT = 1000;
 
 // No numeric bounds in the schema: structured output does not enforce them, parseAnswer does.
 export const answerSchema = z.object({
   reason: z.string().describe("One short sentence on what this mail is and why it goes where it goes"),
+  // Asked before summary so the model settles the language before writing it.
+  language: z.string().describe("Language the mail body is written in, as an ISO 639-1 code such as es or en"),
+  summary: z.string().describe("One-line summary of the thread for the mail list, written in that language"),
   bucket: z
     .object({ inbox: z.number(), news: z.number(), paper_trail: z.number() })
     .describe("Probability of each bucket, 0-1, summing to 1"),
@@ -49,9 +54,21 @@ legitNewSender: only when "screening" is true. The sender has never emailed the 
 probability this is a legitimate sender the user would want to hear from, rather than spam, phishing,
 cold outreach or unsolicited promotion. When "screening" is false, answer null.
 
+summary: one plain sentence of at most 15 words, shown in place of the snippet in the mail list next to
+the sender and subject. Say what the thread is about and what, if anything, the user needs to do, with
+the concrete detail that matters (amount, date, product, question). Do not repeat the sender's name or
+the subject, and do not start with "This email". When "latest" is present, summarise where the thread
+stands now.
+
+language: the language the mail body is written in. The summary must be written in that same language,
+never translated to English: a mail in Spanish gets a summary in Spanish, a mail in French one in French,
+even though these instructions are in English.
+
 Input fields:
 - email: account it arrived on, sender, subject, the first ${TEXT_LIMIT} characters of text, and header
   facts (list-unsubscribe, precedence, auto-submitted, whether it is a reply).
+- latest: only when the thread has more than one message, the newest message, and whether the user
+  wrote it.
 - sender: what the user's history says about this sender.
 - rules: the user's own sorting rules, in plain language, sometimes with structured hints. Apply them
   when they match.
@@ -77,6 +94,15 @@ export function buildClassifierRequest(ctx: ClassifyContext): ClassifierRequest 
         isReply: Boolean(thread.headers.inReplyTo),
       },
     },
+    ...(thread.latest
+      ? {
+          latest: {
+            fromUser: thread.latest.fromUser,
+            from: { name: thread.latest.fromName, email: thread.latest.fromEmail },
+            text: thread.latest.text.slice(0, LATEST_TEXT_LIMIT),
+          },
+        }
+      : {}),
     sender: {
       screenerDecision: sender.decision,
       threadsFromSender: sender.threadCount,
@@ -130,5 +156,6 @@ export function parseAnswer(answer: ClassifierAnswer, screening: boolean): Model
     urgency: answer.urgency,
     humanWritten: probability("humanWritten", answer.humanWritten),
     legitNewSender,
+    summary: parseSummary(answer.summary),
   };
 }

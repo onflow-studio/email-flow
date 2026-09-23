@@ -22,6 +22,7 @@ export function result(overrides: Partial<ModelResult> = {}): ModelResult {
     urgency: 1,
     humanWritten: 0.1,
     legitNewSender: null,
+    summary: "Invoice for September paid, nothing to do.",
     ...overrides,
   };
 }

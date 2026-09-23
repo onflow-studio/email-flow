@@ -112,7 +112,9 @@ function ThreadRow({
       {t.messageCount > 1 ? <span className="shrink-0 text-11 text-text-dim">{t.messageCount}</span> : null}
       <span className="min-w-0 flex-1 truncate">
         <span className={t.unseen ? "font-medium text-text" : "text-text-dim"}>{t.subject}</span>
-        {t.snippet ? <span className={t.unseen ? "text-text-muted" : "text-text-dim"}> {t.snippet}</span> : null}
+        {t.summary || t.snippet ? (
+          <span className={t.unseen ? "text-text-muted" : "text-text-dim"}> {t.summary ?? t.snippet}</span>
+        ) : null}
       </span>
       {t.resurfaced ? <Badge>back</Badge> : null}
       {overdue ? <Badge className="text-warning">overdue</Badge> : t.needsReply ? <Badge>reply</Badge> : null}

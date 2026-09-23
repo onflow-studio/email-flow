@@ -55,3 +55,11 @@ export async function generateStructured<T>(
     raw: { output: result.output, usage: result.usage, finishReason: result.finishReason },
   };
 }
+
+// Milliseconds to wait when the provider refused for rate, null for any other error.
+export function aiRateLimitWaitMs(error: unknown): number | null {
+  const e = error as { statusCode?: number; responseHeaders?: Record<string, string> } | null;
+  if (e?.statusCode !== 429 && e?.statusCode !== 529) return null;
+  const seconds = Number(e.responseHeaders?.["retry-after"]);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 60_000;
+}

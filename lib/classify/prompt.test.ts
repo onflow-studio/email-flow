@@ -4,9 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { claudeEvaluator, runClassifier } from "./classify";
 import { context, sender } from "./fixtures";
+import { SUMMARY_LIMIT, parseSummary, wantsSummary } from "./summary";
 import {
+  LATEST_TEXT_LIMIT,
   SYSTEM_PROMPT,
   TEXT_LIMIT,
+  answerSchema,
   buildClassifierRequest,
   parseAnswer,
   type ClassifierAnswer,
@@ -14,6 +17,7 @@ import {
 
 type Input = {
   screening: boolean;
+  latest?: { fromUser: boolean; from: { email: string }; text: string };
   email: { text: string; subject: string; headers: Record<string, unknown>; from: { domain: string } };
   sender: Record<string, unknown>;
   rules: unknown[];
@@ -25,6 +29,8 @@ const input = (prompt: string) => JSON.parse(prompt) as Input;
 function answer(overrides: Partial<ClassifierAnswer> = {}): ClassifierAnswer {
   return {
     reason: "An invoice from Vercel.",
+    language: "en",
+    summary: "September invoice paid by card, nothing to do.",
     bucket: { inbox: 0.04, news: 0.01, paper_trail: 0.95 },
     urgency: 1,
     humanWritten: 0.05,
@@ -70,6 +76,20 @@ describe("buildClassifierRequest", () => {
       isReply: true,
     });
     expect(facts).toMatchObject({ screenerDecision: "allowed", threadsFromSender: 4 });
+  });
+
+  it("adds the newest message only when the thread has more than one", () => {
+    expect(input(buildClassifierRequest(context()).prompt).latest).toBeUndefined();
+    const ctx = context({
+      thread: {
+        ...context().thread,
+        messageCount: 3,
+        latest: { fromName: null, fromEmail: "me@work1.example", fromUser: true, text: "b".repeat(LATEST_TEXT_LIMIT + 50) },
+      },
+    });
+    const { latest } = input(buildClassifierRequest(ctx).prompt);
+    expect(latest).toMatchObject({ fromUser: true, from: { email: "me@work1.example" } });
+    expect(latest?.text).toHaveLength(LATEST_TEXT_LIMIT);
   });
 
   it("keeps the system prompt identical across threads so it caches", () => {
@@ -146,6 +166,59 @@ describe("parseAnswer", () => {
     expect(() => parseAnswer(answer(), true)).toThrow(/legitNewSender/);
     expect(parseAnswer(answer({ legitNewSender: 0.7 }), true).legitNewSender).toBe(0.7);
     expect(parseAnswer(answer({ legitNewSender: 0.7 }), false).legitNewSender).toBeNull();
+  });
+});
+
+describe("summary", () => {
+  it("comes back from parseAnswer, trimmed to one line", () => {
+    expect(parseAnswer(answer(), false).summary).toBe("September invoice paid by card, nothing to do.");
+    expect(parseAnswer(answer({ summary: "  Pide confirmar\n la reunión   del jueves. " }), false).summary).toBe(
+      "Pide confirmar la reunión del jueves.",
+    );
+  });
+
+  it("strips quotes the model wraps around it", () => {
+    expect(parseSummary('"Asks to confirm Thursday."')).toBe("Asks to confirm Thursday.");
+    expect(parseSummary("«Demande une réponse avant lundi.»")).toBe("Demande une réponse avant lundi.");
+    expect(parseSummary("“Refund of 40 € issued.”")).toBe("Refund of 40 € issued.");
+  });
+
+  it("caps the length with an ellipsis", () => {
+    const out = parseSummary("word ".repeat(100));
+    expect(out).toHaveLength(SUMMARY_LIMIT);
+    expect(out?.endsWith("…")).toBe(true);
+  });
+
+  it("is null when empty, so the list falls back to the snippet, without failing the answer", () => {
+    expect(parseSummary("   ")).toBeNull();
+    expect(parseSummary('""')).toBeNull();
+    expect(parseSummary(undefined)).toBeNull();
+    const r = parseAnswer(answer({ summary: "" }), false);
+    expect(r.summary).toBeNull();
+    expect(r.bucket).toBe("paper_trail");
+  });
+
+  it("is required in the structured output", () => {
+    const { summary, ...rest } = answer();
+    expect(summary).toBeTruthy();
+    expect(answerSchema.safeParse(rest).success).toBe(false);
+    expect(answerSchema.safeParse(answer()).success).toBe(true);
+  });
+
+  it("skips the call for buckets that keep their snippet", () => {
+    expect(wantsSummary("inbox")).toBe(true);
+    expect(wantsSummary("triage")).toBe(true);
+    expect(wantsSummary("paper_trail")).toBe(true);
+    expect(wantsSummary("news")).toBe(false);
+    expect(wantsSummary("out")).toBe(false);
+  });
+
+  it("travels through the mocked model call into the result", async () => {
+    const run = await runClassifier(
+      context(),
+      claudeEvaluator(mockModel(answer({ summary: "Factura de septiembre pagada." }))),
+    );
+    expect(run.model?.result.summary).toBe("Factura de septiembre pagada.");
   });
 });
 

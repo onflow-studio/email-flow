@@ -32,6 +32,8 @@ export type ThreadInput = {
   text: string;
   headers: MessageHeaders;
   messageCount: number;
+  // Newest message when the thread has more than one, so the summary tracks where it stands.
+  latest?: { fromName: string | null; fromEmail: string; fromUser: boolean; text: string } | null;
 };
 
 export type Exemplar = {
@@ -63,6 +65,8 @@ export type ModelResult = {
   humanWritten: number;
   // Null when the sender was known and the question was not asked.
   legitNewSender: number | null;
+  // One-line list summary. Null when the model gave nothing usable.
+  summary: string | null;
 };
 
 export type Decision = {

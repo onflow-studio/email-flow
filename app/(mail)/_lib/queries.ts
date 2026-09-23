@@ -85,6 +85,8 @@ export async function listThreads(view: View, account: string | null) {
       fromName: last.fromName,
       fromEmail: last.fromEmail,
       snippet: last.snippet,
+      summary: threads.summary,
+      summaryMessageAt: threads.summaryMessageAt,
       messageCount: sql<number>`(select count(*)::int from ${messages} where ${messages.threadId} = ${threads.id})`,
     })
     .from(threads)
@@ -97,6 +99,12 @@ export async function listThreads(view: View, account: string | null) {
     )
     .limit(300);
 
+  // News keeps the snippet. Elsewhere the summary stands in once it covers the newest message.
+  const summaryOf = (r: (typeof rows)[number]) =>
+    view.slug !== "news" && r.summary && r.summaryMessageAt && r.summaryMessageAt >= r.lastMessageAt
+      ? r.summary
+      : null;
+
   return rows.map((r) => ({
     id: r.id,
     accountId: r.accountId,
@@ -105,6 +113,7 @@ export async function listThreads(view: View, account: string | null) {
     subject: r.subject || "(no subject)",
     sender: r.participants || r.fromName || r.fromEmail || "unknown",
     snippet: r.snippet ?? "",
+    summary: summaryOf(r),
     lastMessageAt: r.lastMessageAt.toISOString(),
     unseen: !!r.unseen,
     resurfaced: r.resurfaced,

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 
+import { wantsSummary } from "@/lib/classify/summary";
 import type { Db } from "@/lib/db";
 import {
   attachments,
@@ -16,7 +17,7 @@ import { parseGmailMessage, type ParsedMessage } from "@/lib/mail/mime";
 import { rewriteCidImages } from "@/lib/mail/remote";
 
 import type { GmailSyncPort } from "./gmail";
-import { PRIORITY_LIVE, enqueueClassify } from "./jobs";
+import { PRIORITY_LIVE, enqueueClassify, enqueueSummary } from "./jobs";
 import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt } from "./mirror";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -189,6 +190,7 @@ export async function ingestThread(
       }
     }
 
+    let inserted = 0;
     for (const { m, inbound } of parsed) {
       const files = m.attachments.map((a) => ({ ...a, id: randomUUID() }));
       const byContentId = new Map(
@@ -218,6 +220,7 @@ export async function ingestThread(
         })
         .onConflictDoNothing()
         .returning({ id: messages.id });
+      if (row) inserted++;
       if (row && files.length > 0) {
         await tx.insert(attachments).values(files.map((f) => ({ ...f, messageId: row.id })));
       }
@@ -273,6 +276,10 @@ export async function ingestThread(
 
     const classify = created && derived.hasInbound && !mirror.trashed && !mirror.spam;
     if (classify) await enqueueClassify(tx, { id: threadId, accountId: account.id }, classifyPriority);
+    // A new message in a known thread makes its summary stale.
+    else if (existing && inserted > 0 && derived.hasInbound && wantsSummary(existing.bucket) && !mirror.spam) {
+      await enqueueSummary(tx, { id: threadId, accountId: account.id }, classifyPriority);
+    }
 
     return { status: "stored" as const, threadId, created, newMessages: parsed.length, classify };
   });

@@ -58,7 +58,7 @@ superfer/
 Core tables, Drizzle in `lib/db/schema.ts`.
 
 - `accounts`: id, email, label, color, oauth tokens (encrypted at rest with a key from env), gmail history cursor, last sync at, signature html.
-- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, set aside at, archived, participants summary.
+- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, set aside at, archived, participants summary, list summary and the last message time it covers.
 - `messages`: id, thread id, gmail message id, from, to, cc, date, snippet, html sanitized, text, is inbound, gmail labels, headers subset (list-unsubscribe, precedence, in-reply-to).
 - `attachments`: id, message id, filename, mime, size, gmail attachment id. Metadata only.
 - `senders`: id, email, domain, display name, first seen, screener decision (allowed, out_spam, out_not_now, none), decided at, decided by (ai, user), images allowed, notes. Shared across accounts, with a per-account seen count in a join table.
@@ -91,7 +91,7 @@ Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the cur
 `lib/classify/classify.ts`, one Claude Haiku 4.5 call per thread, structured output validated against a zod schema:
 
 - Prompt: a fixed system prompt (bucket, urgency and screening definitions) marked for prompt caching, then a user message with sender facts (domain, prior decision, counts across accounts), subject, first 2k chars of text, headers like list-unsubscribe and precedence, the enabled rules, and up to 5 similar recent corrections (same sender or domain first, then same subject words) as examples.
-- Output in one call: probabilities for inbox, news and paper_trail (normalized to sum to 1, top one is the bucket), urgency 1-5, human written probability, and if sender is unknown, legit new sender probability. The raw output and model id go to `classifications`. Errors and 429s throw with SDK retries off, so the job runner's backoff retries.
+- Output in one call: probabilities for inbox, news and paper_trail (normalized to sum to 1, top one is the bucket), urgency 1-5, human written probability, if sender is unknown legit new sender probability, and a one-line summary for the list, in the mail's own language. The raw output and model id go to `classifications`, the summary to the thread. A new message in a known thread queues the same call in summary-only mode, which never moves the bucket; the list shows the snippet until the summary catches up, and News always keeps the snippet. `pnpm summarize` fills summaries for threads imported before them, paced in calls per minute. Errors and 429s throw with SDK retries off, so the job runner's backoff retries.
 - Thresholds in `lib/classify/thresholds.ts`, per bucket. Above threshold: apply and set bucket source ai. Thresholds sit a notch above what a calibrated classifier would need, since the model reports its own confidence. Below: apply the top bucket but mark as suggested and show the `--info` inline note. Unknown sender below the legit threshold: bucket triage.
 - Urgency 4 or higher on a paper_trail result promotes to inbox. This is the failed-payment rule.
 

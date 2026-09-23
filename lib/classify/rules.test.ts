@@ -36,6 +36,8 @@ const none: RuleConditions = { senders: [], domains: [], accounts: [], subjectKe
 function answer(bucket: "inbox" | "news" | "paper_trail", urgency = 1): ClassifierAnswer {
   return {
     reason: "test",
+    language: "en",
+    summary: "test",
     bucket: { inbox: 0.05, news: 0.05, paper_trail: 0.05, [bucket]: 0.9 },
     urgency,
     humanWritten: 0.05,

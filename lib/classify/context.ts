@@ -20,7 +20,7 @@ const SENDER_CORRECTIONS = 50;
 
 export type LoadedContext = {
   ctx: ClassifyContext;
-  thread: Pick<Thread, "id" | "accountId" | "bucket" | "bucketSource">;
+  thread: Pick<Thread, "id" | "accountId" | "bucket" | "bucketSource" | "lastMessageAt" | "summaryMessageAt">;
   senderId: string | null;
 };
 
@@ -62,6 +62,8 @@ export async function loadContext(db: Db, threadId: string): Promise<LoadedConte
       accountId: threads.accountId,
       bucket: threads.bucket,
       bucketSource: threads.bucketSource,
+      lastMessageAt: threads.lastMessageAt,
+      summaryMessageAt: threads.summaryMessageAt,
       senderId: threads.senderId,
       subject: threads.subject,
       accountEmail: accounts.email,
@@ -89,6 +91,7 @@ export async function loadContext(db: Db, threadId: string): Promise<LoadedConte
 
   const first = threadMessages.find((m) => m.isInbound);
   if (!first) return null;
+  const newest = threadMessages[threadMessages.length - 1];
 
   const email = first.fromEmail.toLowerCase();
   const senderId = thread.senderId ?? first.senderId;
@@ -151,6 +154,15 @@ export async function loadContext(db: Db, threadId: string): Promise<LoadedConte
         text: first.text ?? first.snippet ?? "",
         headers: first.headers,
         messageCount: threadMessages.length,
+        latest:
+          newest === first
+            ? null
+            : {
+                fromName: newest.fromName,
+                fromEmail: newest.fromEmail,
+                fromUser: !newest.isInbound,
+                text: newest.text ?? newest.snippet ?? "",
+              },
       },
       sender: facts,
       rules: enabledRules,

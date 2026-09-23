@@ -80,6 +80,22 @@ export function enqueueClassify(
   });
 }
 
+// Same classify job, told to refresh only the list summary. Its own key so it never absorbs, or is
+// absorbed by, a full classification.
+export function enqueueSummary(
+  db: Pick<Db, "insert">,
+  thread: { id: string; accountId: string },
+  priority = PRIORITY_LIVE,
+) {
+  return enqueueJob(db, {
+    type: "classify",
+    accountId: thread.accountId,
+    payload: { threadId: thread.id, summaryOnly: true },
+    priority,
+    dedupeKey: `summary:${thread.id}`,
+  });
+}
+
 export function enqueueWriteback(db: Pick<Db, "insert">, thread: { id: string; accountId: string }) {
   return enqueueJob(db, {
     type: "writeback",
