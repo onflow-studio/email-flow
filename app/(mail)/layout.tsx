@@ -1,3 +1,4 @@
+import { UndoProvider } from "@/components/mail/actions/undo";
 import { ComposeProvider } from "@/components/mail/compose/compose";
 import { KeyMapOverlay } from "@/components/mail/keys/key-map-overlay";
 import { KeymapProvider } from "@/components/mail/keys/keymap";
@@ -7,7 +8,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   return (
     <KeymapProvider>
       <FocusStoreProvider>
-        <ComposeProvider>{children}</ComposeProvider>
+        <UndoProvider>
+          <ComposeProvider>{children}</ComposeProvider>
+        </UndoProvider>
       </FocusStoreProvider>
       <KeyMapOverlay />
     </KeymapProvider>

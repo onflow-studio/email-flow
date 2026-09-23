@@ -86,7 +86,30 @@ export function enqueueWriteback(db: Pick<Db, "insert">, thread: { id: string; a
   });
 }
 
-export type JobOutcome = "done" | "retry" | "failed" | "skipped";
+export type JobOutcome = "done" | "retry" | "failed" | "skipped" | "superseded";
+
+export function isUniqueViolation(error: unknown): boolean {
+  const e = error as { code?: string; cause?: { code?: string } } | null;
+  return e?.code === "23505" || e?.cause?.code === "23505";
+}
+
+type PendingSet = { status: "pending"; lockedAt: null } & Partial<Pick<Job, "attempts" | "error" | "runAfter">>;
+
+// Put a claimed job back to pending. If a newer job with the same key was queued while this one
+// ran, that one wins: handlers read state at run time, so it covers this job's work too.
+export async function requeue(db: Pick<Db, "update">, id: string, set: PendingSet): Promise<"requeued" | "superseded"> {
+  try {
+    await db.update(jobs).set(set).where(eq(jobs.id, id));
+    return "requeued";
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    await db
+      .update(jobs)
+      .set({ status: "done", lockedAt: null, error: "superseded by a newer job" })
+      .where(eq(jobs.id, id));
+    return "superseded";
+  }
+}
 
 // Settle one job the runner has already claimed (status running, locked).
 export function settle(job: Pick<Job, "attempts">, error: unknown, now = new Date()) {
@@ -111,8 +134,8 @@ export async function runJob(job: Job, ctx: JobContext): Promise<JobOutcome> {
   const handler = jobHandler(job.type);
   if (!handler) {
     // No handler yet (backfill lands later): release it untouched.
-    await ctx.db.update(jobs).set({ status: "pending", lockedAt: null }).where(eq(jobs.id, job.id));
-    return "skipped";
+    const released = await requeue(ctx.db, job.id, { status: "pending", lockedAt: null });
+    return released === "requeued" ? "skipped" : "superseded";
   }
   try {
     await handler(job, ctx);
@@ -123,7 +146,10 @@ export async function runJob(job: Job, ctx: JobContext): Promise<JobOutcome> {
     return "done";
   } catch (error) {
     const { outcome, set } = settle(job, error);
-    await ctx.db.update(jobs).set(set).where(eq(jobs.id, job.id));
-    return outcome;
+    if (set.status === "failed") {
+      await ctx.db.update(jobs).set(set).where(eq(jobs.id, job.id));
+      return outcome;
+    }
+    return (await requeue(ctx.db, job.id, set)) === "requeued" ? outcome : "superseded";
   }
 }

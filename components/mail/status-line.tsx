@@ -1,9 +1,11 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { refreshSync } from "@/app/(mail)/actions";
+import { needsReconnect } from "@/lib/gmail/status";
 import { cn } from "@/lib/utils";
 
 import { usePendingKeys } from "./keys/keymap";
@@ -36,8 +38,24 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
   let state: React.ReactNode;
   if (syncing) state = "syncing";
   else if (error) state = <span className="text-warning">{error}</span>;
-  else if (failed.length)
-    state = <span className="text-warning">sync failed for {failed.map((a) => a.label).join(", ")}, retry</span>;
+  else if (failed.length) {
+    const reconnect = failed.filter((a) => needsReconnect(a.lastSyncError));
+    const retry = failed.filter((a) => !needsReconnect(a.lastSyncError));
+    state = (
+      <span className="text-warning">
+        {reconnect.length ? (
+          <>
+            sync failed for {reconnect.map((a) => a.label).join(", ")},{" "}
+            <Link href="/settings" className="underline decoration-warning underline-offset-2 hover:text-text">
+              reconnect
+            </Link>
+          </>
+        ) : null}
+        {reconnect.length && retry.length ? "; " : null}
+        {retry.length ? <>sync failed for {retry.map((a) => a.label).join(", ")}, retry</> : null}
+      </span>
+    );
+  }
   else if (!accounts.length) state = "no accounts";
   else if (lastSync) state = <>synced <Time iso={lastSync} format="ago" /></>;
   else state = "never synced";

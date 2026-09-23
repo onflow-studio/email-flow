@@ -23,6 +23,8 @@ type SeedThread = {
   snoozedHours?: number;
   setAside?: boolean;
   suggested?: boolean;
+  /** Sender let in by the AI screener instead of the user. Triage senders are undecided. */
+  aiAllowed?: boolean;
   messages: SeedMessage[];
 };
 
@@ -211,6 +213,13 @@ const THREADS: SeedThread[] = [
     messages: [{ from: { name: "Codemotion", email: "speakers@codemotion.com" }, minutesAgo: 1 * D, text: "We would love to have you speak about AI in education at Codemotion Madrid in November." }],
   },
   {
+    account: "work1",
+    subject: "Intro: Rafa from Studio North",
+    bucket: "inbox",
+    aiAllowed: true,
+    messages: [{ from: { name: "Rafa Cole", email: "rafa@studio.example" }, minutesAgo: 3 * H, text: "Hola Fer, Ana me pasó tu contacto. Estamos montando un programa de formación en IA para pymes y me encantaría hablar contigo." }],
+  },
+  {
     account: "personal",
     subject: "Sign the rental renewal",
     bucket: "inbox",
@@ -283,14 +292,18 @@ async function main() {
   await db.delete(threads).where(like(threads.gmailThreadId, "seed-%"));
 
   const senderIds = new Map<string, string>();
-  async function senderId(from: { name: string | null; email: string }) {
+  async function senderId(from: { name: string | null; email: string }, screener: "user" | "ai" | "none" = "user") {
     const email = from.email.toLowerCase();
     const cached = senderIds.get(email);
     if (cached) return cached;
+    const decision =
+      screener === "none"
+        ? { screenerDecision: "none" as const, decidedBy: null, decidedAt: null, defaultBucket: null }
+        : { screenerDecision: "allowed" as const, decidedBy: screener, decidedAt: new Date(), defaultBucket: null };
     const [row] = await db
       .insert(senders)
-      .values({ email, domain: email.split("@")[1], displayName: from.name, screenerDecision: "allowed" })
-      .onConflictDoUpdate({ target: senders.email, set: { displayName: from.name } })
+      .values({ email, domain: email.split("@")[1], displayName: from.name, ...decision })
+      .onConflictDoUpdate({ target: senders.email, set: { displayName: from.name, ...decision } })
       .returning({ id: senders.id });
     senderIds.set(email, row.id);
     return row.id;
@@ -310,7 +323,7 @@ async function main() {
       .values({
         accountId,
         gmailThreadId: `seed-${i.toString(16).padStart(8, "0")}`,
-        senderId: await senderId(first),
+        senderId: await senderId(first, t.bucket === "triage" ? "none" : t.aiAllowed ? "ai" : "user"),
         subject: t.subject,
         lastMessageAt: lastAt,
         bucket: t.bucket,

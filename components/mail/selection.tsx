@@ -28,18 +28,47 @@ export type MailSelection = {
 const SelectionContext = createContext<MailSelection | null>(null);
 
 type Picked = { id: string | null; index: number };
-type FocusStore = { get: (key: string) => Picked | undefined; set: (key: string, picked: Picked) => void };
+type FocusStore = {
+  get: (key: string) => Picked | undefined;
+  set: (key: string, picked: Picked) => void;
+  /** Stable order of the view you are working in; a view you come back to starts fresh. */
+  order: (key: string) => string[] | undefined;
+  setOrder: (key: string, ids: string[]) => void;
+};
 
 const FocusStoreContext = createContext<FocusStore | null>(null);
 
+const sameIds = (a: string[] | undefined, b: string[]) => !!a && a.length === b.length && a.every((id, i) => id === b[i]);
+
+/**
+ * Keeps rows where they were while you work a view: opening a thread moves it
+ * to the seen group on the server, but the list should not jump under the
+ * keyboard. Rows that left are dropped; rows that appeared go on top.
+ */
+export function stableOrder(prev: string[] | undefined, next: string[]) {
+  if (!prev) return next;
+  const present = new Set(next);
+  const known = new Set(prev);
+  return [...next.filter((id) => !known.has(id)), ...prev.filter((id) => present.has(id))];
+}
+
 /**
  * Lives in the mail layout. The page remounts when the thread segment
- * changes, so the focused row is remembered here, per view and account.
+ * changes, so focus and row order are remembered here, per view and account.
  */
 export function FocusStoreProvider({ children }: { children: React.ReactNode }) {
-  const [store, setStore] = useState<Record<string, Picked>>({});
-  const set = useCallback((key: string, picked: Picked) => setStore((prev) => ({ ...prev, [key]: picked })), []);
-  const value = useMemo<FocusStore>(() => ({ get: (key) => store[key], set }), [store, set]);
+  const [picked, setPicked] = useState<Record<string, Picked>>({});
+  const [order, setOrderState] = useState<{ key: string; ids: string[] } | null>(null);
+  const set = useCallback((key: string, p: Picked) => setPicked((prev) => ({ ...prev, [key]: p })), []);
+  const setOrder = useCallback(
+    (key: string, ids: string[]) =>
+      setOrderState((prev) => (prev?.key === key && sameIds(prev.ids, ids) ? prev : { key, ids })),
+    [],
+  );
+  const value = useMemo<FocusStore>(
+    () => ({ get: (key) => picked[key], set, order: (key) => (order?.key === key ? order.ids : undefined), setOrder }),
+    [picked, order, set, setOrder],
+  );
   return <FocusStoreContext.Provider value={value}>{children}</FocusStoreContext.Provider>;
 }
 
@@ -52,12 +81,13 @@ export function useMailSelection() {
 export function SelectionProvider({
   view,
   account,
-  threadIds,
+  threadIds: serverIds,
   openId,
   children,
 }: {
   view: ViewSlug;
   account: string | null;
+  /** In server order; the list shows them in stable order. */
   threadIds: string[];
   openId: string | null;
   children: React.ReactNode;
@@ -66,6 +96,15 @@ export function SelectionProvider({
   const store = useContext(FocusStoreContext);
   if (!store) throw new Error("SelectionProvider must be used inside <FocusStoreProvider>");
   const key = `${view}:${account ?? "all"}`;
+
+  const prevOrder = store.order(key);
+  const serverKey = serverIds.join();
+  const threadIds = useMemo(
+    () => stableOrder(prevOrder, serverKey ? serverKey.split(",") : []),
+    [prevOrder, serverKey],
+  );
+  const { setOrder } = store;
+  useEffect(() => setOrder(key, threadIds), [setOrder, key, threadIds]);
   const openIndex = openId ? threadIds.indexOf(openId) : -1;
   const picked = openId ? { id: openId, index: openIndex } : (store.get(key) ?? { id: null, index: 0 });
   const { set: storeSet } = store;

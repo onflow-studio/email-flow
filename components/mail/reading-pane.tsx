@@ -1,12 +1,16 @@
 "use client";
 
 import { ArrowLeft, Paperclip } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
+import { markSeen } from "@/app/(mail)/thread-actions";
 import type { Address } from "@/lib/db/schema";
+import { attachmentUrl, opensInline } from "@/lib/mail/remote";
 import { cn } from "@/lib/utils";
 
+import { AiNote } from "./actions/ai-note";
+import { ActionToolbar } from "./actions/toolbar";
 import { ReplyBar } from "./compose/reply-bar";
 import { EmailFrame } from "./email-frame";
 import { useMailSelection } from "./selection";
@@ -34,7 +38,10 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
       return next;
     });
 
-  const gmailUrl = `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(thread.account.email)}#all/${thread.gmailThreadId}`;
+  // Opening marks seen and mirrors read state to Gmail.
+  useEffect(() => {
+    markSeen(thread.id).catch(() => {});
+  }, [thread.id]);
 
   return (
     <article className="flex w-full flex-col gap-4 px-3 pt-8 pb-16 md:px-6">
@@ -48,6 +55,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
       </button>
 
       <header className="flex flex-col gap-2">
+        <AiNote thread={thread} />
         <h1 className="text-20 font-semibold text-text">{thread.subject}</h1>
         <div className="flex flex-wrap items-center gap-2 text-11 text-text-muted">
           <span className="flex items-center gap-1">
@@ -58,14 +66,23 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           <span>
             {thread.messages.length} {thread.messages.length === 1 ? "message" : "messages"}
           </span>
+          {thread.snoozedUntil ? (
+            <span>
+              snoozed until <Time iso={thread.snoozedUntil} format="full" />
+            </span>
+          ) : null}
+          {thread.needsReply ? <span className="text-text">needs reply</span> : null}
+          {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
+          {thread.setAside ? <span>set aside</span> : null}
         </div>
+        <ActionToolbar thread={thread} />
       </header>
 
       <ol className="flex flex-col gap-2">
         {thread.messages.map((m) => (
           <li key={m.id} className="rounded-sm border border-border bg-surface">
             {expanded.has(m.id) ? (
-              <ExpandedMessage message={m} gmailUrl={gmailUrl} onCollapse={() => toggle(m.id)} />
+              <ExpandedMessage message={m} onCollapse={() => toggle(m.id)} />
             ) : (
               <button
                 type="button"
@@ -89,11 +106,9 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
 
 function ExpandedMessage({
   message: m,
-  gmailUrl,
   onCollapse,
 }: {
   message: MessageItem;
-  gmailUrl: string;
   onCollapse: () => void;
 }) {
   return (
@@ -120,24 +135,36 @@ function ExpandedMessage({
 
       {m.attachments.length ? (
         <ul className="flex flex-col gap-1 border-t border-border pt-2">
-          {m.attachments.map((a) => (
-            <li key={a.id}>
-              <a
-                href={gmailUrl}
-                target="_blank"
-                rel="noreferrer"
-                title="open in gmail"
-                className="flex h-row items-center gap-2 rounded-sm px-1 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised hover:text-text"
-              >
-                <Paperclip aria-hidden className="size-3 shrink-0" strokeWidth={1.5} />
-                <span className="min-w-0 flex-1 truncate text-text">{a.filename}</span>
-                <span className="shrink-0 text-11">{formatSize(a.size)}</span>
-              </a>
-            </li>
-          ))}
+          {m.attachments.map((a) => {
+            const inline = opensInline(a.mimeType);
+            return (
+              <li key={a.id}>
+                <a
+                  href={attachmentUrl(a.id, { inline })}
+                  {...(inline ? { target: "_blank", rel: "noreferrer" } : { download: a.filename })}
+                  title={inline ? "open" : "download"}
+                  className="flex h-row items-center gap-2 rounded-sm px-1 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised hover:text-text"
+                >
+                  <Paperclip aria-hidden className="size-3 shrink-0" strokeWidth={1.5} />
+                  <span className="min-w-0 flex-1 truncate text-text">{a.filename}</span>
+                  <span className="shrink-0 text-11">{formatSize(a.size)}</span>
+                </a>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </div>
+  );
+}
+
+function Deadline({ iso }: { iso: string }) {
+  const [now] = useState(() => Date.now());
+  const late = new Date(iso).getTime() < now;
+  return (
+    <span className={late ? "text-warning" : undefined}>
+      {late ? "overdue since" : "due"} <Time iso={iso} format="full" />
+    </span>
   );
 }
 

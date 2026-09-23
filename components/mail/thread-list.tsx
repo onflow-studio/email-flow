@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ThreadListItem } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
@@ -33,14 +33,18 @@ export function ThreadList({
     return <p className="p-3 text-text-muted">{emptyLabel}</p>;
   }
 
+  const byId = new Map(threads.map((t) => [t.id, t]));
+  const ordered = sel.threadIds.flatMap((id) => byId.get(id) ?? []);
   const unseen = threads.filter((t) => t.unseen).length;
-  const firstSeen = threads.findIndex((t) => !t.unseen);
+  // Group labels only hold while rows sit in server order (unseen first).
+  const grouped = ordered.every((t, i) => t.id === threads[i]?.id);
+  const firstSeen = grouped ? ordered.findIndex((t) => !t.unseen) : -1;
 
   return (
     <ul ref={listRef} role="listbox" aria-label="threads" className="flex flex-col py-1">
-      {threads.map((t, i) => (
+      {ordered.map((t, i) => (
         <li key={t.id} role="presentation">
-          {i === 0 && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
+          {i === 0 && grouped && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
           {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
           <ThreadRow
             thread={t}
@@ -49,6 +53,7 @@ export function ThreadList({
             open={t.id === sel.openId}
             href={mailHref(sel.view, { threadId: t.id, account: sel.account })}
             onSelect={() => sel.focus(t.id)}
+            showSnooze={sel.view === "snoozed"}
           />
         </li>
       ))}
@@ -67,6 +72,7 @@ function ThreadRow({
   open,
   href,
   onSelect,
+  showSnooze,
 }: {
   thread: ThreadListItem;
   accountColor?: string;
@@ -74,7 +80,10 @@ function ThreadRow({
   open: boolean;
   href: string;
   onSelect: () => void;
+  showSnooze: boolean;
 }) {
+  const [now] = useState(() => Date.now());
+  const overdue = !!t.deadlineAt && new Date(t.deadlineAt).getTime() < now;
   return (
     <Link
       href={href}
@@ -105,7 +114,19 @@ function ThreadRow({
         <span className={t.unseen ? "font-medium text-text" : "text-text-dim"}>{t.subject}</span>
         {t.snippet ? <span className={t.unseen ? "text-text-muted" : "text-text-dim"}> {t.snippet}</span> : null}
       </span>
-      <Time iso={t.lastMessageAt} className="shrink-0 text-11 text-text-muted" />
+      {t.resurfaced ? <Badge>back</Badge> : null}
+      {overdue ? <Badge className="text-warning">overdue</Badge> : t.needsReply ? <Badge>reply</Badge> : null}
+      {showSnooze && t.snoozedUntil ? (
+        <Time iso={t.snoozedUntil} className="shrink-0 text-11 text-text-muted" />
+      ) : (
+        <Time iso={t.lastMessageAt} className="shrink-0 text-11 text-text-muted" />
+      )}
     </Link>
+  );
+}
+
+function Badge({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <span className={cn("shrink-0 rounded-sm bg-surface-raised px-1 text-11 text-text-muted", className)}>{children}</span>
   );
 }

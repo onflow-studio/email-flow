@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { hasBlockedImages, restoreRemoteImages } from "@/lib/mail/remote";
+
 /** Declares a dark scheme via meta, CSS `color-scheme`, or a dark media query. */
 export function declaresDarkScheme(html: string) {
   return (
@@ -14,6 +16,7 @@ export function declaresDarkScheme(html: string) {
 
 export function hasRemoteImages(html: string) {
   return (
+    hasBlockedImages(html) ||
     /<img[^>]+src\s*=\s*["']?\s*(https?:)?\/\//i.test(html) ||
     /url\(\s*["']?\s*(https?:)?\/\//i.test(html) ||
     /background\s*=\s*["']?\s*(https?:)?\/\//i.test(html)
@@ -33,7 +36,8 @@ export function buildEmailDocument(html: string, { allowImages }: { allowImages:
     "default-src 'none'",
     "style-src 'unsafe-inline'",
     "font-src data:",
-    `img-src data: cid:${allowImages ? " https: http:" : ""}`,
+    // 'self' serves inline cid: images through /api/attachments.
+    `img-src 'self' data: cid:${allowImages ? " https: http:" : ""}`,
     "media-src 'none'",
     "form-action 'none'",
     "base-uri 'none'",
@@ -53,7 +57,7 @@ img,picture,video,svg,[style*="background-image"],[background]{filter:invert(1) 
 <meta name="referrer" content="no-referrer">
 <base target="_blank">
 <style>html,body{margin:0}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}${invertCss}</style>
-</head><body>${html.replace(META_REFRESH, "")}</body></html>`;
+</head><body>${(allowImages ? restoreRemoteImages(html) : html).replace(META_REFRESH, "")}</body></html>`;
 }
 
 export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowed: boolean }) {
