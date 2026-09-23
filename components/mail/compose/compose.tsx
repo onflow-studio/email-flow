@@ -8,6 +8,7 @@ import { MODE_LABELS, type ComposeAccount, type ComposeInit, type ComposeMode } 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { useUndo } from "../actions/undo";
 import { useKeys } from "../keys/keymap";
 import { ComposeBody, ComposeToolbar, useComposeEditor } from "./editor";
 import { readLastAccount, rememberAccount } from "./last-account";
@@ -28,18 +29,15 @@ export function useCompose() {
   return ctx;
 }
 
-const SENT_NOTICE_MS = 3000;
-
 export function ComposeProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [sent, setSent] = useState<string | null>(null);
+  const { report } = useUndo();
   const dirty = useRef(false);
 
   const open = useCallback(
     (mode: ComposeMode, threadId: string | null = null, accountHint: string | null = null) => {
       if (session && (dirty.current || (session.mode === mode && session.threadId === threadId))) return;
       dirty.current = false;
-      setSent(null);
       setSession({ key: Date.now(), mode, threadId, accountHint });
     },
     [session],
@@ -50,27 +48,13 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
   }, []);
 
-  useEffect(() => {
-    if (!sent) return;
-    const timer = setTimeout(() => setSent(null), SENT_NOTICE_MS);
-    return () => clearTimeout(timer);
-  }, [sent]);
-
   const value = useMemo(() => ({ open, isOpen: !!session }), [open, session]);
 
   return (
     <ComposeContext.Provider value={value}>
       {children}
       {session ? (
-        <ComposePanel key={session.key} session={session} dirtyRef={dirty} onClose={close} onSent={setSent} />
-      ) : null}
-      {sent ? (
-        <div
-          role="status"
-          className="fixed right-4 bottom-status z-40 flex h-6 items-center rounded-sm border border-border bg-surface px-2 text-11 text-text-muted"
-        >
-          {sent}
-        </div>
+        <ComposePanel key={session.key} session={session} dirtyRef={dirty} onClose={close} onSent={report} />
       ) : null}
     </ComposeContext.Provider>
   );
