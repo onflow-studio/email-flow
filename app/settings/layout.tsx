@@ -17,6 +17,11 @@ export default async function SettingsLayout({ children }: LayoutProps<"/setting
   return (
     <div className="flex h-dvh flex-col bg-bg">
       <nav className="relative flex h-touch shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-3 md:justify-center">
+        <p className="hidden items-center gap-2 font-medium md:absolute md:left-3 md:flex">
+          <span className="text-accent">&gt;_</span>
+          <span className="text-text-muted">superfer /</span>
+          <span className="text-text">settings</span>
+        </p>
         <SettingsTabs />
         <SettingsBack className="self-center md:absolute md:right-3" />
       </nav>
