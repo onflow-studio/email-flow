@@ -22,7 +22,7 @@ Phase 1 built: sync, AI buckets and screener, actions with undo, compose, palett
 
 ## Stack
 
-Next.js, TypeScript, Postgres with pgvector, Drizzle, Jev for classification, Claude for the rest, Tailwind, Tiptap, cmdk.
+Next.js, TypeScript, Postgres with pgvector, Drizzle, Claude (Haiku 4.5 classifies, Sonnet for the rest), Tailwind, Tiptap, cmdk.
 
 ## Running
 
@@ -55,8 +55,7 @@ All in `.env` (gitignored).
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | connecting accounts | OAuth client (web application) in Google Cloud, Gmail API enabled |
 | `GOOGLE_REDIRECT_URI` | connecting accounts | `http://localhost:3000/api/auth/google/callback`, also listed on the OAuth client |
 | `TOKEN_ENCRYPTION_KEY` | storing OAuth tokens | `openssl rand -base64 32` |
-| `JEV_API_KEY` | classification | Jev key from jevai.org/agent/keys (REST at www.jevai.org/api/v1/decisions) |
-| `ANTHROPIC_API_KEY` | parsing rules in settings (Claude) | Anthropic API key |
+| `ANTHROPIC_API_KEY` | classification and parsing rules (Claude) | Anthropic API key |
 | `SYNC_SECRET` | `POST /api/sync` (cron later) | any long random string, sent as `Authorization: Bearer <secret>` |
 
 ### Checks

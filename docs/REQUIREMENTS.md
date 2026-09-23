@@ -35,7 +35,7 @@ Close the Gmail tabs for two weeks and not reopen them except for something the 
 - Learning by both example (user moves a message, it is stored as a correction and fed into future classification) and natural-language rules ("Vercel failed payments go to Inbox").
 - Classification should be dynamic: buckets and rules learned from real data over time, AI may ask clarifying questions.
 - Model output and user corrections stored separately.
-- Candidate classifier: Jev (TypeSafe AI) via Vercel AI Gateway. No memory or fine-tuning, so the correction loop is ours: inject exemplars and sender facts into each call. General LLM (Claude) for summarization and questions.
+- Classifier: Claude Haiku 4.5 with structured output. No memory or fine-tuning, so the correction loop is ours: inject exemplars and sender facts into each call. Its confidence is self-reported, so thresholds start conservative. General LLM (Claude) for summarization and questions.
 
 ## Screener (Triage bucket)
 
@@ -96,7 +96,7 @@ Full keyboard triage in phase 1: navigate, archive, reply, snooze, move to bucke
 - Web app, dark mode only, responsive. Installed on phone home screen as a web app.
 - Mobile use: reading and quick replies. Heavy triage on desktop.
 - Hosting: runs on the user's Mac first, later hosted (Vercel plus a managed Postgres such as Neon). Stack must be portable: no Mac-only dependencies, secrets in env.
-- JEV_API_KEY already in .env (gitignored).
+- ANTHROPIC_API_KEY in .env (gitignored).
 
 ## Explicitly out of phase 1
 

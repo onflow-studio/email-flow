@@ -7,7 +7,7 @@ Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
 1. Mac first, hosted later, with the move being config only: change the database URL, add a cron, update the OAuth redirect. No rewrite.
 2. One language, one process type. TypeScript everywhere. No Redis, no queue service, no separate worker service. Background work is rows in a table processed by a function.
 3. Own database is the source of truth for triage state. Gmail is transport plus a rough mirror.
-4. Vendors behind one module. Nothing outside `lib/ai` knows whether Jev, Claude, or a gateway answered.
+4. Vendors behind one module. Nothing outside `lib/ai` knows which model or gateway answered.
 5. Tests only where silent failure misfiles mail: classification and sync.
 
 ## Stack
@@ -19,7 +19,7 @@ Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
 | Database | Postgres 16 with pgvector, Docker locally, Neon later | Same engine both places, built-in full-text search now, vectors in 1.5 |
 | ORM | Drizzle | SQL-shaped, migrations are plain SQL that run identically on Neon |
 | Gmail | Google APIs Node client, OAuth 2 per account | Official, supports history sync and label writes |
-| Classification | Jev via jevai.org REST API, small fetch client in `lib/ai` | Fast calibrated probabilities, cheap, confidence built in |
+| Classification | Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) via `@ai-sdk/anthropic`, structured output | Fast, cheap, same key as the rest; probabilities are self-reported, so thresholds sit higher |
 | LLM | Claude via `@ai-sdk/anthropic` with existing key | Summaries, questions, later drafts |
 | Embeddings | Deferred to 1.5, likely via Vercel AI Gateway | No key yet, not needed in phase 1 |
 | UI | Tailwind 4, shadcn base, custom tokens from DESIGN.md | Fast to build, restyled hard so it isn't generic |
@@ -41,7 +41,7 @@ superfer/
     db/                   drizzle schema, client, migrations
     gmail/                client factory, fetch, history, label writes, send
     sync/                 orchestration: poll, store, enqueue classify, write back
-    classify/             jev calls, thresholds, correction context, rules
+    classify/             classifier prompt, thresholds, correction context, rules
     ai/                   provider wiring, summarize, later embed and ask
     mail/                 html sanitize, text extraction, thread grouping
     actions/              archive, snooze, set aside, move, undo log
@@ -86,14 +86,14 @@ Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the cur
 
 ## Classification pipeline
 
-`lib/classify/classify.ts`, one Jev call per thread:
+`lib/classify/classify.ts`, one Claude Haiku 4.5 call per thread, structured output validated against a zod schema:
 
-- State: sender facts (domain, prior decision, counts across accounts), subject, first 2k chars of text, headers like list-unsubscribe and precedence, the enabled rules as instructions, and up to 5 similar recent corrections (same sender or domain first, then same subject words) as examples.
-- Questions in one call: bucket choice (inbox, news, paper_trail), urgency score 1-5, human written boolean, and if sender is unknown, legit new sender boolean.
-- Thresholds in `lib/classify/thresholds.ts`, per bucket. Above threshold: apply and set bucket source ai. Below: apply the top bucket but mark as suggested and show the `--info` inline note. Unknown sender below the legit threshold: bucket triage.
+- Prompt: a fixed system prompt (bucket, urgency and screening definitions) marked for prompt caching, then a user message with sender facts (domain, prior decision, counts across accounts), subject, first 2k chars of text, headers like list-unsubscribe and precedence, the enabled rules, and up to 5 similar recent corrections (same sender or domain first, then same subject words) as examples.
+- Output in one call: probabilities for inbox, news and paper_trail (normalized to sum to 1, top one is the bucket), urgency 1-5, human written probability, and if sender is unknown, legit new sender probability. The raw output and model id go to `classifications`. Errors and 429s throw with SDK retries off, so the job runner's backoff retries.
+- Thresholds in `lib/classify/thresholds.ts`, per bucket. Above threshold: apply and set bucket source ai. Thresholds sit a notch above what a calibrated classifier would need, since the model reports its own confidence. Below: apply the top bucket but mark as suggested and show the `--info` inline note. Unknown sender below the legit threshold: bucket triage.
 - Urgency 4 or higher on a paper_trail result promotes to inbox. This is the failed-payment rule.
 
-User moves write a correction row and set bucket source user. Rules are entered as text in settings, Claude parses them into structured hints stored alongside, and both text and structure go into the Jev instructions.
+User moves write a correction row and set bucket source user. Rules are entered as text in settings, Claude parses them into structured hints stored alongside, and both text and structure go into the classifier prompt.
 
 ## Write back to Gmail
 
@@ -155,7 +155,6 @@ GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 GOOGLE_REDIRECT_URI
 TOKEN_ENCRYPTION_KEY
-JEV_API_KEY
 ANTHROPIC_API_KEY
 SYNC_SECRET
 ```
@@ -174,7 +173,7 @@ SYNC_SECRET
 2. Accounts: OAuth flow, token storage, three accounts connected.
 3. Sync: history polling, message storage, sanitize, `pnpm sync` loop, refresh route.
 4. Shell: three panes, bucket rail, thread list, reading pane, status line, keyboard nav. Static buckets from Gmail labels at first.
-5. Classify: Jev call, thresholds, corrections, inline notes, triage bucket, write back.
+5. Classify: Claude call, thresholds, corrections, inline notes, triage bucket, write back.
 6. Actions: archive, snooze with flag, set aside, move, undo, Gmail mirror.
 7. Compose: Tiptap, signatures, reply all, forward, send.
 8. Palette: navigation, full-text search, actions with preview.
