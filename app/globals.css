@@ -96,6 +96,7 @@
   --spacing-row: 32px;
   --spacing-touch: 44px;
   --spacing-status: 32px;
+  --spacing-radio-panel: 280px;
   --spacing-key: 16px;
   --container-palette: 640px;
   --spacing-compose: 640px;
@@ -211,6 +212,45 @@
 
 @utility radio-live {
   animation-play-state: running;
+}
+
+/* The open radio panel: black, framed by the same turning gradient, open at the bottom into the status line. */
+@utility radio-frame {
+  border: 1px solid transparent;
+  border-bottom-width: 0;
+  background:
+    linear-gradient(var(--status), var(--status)) padding-box,
+    linear-gradient(var(--radio-angle), var(--accent), var(--info), var(--accent)) border-box;
+  animation: radio-drift var(--duration-drift) linear infinite paused;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/* A focused station row: the gradient as a fill, text goes black. */
+@utility radio-fill {
+  background: linear-gradient(90deg, var(--accent), var(--info));
+}
+
+/* Equalizer bars: the gradient bottom to top, bouncing out of phase while playing, resting low when paused. */
+@keyframes radio-eq {
+  from {
+    transform: scaleY(0.25);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@utility radio-bar {
+  background: linear-gradient(to top, var(--accent), var(--info));
+  transform: scaleY(0.25);
+  animation: radio-eq 420ms ease-in-out infinite alternate paused;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 }
 
 /* The focused pane's top hairline. Drawn inset so it takes no space; not a shadow. */

@@ -323,9 +323,22 @@ export function Radio() {
     <>
       <div
         ref={rootRef}
-        className="fixed bottom-safe left-1/2 z-30 flex -translate-x-1/2 flex-col items-center"
+        className={cn(
+          // Closed it is just the button in the status line. Open, the same box grows up out of the bar into one
+          // black panel framed by the radio gradient, with the button as its bottom row.
+          "fixed bottom-safe left-1/2 z-30 flex -translate-x-1/2 flex-col items-stretch rounded-t-md",
+          open && "radio-frame w-radio-panel bg-status",
+          open && playing && "radio-live",
+        )}
         onPointerEnter={(e) => {
           if (e.pointerType !== "mouse") return;
+          hovered.current = true;
+          viaKeyboard.current = false;
+          openNow();
+        }}
+        onPointerMove={(e) => {
+          // Covers an enter the page missed (e.g. before hydration).
+          if (e.pointerType !== "mouse" || hovered.current) return;
           hovered.current = true;
           viaKeyboard.current = false;
           openNow();
@@ -340,9 +353,15 @@ export function Radio() {
         }}
       >
         {open ? (
-          // pb-2 rather than a margin, so the gap to the button stays inside the hover area.
-          <div className="pb-2">
-            <div role="menu" aria-label="stations" className="flex flex-col rounded-md border border-border bg-surface-top py-1">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-3 border-b border-accent/30 px-3 pt-3 pb-2">
+              <Equalizer live={playing} />
+              <span className="min-w-0 flex-1 truncate text-11 font-semibold tracking-widest uppercase">
+                <span className="text-text-dim">{on ? "on air" : "tuned"} </span>
+                <span className="radio-text">{station.label}</span>
+              </span>
+            </div>
+            <div role="menu" aria-label="stations" className="flex flex-col py-1">
               {STATIONS.map((s, i) => {
                 const current = s.id === station.id;
                 return (
@@ -361,13 +380,21 @@ export function Radio() {
                       if (e.pointerType === "mouse") e.currentTarget.focus({ preventScroll: true });
                     }}
                     className={cn(
-                      "flex h-touch items-center gap-4 border-l-2 border-transparent pr-3 pl-2 text-left whitespace-nowrap text-text-muted outline-none transition-colors duration-80 ease-snap md:h-row",
-                      "focus:glow-focus focus:border-accent focus:bg-surface-raised focus:text-text",
-                      current && "text-text",
+                      "group flex h-touch items-center gap-3 px-3 text-left text-12 font-semibold tracking-wider whitespace-nowrap uppercase outline-none md:h-row",
+                      // Focus inverts the row: the gradient becomes the fill and the text goes black.
+                      "focus:radio-fill focus:text-status",
+                      current ? "text-text" : "text-text-muted",
                     )}
                   >
-                    <span className="flex-1">{s.label}</span>
-                    {current ? <span className="text-11 text-text-muted">tuned</span> : null}
+                    <span className="w-5 text-11 text-text-dim tabular-nums group-focus:text-status">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className={cn("flex-1", current && "radio-text group-focus:text-status group-focus:[background:none]")}>
+                      {s.label}
+                    </span>
+                    {current ? (
+                      <span aria-hidden className={cn("size-2 rounded-full bg-accent group-focus:bg-status", playing && "animate-pulse")} />
+                    ) : null}
                   </button>
                 );
               })}
@@ -396,10 +423,9 @@ export function Radio() {
           aria-pressed={on}
           aria-haspopup="menu"
           aria-expanded={open}
-          title={status === "error" ? label : `${on ? "pause" : "play"} ${station.label}`}
           className={cn(
             // Centred in the status line, 24px tall, no fill: the gradient label carries the state.
-            "my-1 flex h-6 min-w-touch items-center justify-center gap-2 rounded-sm border border-transparent px-2 text-11 text-text-muted transition-colors duration-80 ease-snap outline-none hover:text-text focus-visible:border-accent md:min-w-0",
+            "my-1 flex h-6 min-w-touch items-center justify-center gap-2 self-center rounded-sm border border-transparent px-2 text-11 text-text-muted transition-colors duration-80 ease-snap outline-none hover:text-text focus-visible:border-accent md:min-w-0",
             on && "text-text",
             status === "error" && "text-danger hover:text-danger",
           )}
@@ -417,5 +443,20 @@ export function Radio() {
         <div ref={hostRef} />
       </div>
     </>
+  );
+}
+
+/** Five bars bouncing out of phase while it plays, resting low when paused. */
+function Equalizer({ live }: { live: boolean }) {
+  return (
+    <span aria-hidden className="flex h-3 items-end gap-0.5">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          className={cn("radio-bar h-full w-0.5 origin-bottom", live && "radio-live")}
+          style={{ animationDelay: `${-i * 170}ms` }}
+        />
+      ))}
+    </span>
   );
 }
