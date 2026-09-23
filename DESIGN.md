@@ -66,6 +66,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 - Command palette: centered, 640px max, top-aligned at 15vh so results grow downward.
 - Status line: a 24px bar at the bottom of the window, terminal-style, showing sync state, account, and the active keyboard hint. This is where "what to do next" lives.
 - Compose: a panel docked bottom-right over the reading pane, 640px wide, at most 70vh tall, sitting just above the status line with a 16px right gap. No backdrop, so the thread stays readable above it. Phone: a full-screen sheet.
+- Radio: a square play button floating bottom-right on every page, 16px from the right edge like compose, 72px from the bottom (status line 24, undo toast 32 at 32 up, 8 gap) plus the safe area, so it never touches the status line or the undo toast. It sits below compose and every overlay, so an open compose simply covers it.
 
 ## Components
 
@@ -84,6 +85,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 - Command palette: `--surface-top`, hairline border, backdrop darkens the app to 60%, results as rows, matched text in `--accent`, action rows show a `--info` preview count when they would touch more than one thread.
 - Status line: `--surface`, 11px, `--text-muted`, sync state at left, keyboard hint at right.
 - Pane handle: the hairline border between two panes is the handle. An invisible 8px hit area centered on it, `col-resize` cursor. The hairline turns `--accent-dim` on hover and keyboard focus, `--accent` while dragging, over 80ms. Double-click resets the pane to its default width. Focusable as a separator: left and right arrows resize by 8px, 32px with shift, home and end jump to the limits.
+- Radio: 32px square (44 on touch), `--surface-raised`, hairline border, 2px radius, `--text-muted` icon, `--text` on hover and while playing. Never accent, it is not the next thing to do. Buffering pulses the icon to `--text-dim`, a failed load shows the retry icon in `--danger`. Nothing loads from YouTube until the first press. The player is a 200px iframe (YouTube's smallest playable size) clipped inside a 1px invisible box, never `display: none`, which stops playback.
 - Compose: `--surface-top`, hairline border, 4px radius. Header row names the mode and account (`reply  work1`), fields are label-left rows (`to`, `cc`, `subject`) on hairlines, the toolbar is ghost buttons in 11px, the body is 13px at prose line height and at least 160px tall. Signature and quoted text show as one dim line each, never inline. Footer: primary `send  mod+enter`, ghost `discard`, errors in `--danger` on the same row. Body headings: h1 20, h2 15, h3 13, all 600. Links in the body are `--text` underlined, not accent.
 
 ## Voice
@@ -98,7 +100,8 @@ Tokens live in `app/globals.css`: raw values as CSS variables on `:root` with th
 
 - Color: `bg-bg`, `bg-surface`, `bg-surface-raised`, `bg-surface-top`, `border-border`, `text-text`, `text-text-muted`, `text-text-dim`, `*-accent`, `*-accent-dim`, `*-info`, `*-warning`, `*-danger`, `*-success`. shadcn names (`primary`, `muted`, `popover`, `destructive`, `ring`) alias these; `accent` keeps its meaning here.
 - Type: `text-11` `text-12` `text-13` `text-15` `text-20`, `font-normal` `font-medium` `font-semibold`, `leading-list` `leading-prose`. One family, `font-mono`.
-- Space: the default 4px scale (`p-1` 4, `p-2` 8, `p-3` 12, `p-4` 16, `p-6` 24, `p-8` 32). Layout sizes: `h-row` 32, `h-touch` 44, `h-status` 24, `h-key` / `min-w-key` 16 (keycaps), `w-rail` 200, `w-list` 360 (both follow the dragged width, clamped: `--rail-w` 160 to 320, `--list-w` 280 to 640), `min-w-list-min` 280, `min-w-reading` 320, `max-w-palette` 640, `pt-palette-top` 15vh (palette and other overlays), `w-compose` 640, `max-h-compose-h` 70vh, `w-rail-icons` 48 (rail below 1100), `w-sender` 112 (sender column in rows), `w-label` 56 (label column in forms), `w-field` 160 (short inputs), `min-h-editor` 160 (compose body).
+- Space: the default 4px scale (`p-1` 4, `p-2` 8, `p-3` 12, `p-4` 16, `p-6` 24, `p-8` 32). Layout sizes: `h-row` 32, `h-touch` 44, `h-status` 24, `h-key` / `min-w-key` 16 (keycaps), `w-rail` 200, `w-list` 360 (both follow the dragged width, clamped: `--rail-w` 160 to 320, `--list-w` 280 to 640), `min-w-list-min` 280, `min-w-reading` 320, `max-w-palette` 640, `pt-palette-top` 15vh (palette and other overlays), `w-compose` 640, `max-h-compose-h` 70vh, `w-rail-icons` 48 (rail below 1100), `w-sender` 112 (sender column in rows), `w-label` 56 (label column in forms), `w-field` 160 (short inputs), `min-h-editor` 160 (compose body), `bottom-radio` 72 plus the safe area (radio button).
+- Layers: `z-30` radio, `z-40` compose and undo toast, `z-50` palette and modals.
 - Shape: `rounded-sm` 2px, `rounded-md` 4px.
 - Motion: `duration-80`, `duration-150`, `ease-snap`. Reduced motion zeroes all durations globally.
 - Gradients: `glow-focus`, `pane-depth`, `status-rule`. The only three.

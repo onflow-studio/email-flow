@@ -106,6 +106,8 @@
   --spacing-list: clamp(var(--list-min), var(--list-w), var(--list-max));
   --spacing-list-min: var(--list-min);
   --spacing-reading: var(--reading-min);
+  /* Radio: clears the status line (24), the undo toast (32 at 32 up) and an 8px gap. */
+  --spacing-radio: calc(72px + env(safe-area-inset-bottom));
 
   --color-bg: var(--bg);
   --color-surface: var(--surface);
