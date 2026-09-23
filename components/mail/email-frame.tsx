@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { alwaysLoadImages } from "@/app/(mail)/thread-actions";
 import { hasBlockedImages, restoreRemoteImages } from "@/lib/mail/remote";
 
 /** Declares a dark scheme via meta, CSS `color-scheme`, or a dark media query. */
@@ -56,11 +57,19 @@ img,picture,video,svg,[style*="background-image"],[background]{filter:invert(1) 
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="referrer" content="no-referrer">
 <base target="_blank">
-<style>html,body{margin:0}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}${invertCss}</style>
+<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}${invertCss}</style>
 </head><body>${(allowImages ? restoreRemoteImages(html) : html).replace(META_REFRESH, "")}</body></html>`;
 }
 
-export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowed: boolean }) {
+export function EmailFrame({
+  html,
+  imagesAllowed,
+  senderId,
+}: {
+  html: string;
+  imagesAllowed: boolean;
+  senderId: string | null;
+}) {
   const [loadImages, setLoadImages] = useState(false);
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
@@ -74,6 +83,14 @@ export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowe
   const measure = useCallback(() => {
     const doc = ref.current?.contentDocument;
     if (!doc?.documentElement) return;
+    // Fixed-width newsletters wider than the pane are scaled down to fit instead of scrolling
+    // sideways inside the frame; the pane then scrolls as one.
+    // Measure at full size every time: a scaled body never reports less than the frame width.
+    if (doc.body) {
+      doc.body.style.zoom = "";
+      const fit = doc.documentElement.clientWidth / doc.documentElement.scrollWidth;
+      doc.body.style.zoom = fit < 0.99 ? String(Math.round(fit * 1000) / 1000) : "";
+    }
     const content = Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight ?? 0);
     // The frame is border-box with a 1px border on each side.
     setHeight(content + 2);
@@ -125,6 +142,18 @@ export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowe
           >
             load images
           </button>
+          {senderId ? (
+            <button
+              type="button"
+              onClick={() => {
+                setLoadImages(true);
+                void alwaysLoadImages(senderId);
+              }}
+              className="text-text-muted underline decoration-text-dim underline-offset-2 transition-colors duration-80 ease-snap hover:text-text"
+            >
+              always load from this sender
+            </button>
+          ) : null}
         </p>
       ) : null}
       <iframe

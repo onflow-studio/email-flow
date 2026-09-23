@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 
 import {
+  allowSenderImages,
   applySenderAction,
   applyThreadAction,
   markSeenOnOpen,
@@ -69,6 +70,11 @@ export async function undo(token: string): Promise<{ count: number }> {
 /** Bulk preview for the palette: which threads the action would change. */
 export async function previewAction(threadIds: string[], action: ThreadAction): Promise<ActionPreview> {
   return previewThreadAction(db, ids(threadIds), threadAction(action));
+}
+
+export async function alwaysLoadImages(senderId: string): Promise<void> {
+  const [id] = ids([senderId]);
+  if (await allowSenderImages(db, id)) refresh();
 }
 
 export async function markSeen(threadId: string): Promise<void> {
