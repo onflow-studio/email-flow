@@ -9,6 +9,7 @@ import type { Address } from "@/lib/db/schema";
 import { attachmentUrl, opensInline } from "@/lib/mail/remote";
 import { cn } from "@/lib/utils";
 
+import { useThreadActions } from "./actions/actions";
 import { AiNote } from "./actions/ai-note";
 import { ActionToolbar } from "./actions/toolbar";
 import { ReplyBar } from "./compose/reply-bar";
@@ -28,6 +29,7 @@ type MessageItem = ThreadDetail["messages"][number];
 
 export function ReadingPane({ thread }: { thread: ThreadDetail }) {
   const sel = useMailSelection();
+  const { run } = useThreadActions();
   const lastId = thread.messages.at(-1)?.id;
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(lastId ? [lastId] : []));
   const toggle = (id: string) =>
@@ -50,6 +52,15 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           <ArrowLeft aria-hidden className="size-4" strokeWidth={1.5} />
           back
         </button>
+        {thread.trashed ? (
+          <button type="button" onClick={() => void run({ type: "restore" }, [thread.id])} className="ml-auto flex h-touch items-center px-2 text-text-muted">
+            restore
+          </button>
+        ) : (
+          <button type="button" onClick={() => void run({ type: "trash" }, [thread.id])} className="ml-auto flex h-touch items-center px-2 text-danger">
+            delete
+          </button>
+        )}
       </div>
 
       <header className="flex flex-col gap-2">
@@ -72,6 +83,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           {thread.needsReply ? <span className="text-text">needs reply</span> : null}
           {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
           {thread.setAside ? <span>set aside</span> : null}
+          {thread.trashed ? <span className="text-danger">in trash</span> : null}
         </div>
         <ActionToolbar thread={thread} />
       </header>

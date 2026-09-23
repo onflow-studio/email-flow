@@ -54,7 +54,9 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
     case "unarchive":
       return `${n}unarchived`;
     case "trash":
-      return `${n}trashed`;
+      return `${n}deleted`;
+    case "restore":
+      return `${n}restored`;
     case "spam":
       return `${n}marked spam`;
     case "read":
@@ -84,10 +86,14 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
 function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
   const bucket = findView(view)?.bucket;
   switch (action.type) {
-    case "archive":
     case "trash":
-    case "spam":
       return true;
+    case "restore":
+      return view === "trash";
+    // Trash lists trashed threads whatever else they are.
+    case "archive":
+    case "spam":
+      return view !== "trash";
     case "snooze":
       return view !== "snoozed";
     case "unsnooze":
@@ -199,7 +205,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     move("paper_trail"),
     { keys: "i", label: "let in", group: "screener", when: inTriage, run: () => void runSender({ type: "letIn" }) },
     { keys: "x", label: "keep out", group: "screener", when: inTriage, run: () => void runSender({ type: "keepOut" }) },
-    { keys: "#", label: "trash", group: "triage", when: () => !!target, run: () => void run({ type: "trash" }) },
+    { keys: "#", label: "delete", group: "triage", when: () => !!target, run: () => void run({ type: "trash" }) },
     { keys: "!", label: "mark spam", group: "triage", when: () => !!target, run: () => void run({ type: "spam" }) },
     { keys: "U", label: "mark unread", group: "triage", when: () => !!target, run: () => void run({ type: "unread" }) },
     { keys: "u", label: "undo last", group: "general", run: undoLast },

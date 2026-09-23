@@ -60,7 +60,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 
 - Desktop: three panes. Left rail 200px with buckets and counts. Thread list 360px. Reading pane takes the rest. Rail collapses to icons below 1100px.
 - Resizable panes: the rail and the thread list can be dragged wider or narrower on desktop. Rail 160 to 320, list 280 to 640, and the reading pane never drops below 320, so the list gives way first when the window is narrow. Widths are remembered per browser. The collapsed icon rail and the phone layout do not resize.
-- Phone: single pane, list then thread, back via a sticky header. Touch targets 44px. Keyboard hints are hidden, since there is no keyboard; search opens from a `search` button in the list header.
+- Phone: single pane, list then thread, back via a sticky header. The header carries `back` at left and `delete` in `--danger` at right (`restore` in `--text-muted` for a trashed thread). Touch targets 44px. Keyboard hints are hidden, since there is no keyboard; search opens from a `search` button in the list header.
 - Home-screen icon: a `>_` prompt in `--accent` on `--bg`, square, with the prompt inside the maskable safe zone.
 - Command palette: centered, 640px max, top-aligned at 15vh so results grow downward.
 - Status line: a 24px bar at the bottom of the window, terminal-style, showing sync state, account, and the active keyboard hint. This is where "what to do next" lives.
@@ -75,6 +75,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
   - Destructive: transparent with `--danger` text and border. Fills `--danger` only on hover.
   - All buttons show their keyboard shortcut as a keycap after the label, e.g. `archive [e]`. On the primary button the keycap flips to the accent variant so it keeps contrast on the fill.
 - Keycap: every shortcut shown anywhere (buttons, list header, palette rows, key map, status line) is a keycap, never plain text. 11px, 2px radius, hairline `--border`, `--surface-raised` background, `--text-muted` text, at least 16px square (`h-key`, `min-w-key`) so single letters are square and words like `enter` grow sideways. Vertically centered with the label it sits next to. Multi-key shortcuts are adjacent keycaps: combos like `mod k` 2px apart, sequences like `g i` 4px apart. Key names are lowercase and short: `mod`, `enter`, `esc`. On the `--accent` fill: transparent background, `--bg` text, `--bg` border at 40%. Hidden below `md` like every keyboard hint.
+- Thread toolbar: ghost buttons for `archive`, `snooze`, `set aside`, then `delete` as the one destructive button, set 8px apart. A trashed thread shows a ghost `restore` in its place. Delete runs at once with the undo toast, like archive. The rail lists `trash` below `set aside` with its total count.
 - Thread row: account bar, sender at 500 if unseen, subject, snippet in `--text-muted`, time right-aligned in tabular 11px. Seen rows drop to 400 and `--text-dim` subject.
 - Badge: 11px, 2px radius, `--surface-raised` background, `--text-muted` text. Bucket badges use `--accent-dim` with `--accent` text. AI suggestions use `--info`.
 - Inline AI note: a single line above a thread in `--info`, prefixed with `>>`, e.g. `>> new sender, let in by AI. undo?`. Never a card, never a modal.

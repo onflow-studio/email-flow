@@ -8,5 +8,5 @@ export const BULK_ACTIONS: { key: string; label: string; action: ThreadAction }[
   { key: "move-paper-trail", label: "move to paper trail", action: { type: "move", bucket: "paper_trail" } },
   { key: "read", label: "mark read", action: { type: "read" } },
   { key: "set-aside", label: "set aside", action: { type: "setAside" } },
-  { key: "trash", label: "trash", action: { type: "trash" } },
+  { key: "trash", label: "delete", action: { type: "trash" } },
 ];

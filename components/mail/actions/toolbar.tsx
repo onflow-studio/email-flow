@@ -40,6 +40,16 @@ export function ActionToolbar({ thread }: { thread: ThreadDetail }) {
       >
         {thread.setAside ? "unset aside" : "set aside"}
       </Button>
+      {thread.trashed ? (
+        <Button variant="ghost" onClick={() => void run({ type: "restore" }, ids)}>
+          restore
+        </Button>
+      ) : (
+        // Phone has delete in the sticky thread header instead.
+        <Button variant="destructive" shortcut="#" className="ml-2 hidden md:inline-flex" onClick={() => void run({ type: "trash" }, ids)}>
+          delete
+        </Button>
+      )}
     </div>
   );
 }
