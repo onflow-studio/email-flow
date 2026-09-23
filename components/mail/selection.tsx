@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { rememberMailPath } from "./return-path";
 import { mailHref, type ViewSlug } from "./views";
 
 /** The desktop pane arrow keys act in. Phone has no pane focus. */
@@ -191,6 +192,8 @@ export function SelectionProvider({
     setPane("list");
     router.replace(mailHref(view, { threadId: top }), { scroll: false });
   }, [view, openId, threadIds, switchedTo, setAutoOpened, setPane, router]);
+
+  useEffect(() => rememberMailPath(mailHref(view, { threadId: openId })), [view, openId]);
 
   // First load: a thread opened by URL is being read.
   const pane: Pane = store.pane === "reading" && !openId ? "list" : (store.pane ?? (openId ? "reading" : "list"));

@@ -7,6 +7,7 @@ import type { RuleStructure } from "@/lib/ai/rules";
 import { accounts, rules } from "@/lib/db/schema";
 
 import { AccountForm } from "./account-form";
+import { SettingsBack } from "./back";
 import { RulesSection } from "./rules-section";
 
 export const metadata: Metadata = { title: "settings · superfer" };
@@ -38,7 +39,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
     <div className="flex h-dvh flex-col bg-bg">
       <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-8">
         <div className="mx-auto flex max-w-palette flex-col gap-4">
-          <p className="text-11 text-text-dim">superfer / settings</p>
+          <SettingsBack />
 
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-4">
