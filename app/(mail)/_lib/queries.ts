@@ -13,12 +13,17 @@ const live = () => and(eq(threads.archived, false), eq(threads.trashed, false), 
 const resurfaced = () => lte(threads.snoozedUntil, sql`now()`);
 const unseen = () => or(isNull(threads.seenAt), resurfaced());
 
+const snoozed = () => gt(threads.snoozedUntil, sql`now()`);
+
 function viewFilter(view: View): SQL | undefined {
-  if (view.slug === "snoozed") return and(live(), gt(threads.snoozedUntil, sql`now()`));
+  if (view.slug === "snoozed") return and(live(), snoozed());
   if (view.slug === "trash") return and(eq(threads.trashed, true), eq(threads.spam, false));
-  const inBucket = and(eq(threads.bucket, view.bucket!), isNull(threads.snoozedUntil), isNull(threads.pinnedAt));
-  // Pinned threads and resurfaced snoozes sit at the top of Inbox whatever their bucket.
-  return and(live(), view.bucket === "inbox" ? or(inBucket, isNotNull(threads.pinnedAt), resurfaced()) : inBucket);
+  // A snoozed Work thread hides until its snooze ends, then comes back here.
+  if (view.slug === "work") return and(live(), isNotNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
+  // Work threads leave every bucket view.
+  const inBucket = and(eq(threads.bucket, view.bucket!), isNull(threads.snoozedUntil), isNull(threads.workAt));
+  // Resurfaced snoozes sit at the top of Inbox whatever their bucket.
+  return and(live(), view.bucket === "inbox" ? or(inBucket, and(isNull(threads.workAt), resurfaced())) : inBucket);
 }
 
 /**
@@ -47,20 +52,35 @@ export async function listAccounts() {
 
 export type AccountSummary = Awaited<ReturnType<typeof listAccounts>>[number];
 
-/** Unseen count for bucket views, total for snoozed and trash. */
-export async function viewCounts(on: string[] | null): Promise<Record<ViewSlug, number>> {
+export type ViewCounts = {
+  /** Unseen count for bucket views, total for work, snoozed and trash. */
+  n: Record<ViewSlug, number>;
+  /** Views where a thread has an unread reply that the count does not show: work. */
+  unread: Partial<Record<ViewSlug, boolean>>;
+};
+
+export async function viewCounts(on: string[] | null): Promise<ViewCounts> {
   const rows = await Promise.all(
     VIEWS.map(async (view) => {
       const unseenOnly = !!view.bucket;
       const [row] = await db
-        .select({ n: count() })
+        .select({ n: count(), unseen: count(sql`case when ${unseen()} then 1 end`) })
         .from(threads)
         .where(and(viewFilter(view), accountFilter(on), unseenOnly ? unseen() : undefined));
-      return [view.slug, row.n] as const;
+      return { slug: view.slug, n: row.n, unread: view.slug === "work" && row.unseen > 0 };
     }),
   );
-  return Object.fromEntries(rows) as Record<ViewSlug, number>;
+  return {
+    n: Object.fromEntries(rows.map((r) => [r.slug, r.n])) as Record<ViewSlug, number>,
+    unread: Object.fromEntries(rows.filter((r) => r.unread).map((r) => [r.slug, true])),
+  };
 }
+
+/**
+ * Work: overdue deadlines, then upcoming ones soonest first (both by deadline ascending), then the
+ * threads without one in the order they entered Work.
+ */
+const workOrder = () => [sql`${threads.deadlineAt} asc nulls last`, asc(threads.workAt), desc(threads.lastMessageAt)];
 
 export async function listThreads(view: View, on: string[] | null) {
   const last = db
@@ -89,7 +109,7 @@ export async function listThreads(view: View, on: string[] | null) {
       snoozedUntil: threads.snoozedUntil,
       needsReply: threads.needsReply,
       deadlineAt: threads.deadlineAt,
-      pinnedAt: threads.pinnedAt,
+      workAt: threads.workAt,
       fromName: last.fromName,
       fromEmail: last.fromEmail,
       snippet: last.snippet,
@@ -103,10 +123,13 @@ export async function listThreads(view: View, on: string[] | null) {
     .leftJoinLateral(last, sql`true`)
     .where(and(viewFilter(view), accountFilter(on)))
     .orderBy(
-      desc(isNotNull(threads.pinnedAt)),
-      desc(sql`coalesce(${resurfaced()}, false)`),
-      desc(sql`coalesce(${unseen()}, false)`),
-      desc(threads.lastMessageAt),
+      ...(view.slug === "work"
+        ? workOrder()
+        : [
+            desc(sql`coalesce(${resurfaced()}, false)`),
+            desc(sql`coalesce(${unseen()}, false)`),
+            desc(threads.lastMessageAt),
+          ]),
     )
     .limit(300);
 
@@ -133,7 +156,7 @@ export async function listThreads(view: View, on: string[] | null) {
     snoozedUntil: r.snoozedUntil?.toISOString() ?? null,
     needsReply: r.needsReply,
     deadlineAt: r.deadlineAt?.toISOString() ?? null,
-    pinned: r.pinnedAt !== null,
+    work: r.workAt !== null,
     messageCount: r.messageCount,
   }));
 }
@@ -220,7 +243,7 @@ export async function getThread(id: string) {
     snoozedUntil: thread.snoozedUntil?.toISOString() ?? null,
     needsReply: thread.needsReply,
     deadlineAt: thread.deadlineAt?.toISOString() ?? null,
-    pinned: thread.pinnedAt !== null,
+    work: thread.workAt !== null,
     trashed: thread.trashed,
     archived: thread.archived,
     spam: thread.spam,

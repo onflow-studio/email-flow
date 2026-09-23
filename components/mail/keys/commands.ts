@@ -1,7 +1,8 @@
 /**
  * Every bindable command in the app, with its default keys. Defaults live
  * here, in code; the database stores only the user's overrides, keyed by
- * these ids, so an id is a stable name and must never be renamed.
+ * these ids, so an id is a stable name: renaming one needs a migration that
+ * moves its stored override (see 0009_work_keybinding).
  *
  * Keys use the keymap notation: space-separated steps (`g i`), `+` within a
  * step (`mod+k`, `shift+enter`). Printable keys are as typed, so `U` and `?`
@@ -38,6 +39,7 @@ export const COMMANDS = [
   { id: "pane.right", label: "pane right", group: "navigate", scope: "mail", keys: [], fixed: ["arrowright"] },
   go("triage", "triage", ["g t"]),
   go("inbox", "inbox", ["g i"]),
+  go("work", "work", ["g w"]),
   go("snoozed", "snoozed"),
   go("news", "news", ["g n"]),
   go("paper-trail", "paper trail", ["g p"]),
@@ -46,7 +48,7 @@ export const COMMANDS = [
 
   { id: "archive", label: "archive", group: "act on a thread", scope: "mail", keys: ["e"] },
   { id: "snooze", label: "snooze", group: "act on a thread", scope: "mail", keys: ["s"] },
-  { id: "pin", label: "pin", group: "act on a thread", scope: "mail", keys: ["h"] },
+  { id: "work", label: "work / done", group: "act on a thread", scope: "mail", keys: ["w"] },
   { id: "delete", label: "delete", group: "act on a thread", scope: "mail", keys: ["#"] },
   { id: "spam", label: "mark spam", group: "act on a thread", scope: "mail", keys: ["!"] },
   { id: "unread", label: "mark unread", group: "act on a thread", scope: "mail", keys: ["U"] },

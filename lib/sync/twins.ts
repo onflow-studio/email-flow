@@ -35,10 +35,10 @@ const snoozed = (c: ThreadState, now: Date) => c.snoozedUntil !== null && c.snoo
 
 /**
  * The copy a list shows when copies disagree: never hide mail. Live before archived or trashed, then
- * not snoozed, pinned, unseen, newest, id. SQL twin of this order: `showOrder`.
+ * not snoozed, in Work, unseen, newest, id. SQL twin of this order: `showOrder`.
  */
 export function compareCopies(a: Copy, b: Copy, now = new Date()): number {
-  const rank = (c: Copy) => [live(c) ? 0 : 1, snoozed(c, now) ? 1 : 0, c.pinnedAt ? 0 : 1, c.seenAt ? 1 : 0];
+  const rank = (c: Copy) => [live(c) ? 0 : 1, snoozed(c, now) ? 1 : 0, c.workAt ? 0 : 1, c.seenAt ? 1 : 0];
   const ra = rank(a);
   const rb = rank(b);
   for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return ra[i] - rb[i];
@@ -135,7 +135,7 @@ const stateColumns = Object.fromEntries(STATE_COLUMNS.map((c) => [c, threads[c]]
 export type Reconciled = { source: string; changed: { id: string; patch: Partial<ThreadState> }[]; batchId: string };
 
 /**
- * Make a group's copies agree on user-set state (snooze, pin, archive, trash, bucket, read) by
+ * Make a group's copies agree on user-set state (snooze, work, archive, trash, bucket, read) by
  * copying the copy the user acted on last onto the others. Without a user action it leaves them
  * be, unless `joining` names new copies: those take the state of the best other copy (compareCopies),
  * as long as it has been classified or moved, so a new copy of a known conversation lands where the

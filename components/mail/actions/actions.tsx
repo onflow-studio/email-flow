@@ -1,17 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { runSenderAction, runThreadAction, unsubscribe as unsubscribeAction } from "@/app/(mail)/thread-actions";
 import type { Bucket } from "@/lib/db/schema";
 import type { ActionResult, MovableBucket, SenderAction, ThreadAction } from "@/lib/actions/types";
 
+import { useCompose } from "../compose/compose";
 import { useKeys, type KeyBinding } from "../keys/keymap";
 import { useMailSelection } from "../selection";
 import { fullTime } from "../time";
 import { findView, mailHref, type ViewSlug } from "../views";
-import { SnoozePicker } from "./snooze-picker";
+import { DeadlinePicker, SnoozePicker } from "./snooze-picker";
 import { useUndo } from "./undo";
 
 /** What the client knows about a thread to pick and describe actions. */
@@ -19,14 +20,19 @@ export type ActionTarget = {
   id: string;
   bucket: Bucket;
   senderId: string | null;
-  pinned: boolean;
+  work: boolean;
   snoozedUntil: string | null;
+  needsReply: boolean;
+  deadlineAt: string | null;
 };
 
 type ThreadActions = {
   run: (action: ThreadAction, ids?: string[]) => Promise<ActionResult | null>;
   runSender: (action: SenderAction, id?: string) => Promise<ActionResult | null>;
   openSnooze: () => void;
+  openDeadline: () => void;
+  /** `w`: into Work, or done when already there. */
+  toggleWork: (id?: string) => Promise<ActionResult | null>;
   unsubscribe: (id?: string) => Promise<void>;
   target: ActionTarget | null;
 };
@@ -78,10 +84,12 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
       return `${n}snoozed until ${fullTime(action.until)}${action.needsReply ? ", needs reply" : ""}`;
     case "unsnooze":
       return `${n}unsnoozed`;
-    case "pin":
-      return `${n}pinned`;
-    case "unpin":
-      return `${n}unpinned`;
+    case "work":
+      return `${n}moved to work`;
+    case "done":
+      return `${n}done`;
+    case "flag":
+      return flagLine(action, n);
     case "letIn":
       return count ? `let in${who}, ${count} out of triage` : `let in${who}`;
     case "confirmAiAllow":
@@ -91,6 +99,14 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
     case "undoAiAllow":
       return count ? `back to triage, ${count} moved` : "back to triage";
   }
+}
+
+function flagLine(action: Extract<ThreadAction, { type: "flag" }>, n: string) {
+  const parts = [
+    action.needsReply === undefined ? null : action.needsReply ? "needs reply" : "no reply needed",
+    action.deadline === undefined ? null : action.deadline ? `due ${fullTime(action.deadline)}` : "deadline cleared",
+  ].filter(Boolean);
+  return `${n}${parts.join(", ")}`;
 }
 
 /** Whether the action takes the thread out of the current view. */
@@ -103,18 +119,19 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
       return view === "trash";
     // Trash lists trashed threads whatever else they are.
     case "archive":
+    case "done":
     case "spam":
       return view !== "trash";
     case "snooze":
       return view !== "snoozed";
     case "unsnooze":
       return view === "snoozed";
-    // Pinned threads leave the other bucket views for the top of inbox.
-    case "pin":
-      return !!bucket && bucket !== "inbox";
+    // Work threads leave every bucket view.
+    case "work":
+      return !!bucket;
     case "move":
       return !!bucket && bucket !== action.bucket;
-    // Screener moves change the bucket only; snoozed and pinned cut across buckets.
+    // Screener moves change the bucket only; work and snoozed cut across buckets.
     case "letIn":
       return bucket === "triage";
     case "keepOut":
@@ -131,6 +148,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   const router = useRouter();
   const { report, notify, undoLast } = useUndo();
   const [snoozeIds, setSnoozeIds] = useState<string[] | null>(null);
+  const [deadlineId, setDeadlineId] = useState<string | null>(null);
 
   const byId = useMemo(() => new Map(targets.map((t) => [t.id, t])), [targets]);
   const target = sel.target ? (byId.get(sel.target) ?? null) : null;
@@ -224,6 +242,23 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     setSnoozeIds([sel.target]);
   }, [sel.target]);
 
+  const openDeadline = useCallback(() => {
+    if (sel.target) setDeadlineId(sel.target);
+  }, [sel.target]);
+
+  const toggleWork = useCallback(
+    (id?: string) => {
+      const threadId = id ?? sel.target;
+      if (!threadId) return Promise.resolve(null);
+      return run({ type: byId.get(threadId)?.work ? "done" : "work" }, [threadId]);
+    },
+    [sel.target, byId, run],
+  );
+
+  // The sent toast after a reply on a Work thread offers done through this.
+  const compose = useCompose();
+  useEffect(() => compose.onDone((id) => void run({ type: "done" }, [id])), [compose, run]);
+
   const move = (bucket: MovableBucket): KeyBinding => ({
     id: `move.${bucket}`,
     when: () => !!target,
@@ -234,7 +269,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   useKeys([
     { id: "archive", when: () => !!target, run: () => void run({ type: "archive" }) },
     { id: "snooze", when: () => !!target, run: openSnooze },
-    { id: "pin", when: () => !!target, run: () => void run({ type: target?.pinned ? "unpin" : "pin" }) },
+    { id: "work", when: () => !!target, run: () => void toggleWork() },
     move("inbox"),
     move("news"),
     move("paper_trail"),
@@ -248,8 +283,8 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   ]);
 
   const value = useMemo(
-    () => ({ run, runSender, openSnooze, unsubscribe, target }),
-    [run, runSender, openSnooze, unsubscribe, target],
+    () => ({ run, runSender, openSnooze, openDeadline, toggleWork, unsubscribe, target }),
+    [run, runSender, openSnooze, openDeadline, toggleWork, unsubscribe, target],
   );
 
   return (
@@ -258,6 +293,8 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       {snoozeIds ? (
         <SnoozePicker
           snoozedUntil={snoozedUntil(snoozeIds)}
+          needsReply={snoozeIds.length === 1 ? !!byId.get(snoozeIds[0])?.needsReply : false}
+          deadline={snoozeIds.length === 1 ? (byId.get(snoozeIds[0])?.deadlineAt ?? null) : null}
           onUnsnooze={() => {
             setSnoozeIds(null);
             void run({ type: "unsnooze" }, snoozeIds);
@@ -266,6 +303,16 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
           onPick={(snooze) => {
             setSnoozeIds(null);
             void run({ type: "snooze", ...snooze }, snoozeIds);
+          }}
+        />
+      ) : null}
+      {deadlineId ? (
+        <DeadlinePicker
+          deadline={byId.get(deadlineId)?.deadlineAt ?? null}
+          onClose={() => setDeadlineId(null)}
+          onPick={(deadline) => {
+            setDeadlineId(null);
+            void run({ type: "flag", deadline }, [deadlineId]);
           }}
         />
       ) : null}

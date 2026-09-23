@@ -42,4 +42,5 @@ export type ComposeSend = {
   attachmentIds: string[];
 };
 
-export type SendResult = { ok: true; accountId: string; accountLabel: string } | { ok: false; error: string };
+/** `work`: a reply on a Work thread, so the sent toast offers done. */
+export type SendResult = { ok: true; accountId: string; accountLabel: string; work: boolean } | { ok: false; error: string };

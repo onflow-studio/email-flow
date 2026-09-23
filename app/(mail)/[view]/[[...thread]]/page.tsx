@@ -15,6 +15,7 @@ import { ReadingPane } from "@/components/mail/reading-pane";
 import { SelectionProvider } from "@/components/mail/selection";
 import { StatusLine } from "@/components/mail/status-line";
 import { ThreadList } from "@/components/mail/thread-list";
+import { UnreadDot } from "@/components/mail/unread-dot";
 import { findView, mailHref, VIEWS, type ViewSlug } from "@/components/mail/views";
 import { cn } from "@/lib/utils";
 
@@ -53,8 +54,10 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
     id: t.id,
     bucket: t.bucket,
     senderId: t.senderId,
-    pinned: t.pinned,
+    work: t.work,
     snoozedUntil: t.snoozedUntil,
+    needsReply: t.needsReply,
+    deadlineAt: t.deadlineAt,
   }));
   // An open thread may have left the list (e.g. opened from a link); it is still a target.
   if (detail && !targets.some((t) => t.id === detail.id)) {
@@ -62,8 +65,10 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       id: detail.id,
       bucket: detail.bucket,
       senderId: detail.senderId,
-      pinned: detail.pinned,
+      work: detail.work,
       snoozedUntil: detail.snoozedUntil,
+      needsReply: detail.needsReply,
+      deadlineAt: detail.deadlineAt,
     });
   }
   const accountColors = Object.fromEntries(accounts.map((a) => [a.id, a.color]));
@@ -77,7 +82,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
         <AccountTogglesProvider
           accounts={accounts.map((a) => ({ id: a.id, label: a.label, email: a.email, color: a.color, on: isOn(a.id) }))}
         >
-        <PaletteProvider counts={counts}>
+        <PaletteProvider counts={counts.n}>
           <div className="flex h-dvh flex-col bg-bg">
             <Header className={cn(detail && "hidden md:flex")} />
             <div className="flex min-h-0 flex-1">
@@ -104,7 +109,12 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                       )}
                     >
                       {v.label}
-                      {counts[v.slug] && v.group !== "bottom" ? <span className="ml-2 text-11 text-text-muted">{counts[v.slug]}</span> : null}
+                      {counts.n[v.slug] && v.group !== "bottom" ? (
+                        <span className="ml-2 flex items-center gap-1 text-11 text-text-muted">
+                          {counts.unread[v.slug] ? <UnreadDot /> : null}
+                          {counts.n[v.slug]}
+                        </span>
+                      ) : null}
                     </Link>
                   ))}
                 </nav>
@@ -121,7 +131,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                   <ThreadList
                     threads={threads}
                     accountColors={accountColors}
-                    emptyLabel={view.bucket ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
+                    emptyLabel={view.bucket || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
                   />
                 </div>
               </FocusPane>
@@ -167,13 +177,14 @@ function homeView(t: {
   trashed: boolean;
   archived: boolean;
   spam: boolean;
-  pinned: boolean;
+  work: boolean;
   snoozedUntil: string | null;
 }): ViewSlug | null {
   if (t.trashed) return "trash";
   if (t.archived || t.spam) return null;
+  if (t.snoozedUntil && Date.parse(t.snoozedUntil) > Date.now()) return "snoozed";
+  if (t.work) return "work";
   // A past-due snooze has resurfaced at the top of Inbox.
-  if (t.snoozedUntil) return Date.parse(t.snoozedUntil) > Date.now() ? "snoozed" : "inbox";
-  if (t.pinned) return "inbox";
+  if (t.snoozedUntil) return "inbox";
   return VIEWS.find((v) => v.bucket === t.bucket)?.slug ?? null;
 }

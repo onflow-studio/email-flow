@@ -83,7 +83,7 @@ const useWide = () =>
 
 /** DESIGN.md action bar: the view's actions, large then small then `more`. Conditional ones appear only when they apply. */
 function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
-  const { run, runSender, openSnooze, unsubscribe } = useThreadActions();
+  const { run, runSender, openSnooze, openDeadline, toggleWork, unsubscribe } = useThreadActions();
   const compose = useCompose();
   const overrides = useOverrides();
   const key = (id: CommandId) => shortcutOf(id, overrides);
@@ -97,9 +97,11 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
   const unsnooze: BarAction | null = thread.snoozedUntil
     ? { id: "unsnooze", label: "unsnooze", run: () => void run({ type: "unsnooze" }, ids) }
     : null;
-  const pin: BarAction = thread.pinned
-    ? { id: "pin", label: "unpin", run: () => void run({ type: "unpin" }, ids) }
-    : { id: "pin", label: "pin", keys: key("pin"), run: () => void run({ type: "pin" }, ids) };
+  const work: BarAction = { id: "work", label: thread.work ? "done" : "work", keys: key("work"), run: () => void toggleWork(thread.id) };
+  const needsReply: BarAction = thread.needsReply
+    ? { id: "needs-reply", label: "no reply needed", run: () => void run({ type: "flag", needsReply: false }, ids) }
+    : { id: "needs-reply", label: "needs reply", run: () => void run({ type: "flag", needsReply: true }, ids) };
+  const deadline: BarAction = { id: "deadline", label: "deadline", run: openDeadline };
   const del: BarAction = thread.trashed
     ? { id: "restore", label: "restore", run: () => void run({ type: "restore" }, ids) }
     : { id: "delete", label: "delete", keys: key("delete"), tone: "delete", run: () => void run({ type: "trash" }, ids) };
@@ -131,16 +133,18 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
 
   switch (view) {
     case "triage":
-      return pick([letIn, keepOut], [archive, unsub, del], [snooze, pin, reply, replyAll, forward, unread, spam]);
+      return pick([letIn, keepOut], [archive, unsub, del], [snooze, work, reply, replyAll, forward, unread, spam]);
     case "news":
     case "paper-trail":
-      return pick([archive], [unsub, moveTo, del], [reply, replyAll, forward, snooze, pin, unread, spam]);
+      return pick([archive], [unsub, moveTo, del], [reply, replyAll, forward, snooze, work, unread, spam]);
     case "snoozed":
-      return pick([reply, archive, snooze], [unsnooze, del], [replyAll, forward, pin, unsub, unread, spam]);
+      return pick([reply, archive, snooze], [unsnooze, del], [replyAll, forward, work, unsub, unread, spam]);
+    case "work":
+      return pick([work, reply], [snooze, del], [replyAll, forward, needsReply, deadline, unsnooze, unsub, unread, spam]);
     case "trash":
       return pick([del], [], [reply, forward, spam]);
     default:
-      return pick([reply, archive, snooze], [pin, del], [replyAll, forward, unsub, unread, spam]);
+      return pick([reply, archive, snooze], [work, del], [replyAll, forward, unsub, unread, spam]);
   }
 }
 

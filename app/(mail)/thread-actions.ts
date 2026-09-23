@@ -28,7 +28,7 @@ function ids(threadIds: unknown): string[] {
   return threadIds;
 }
 
-const SIMPLE = new Set(["archive", "unarchive", "trash", "restore", "spam", "read", "unread", "unsnooze", "pin", "unpin"]);
+const SIMPLE = new Set(["archive", "unarchive", "trash", "restore", "spam", "read", "unread", "unsnooze", "work", "done"]);
 const MOVABLE = new Set(["inbox", "news", "paper_trail"]);
 const isDate = (v: unknown) => typeof v === "string" && !Number.isNaN(Date.parse(v));
 
@@ -38,6 +38,13 @@ function threadAction(a: unknown): ThreadAction {
   if (action?.type === "move" && MOVABLE.has(action.bucket)) return { type: "move", bucket: action.bucket };
   if (action?.type === "snooze" && isDate(action.until) && (action.deadline == null || isDate(action.deadline))) {
     return { type: "snooze", until: action.until, needsReply: !!action.needsReply, deadline: action.deadline ?? null };
+  }
+  if (action?.type === "flag" && (action.needsReply === undefined || typeof action.needsReply === "boolean") && (action.deadline == null || isDate(action.deadline))) {
+    return {
+      type: "flag",
+      ...(action.needsReply === undefined ? {} : { needsReply: action.needsReply }),
+      ...(action.deadline === undefined ? {} : { deadline: action.deadline }),
+    };
   }
   throw new Error("invalid action");
 }

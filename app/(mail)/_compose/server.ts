@@ -51,7 +51,7 @@ async function composeCopy(threadId: string): Promise<string> {
 export async function loadComposeThread(threadId: string) {
   const thread = await db.query.threads.findFirst({
     where: eq(threads.id, await composeCopy(threadId)),
-    columns: { id: true, gmailThreadId: true, subject: true },
+    columns: { id: true, gmailThreadId: true, subject: true, workAt: true },
     with: {
       account: {
         columns: { id: true, email: true, label: true, signatureHtml: true, refreshTokenEnc: true },

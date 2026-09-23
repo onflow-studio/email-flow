@@ -64,6 +64,13 @@
       "when": 1790201782924,
       "tag": "0008_threads_group",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790205210427,
+      "tag": "0009_work_keybinding",
+      "breakpoints": true
     }
   ]
 }

@@ -35,29 +35,43 @@ export function snoozePresets(now = new Date()) {
 
 // datetime-local and date inputs speak local time without a zone.
 const pad = (n: number) => n.toString().padStart(2, "0");
-const localInput = (d: Date) =>
-  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const localDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const localInput = (d: Date) => `${localDay(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-/** `snoozedUntil` is set when the thread is already snoozed: the picker says so and offers unsnooze. */
+/** A deadline is a day; it ends at 18:00 local. */
+const deadlineAt = (day: string) => (day ? new Date(`${day}T18:00`) : null);
+
+const ROW =
+  "flex h-touch w-full items-center justify-between gap-4 rounded-sm px-2 transition-colors duration-80 ease-snap hover:bg-surface-raised md:h-row";
+const DATE_INPUT = "h-touch rounded-sm border border-border bg-surface px-2 text-text md:h-row outline-none focus:border-accent";
+
+/**
+ * `snoozedUntil` is set when the thread is already snoozed: the picker says so and offers unsnooze.
+ * Needs reply and the deadline start from the thread's own, so snoozing keeps them.
+ */
 export function SnoozePicker({
   snoozedUntil = null,
+  needsReply: initialNeedsReply = false,
+  deadline: initialDeadline = null,
   onPick,
   onUnsnooze,
   onClose,
 }: {
   snoozedUntil?: string | null;
+  needsReply?: boolean;
+  deadline?: string | null;
   onPick: (snooze: Snooze) => void;
   onUnsnooze: () => void;
   onClose: () => void;
 }) {
   const [presets] = useState(() => snoozePresets());
-  const [needsReply, setNeedsReply] = useState(false);
+  const [needsReply, setNeedsReply] = useState(initialNeedsReply);
   const [custom, setCustom] = useState(() => localInput(at(new Date(), 1, 8)));
-  const [deadline, setDeadline] = useState("");
+  const [deadline, setDeadline] = useState(() => (initialDeadline ? localDay(new Date(initialDeadline)) : ""));
 
   const pick = (until: Date) => {
     if (Number.isNaN(until.getTime()) || until <= new Date()) return;
-    const due = deadline ? new Date(`${deadline}T18:00`) : null;
+    const due = deadlineAt(deadline);
     onPick({ until: until.toISOString(), needsReply, deadline: due ? due.toISOString() : null });
   };
 
@@ -97,7 +111,7 @@ export function SnoozePicker({
           <button
             type="button"
             onClick={onUnsnooze}
-            className="flex h-touch w-full items-center justify-between gap-4 rounded-sm px-2 transition-colors duration-80 ease-snap hover:bg-surface-raised md:h-row"
+            className={ROW}
           >
             <span>unsnooze</span>
             <Kbd keys="u" />
@@ -110,7 +124,7 @@ export function SnoozePicker({
               <button
                 type="button"
                 onClick={() => pick(p.until)}
-                className="flex h-touch w-full items-center justify-between gap-4 rounded-sm px-2 transition-colors duration-80 ease-snap hover:bg-surface-raised md:h-row"
+                className={ROW}
               >
                 <span>{p.label}</span>
                 <span className="flex items-center gap-4 text-11 text-text-muted">
@@ -170,10 +184,90 @@ export function SnoozePicker({
               type="date"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
-              className="h-touch rounded-sm border border-border bg-surface px-2 text-text md:h-row outline-none focus:border-accent"
+              className={DATE_INPUT}
             />
           </label>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Sets or clears a thread's deadline without snoozing it. */
+export function DeadlinePicker({
+  deadline,
+  onPick,
+  onClose,
+}: {
+  deadline: string | null;
+  onPick: (deadline: string | null) => void;
+  onClose: () => void;
+}) {
+  const [day, setDay] = useState(() => localDay(deadline ? new Date(deadline) : new Date()));
+
+  useKeys(
+    [
+      // A date input takes no letters, so `c` works while it has focus.
+      ...(deadline ? [{ keys: "c", allowInInput: true, run: () => onPick(null) }] : []),
+      { keys: "escape", allowInInput: true, run: onClose },
+    ],
+    { exclusive: true },
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-4 pt-palette-top" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-label="deadline"
+        className="flex w-full max-w-palette flex-col gap-3 rounded-md border border-border bg-surface-top p-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between text-11 text-text-muted">
+          {deadline ? (
+            <span>
+              due{" "}
+              <span className="text-text" suppressHydrationWarning>
+                {fullTime(deadline)}
+              </span>
+            </span>
+          ) : (
+            <span>deadline</span>
+          )}
+          <KeyHints hints={[["escape", "close"]]} />
+        </div>
+
+        <form
+          className="flex items-center gap-2 px-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const due = deadlineAt(day);
+            if (due && !Number.isNaN(due.getTime())) onPick(due.toISOString());
+          }}
+        >
+          <label htmlFor="deadline-day" className="w-label shrink-0 text-text-muted">
+            due
+          </label>
+          <input
+            id="deadline-day"
+            type="date"
+            autoFocus
+            value={day}
+            onChange={(e) => setDay(e.target.value)}
+            className={cn(DATE_INPUT, "min-w-0 flex-1")}
+          />
+          <Button type="submit" shortcut="enter">
+            set
+          </Button>
+        </form>
+
+        {deadline ? (
+          <div className="border-t border-border pt-3">
+            <button type="button" onClick={() => onPick(null)} className={ROW}>
+              <span>clear deadline</span>
+              <Kbd keys="c" />
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

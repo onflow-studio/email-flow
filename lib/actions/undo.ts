@@ -8,15 +8,16 @@ import type { LogPayload } from "./apply";
 import { touchesMirror } from "./patch";
 import type { ThreadState } from "./types";
 
-const DATE_COLUMNS = new Set<keyof ThreadState>(["seenAt", "snoozedUntil", "deadlineAt", "pinnedAt"]);
+const DATE_COLUMNS = new Set<keyof ThreadState>(["seenAt", "snoozedUntil", "deadlineAt", "workAt"]);
 
 // Payloads are JSON, so timestamps come back as strings.
 function revive(before: Partial<ThreadState>): Partial<ThreadState> {
   return Object.fromEntries(
-    Object.entries(before).map(([k, v]) => [
-      k,
-      DATE_COLUMNS.has(k as keyof ThreadState) && typeof v === "string" ? new Date(v) : v,
-    ]),
+    Object.entries(before).map(([key, v]) => {
+      // Logged before pin became work.
+      const k = key === "pinnedAt" ? "workAt" : key;
+      return [k, DATE_COLUMNS.has(k as keyof ThreadState) && typeof v === "string" ? new Date(v) : v];
+    }),
   ) as Partial<ThreadState>;
 }
 

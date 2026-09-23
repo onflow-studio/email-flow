@@ -1,14 +1,16 @@
 "use client";
 
-import { Clock, Inbox, Newspaper, Receipt, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
+import { BriefcaseBusiness, Clock, Inbox, Newspaper, Receipt, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import type { ViewCounts } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
 
 import { useKeys } from "./keys/keymap";
 import { useMailSelection } from "./selection";
+import { UnreadDot } from "./unread-dot";
 import { mailHref, VIEWS, type View, type ViewSlug } from "./views";
 
 const ICONS: Record<ViewSlug, LucideIcon> = {
@@ -16,13 +18,14 @@ const ICONS: Record<ViewSlug, LucideIcon> = {
   news: Newspaper,
   "paper-trail": Receipt,
   triage: ShieldQuestionMark,
+  work: BriefcaseBusiness,
   snoozed: Clock,
   trash: Trash2,
 };
 
-type RailItem = { key: string; label: string; href: string; icon: LucideIcon; count?: number; bucket?: boolean };
+type RailItem = { key: string; label: string; href: string; icon: LucideIcon; count?: number; strong?: boolean; unread?: boolean };
 
-export function Rail({ view, counts }: { view: ViewSlug; counts: Record<ViewSlug, number> }) {
+export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
   const sel = useMailSelection();
   const router = useRouter();
   const focused = sel.pane === "rail";
@@ -33,8 +36,10 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: Record<ViewSlug
     href: mailHref(v.slug),
     icon: ICONS[v.slug],
     // Trash carries no count.
-    count: v.group === "bottom" ? undefined : counts[v.slug],
-    bucket: !!v.bucket,
+    count: v.group === "bottom" ? undefined : counts.n[v.slug],
+    // Bucket and Work counts are what is left to do; snoozed only waits.
+    strong: !!v.bucket || v.slug === "work",
+    unread: counts.unread[v.slug],
   });
   const act = VIEWS.filter((v) => v.group === "act").map(item);
   const later = VIEWS.filter((v) => v.group === "later").map(item);
@@ -95,7 +100,10 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: Record<ViewSlug
           <Icon aria-hidden className="size-4 rail:hidden" strokeWidth={1.5} />
           <span className="hidden rail:inline">{it.label}</span>
           {it.count ? (
-            <span className={cn("hidden text-11 rail:inline", it.bucket ? "text-text" : "text-text-dim")}>{it.count}</span>
+            <span className={cn("hidden items-center gap-1 text-11 rail:flex", it.strong ? "text-text" : "text-text-dim")}>
+              {it.unread ? <UnreadDot /> : null}
+              {it.count}
+            </span>
           ) : null}
         </Link>
       </li>

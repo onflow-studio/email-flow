@@ -29,7 +29,7 @@ export function useUndo() {
 
 const VISIBLE_MS = 4000;
 // An undoable toast stays long enough to change your mind, with the seconds left on it.
-const UNDO_MS = 10000;
+export const UNDO_MS = 10000;
 const STACK_LIMIT = 50;
 
 /**

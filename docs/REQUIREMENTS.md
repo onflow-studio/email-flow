@@ -51,9 +51,10 @@ AI-gated:
 ## Actions
 
 - Top actions: reply all, forward, snooze.
-- Reply later and snooze merge into one mechanism: snooze with an optional "needs reply" flag and optional deadline. Past due, the thread resurfaces at the top of Inbox.
-- Pin: keep a few threads at hand (a boarding pass) at the top of Inbox until unpinned.
-- Snoozed/reply-later lives as a separate view with a count badge; pinned threads are not a view. A digest of stale items may come later.
+- Reply later and snooze merge into one mechanism: snooze with an optional "needs reply" flag and optional deadline. Past due, the thread resurfaces at the top of Inbox (a Work thread returns to Work instead).
+- Needs reply and deadline are the thread's own properties, independent of snooze: set from the snooze picker, or on a Work thread without snoozing.
+- Work: its own view for things that need real effort after Inbox zero. `w` moves a thread to Work and out of Inbox (and every bucket view), so Inbox can reach zero. Order: overdue deadlines first, then upcoming deadlines soonest first, then the rest oldest-in-Work first. Done (`w` again, or archive) archives it and takes it out of Work; delete takes it out too. A new reply keeps it in Work, unread, and never lands in Inbox. After sending a reply on a Work thread, the sent toast offers done. Snoozing a Work thread hides it until the snooze ends, then it returns to Work.
+- Snoozed/reply-later lives as a separate view with a count badge; Work shows its total, marked when any thread has an unread reply. A digest of stale items may come later.
 - Single-message triage actions execute immediately with undo, no confirmation.
 - Bulk actions from cmd+k show a preview list before executing.
 - Phase 1: nothing requires confirmation beyond bulk preview.
@@ -92,7 +93,7 @@ Every shortcut has a default and can be rebound in settings (keyboard): single k
 - Poll every 5 minutes, plus manual refresh button.
 - Mirrored both ways: read/unread, archive, trash, spam.
 - One-way client to Gmail: one label per bucket.
-- Client-only: snooze, pin, screener decisions, deadlines.
+- Client-only: snooze, work, screener decisions, deadlines.
 - Actions taken in the Gmail app (e.g. archive from phone) flow back on next poll.
 
 ## Platform
@@ -117,7 +118,7 @@ Every shortcut has a default and can be rebound in settings (keyboard): single k
 1. Three accounts synced, unified thread list, account indicator
 2. AI buckets with learn-from-corrections and NL rules
 3. AI-gated screener
-4. Reply all, forward, snooze-with-flag, pin
+4. Reply all, forward, snooze-with-flag, work
 5. Rich text compose, per-account signature, account toggle
 6. Keyboard triage
 7. cmd+k with keyword search and actions with preview

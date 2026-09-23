@@ -82,7 +82,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
             </span>
           ) : null}
           {single ? null : <span>{thread.messages.length} messages</span>}
-          {thread.pinned ? <span>pinned</span> : null}
+          {thread.work ? <span>in work</span> : null}
           {thread.trashed ? <span className="text-danger">in trash</span> : null}
           {thread.snoozedUntil || thread.needsReply || thread.deadlineAt ? (
             // Snooze state sits apart at the right, in the snooze colour.

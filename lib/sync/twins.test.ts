@@ -15,7 +15,7 @@ const state = (over: Partial<ThreadState> = {}): ThreadState => ({
   snoozedUntil: null,
   needsReply: false,
   deadlineAt: null,
-  pinnedAt: null,
+  workAt: null,
   archived: false,
   trashed: false,
   spam: false,
@@ -49,8 +49,8 @@ describe("compareCopies", () => {
     expect(first(copy("a", { snoozedUntil: new Date("2026-09-20T07:00:00Z"), lastMessageAt: new Date("2026-09-23T00:00:00Z") }), copy("b"))).toBe("a");
   });
 
-  it("then pinned, then unseen, then newest", () => {
-    expect(first(copy("a"), copy("b", { pinnedAt: now }))).toBe("b");
+  it("then in Work, then unseen, then newest", () => {
+    expect(first(copy("a"), copy("b", { workAt: now }))).toBe("b");
     expect(first(copy("a"), copy("b", { seenAt: null }))).toBe("b");
     expect(first(copy("a"), copy("b", { lastMessageAt: now }))).toBe("b");
     expect(first(copy("b"), copy("a"))).toBe("a");
@@ -76,8 +76,8 @@ describe("reconcilePatch", () => {
   });
 
   it("is null when the copies agree, dates compared by time", () => {
-    const a = state({ pinnedAt: new Date("2026-09-23T00:00:00Z") });
-    const b = state({ pinnedAt: new Date("2026-09-23T00:00:00Z") });
+    const a = state({ workAt: new Date("2026-09-23T00:00:00Z") });
+    const b = state({ workAt: new Date("2026-09-23T00:00:00Z") });
     expect(reconcilePatch(a, b)).toBeNull();
   });
 
@@ -87,6 +87,17 @@ describe("reconcilePatch", () => {
       bucket: "news",
       bucketSource: "user",
     });
+  });
+
+  it("moves the twin into Work and out again, with the thread's own needs reply and deadline", () => {
+    const at = new Date("2026-09-23T08:00:00Z");
+    const due = new Date("2026-09-30T16:00:00Z");
+    expect(reconcilePatch(state({ workAt: at, needsReply: true, deadlineAt: due }), state())).toEqual({
+      workAt: at,
+      needsReply: true,
+      deadlineAt: due,
+    });
+    expect(reconcilePatch(state({ archived: true }), state({ workAt: at }))).toEqual({ archived: true, workAt: null });
   });
 });
 

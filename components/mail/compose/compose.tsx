@@ -7,9 +7,10 @@ import { prepareCompose, sendCompose } from "@/app/(mail)/_compose/actions";
 import { MODE_LABELS, type ComposeAccount, type ComposeInit, type ComposeMode } from "@/app/(mail)/_compose/types";
 import { Button } from "@/components/ui/button";
 import { KeyHints } from "@/components/ui/kbd";
+import { Countdown, dismissToast, showToast, ToastCard } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
-import { useUndo } from "../actions/undo";
+import { UNDO_MS, useUndo } from "../actions/undo";
 import { useKeys, useShortcut } from "../keys/keymap";
 import { ComposeBody, ComposeToolbar, useComposeEditor } from "./editor";
 import { readLastAccount, rememberAccount } from "./last-account";
@@ -20,6 +21,8 @@ type ComposeContextValue = {
   /** Opens compose. Ignored while an edited draft is open, so it is never lost. */
   open: (mode: ComposeMode, threadId?: string | null, accountHint?: string | null) => void;
   isOpen: boolean;
+  /** Registers what the sent toast's `done` runs on a Work thread; returns the unregister. */
+  onDone: (handler: (threadId: string) => void) => () => void;
 };
 
 const ComposeContext = createContext<ComposeContextValue | null>(null);
@@ -49,13 +52,42 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
   }, []);
 
-  const value = useMemo(() => ({ open, isOpen: !!session }), [open, session]);
+  const doneRef = useRef<((threadId: string) => void) | null>(null);
+  const onDone = useCallback((handler: (threadId: string) => void) => {
+    doneRef.current = handler;
+    return () => {
+      if (doneRef.current === handler) doneRef.current = null;
+    };
+  }, []);
+
+  const sent = useCallback(
+    (notice: string, workThreadId: string | null) => {
+      if (!workThreadId) return notify(notice, "success");
+      // A reply on a Work thread: offer done while the toast shows.
+      const id = `sent-${Date.now()}`;
+      showToast(
+        () => (
+          <SentToast
+            message={notice}
+            onDone={() => {
+              dismissToast(id);
+              doneRef.current?.(workThreadId);
+            }}
+          />
+        ),
+        { id, duration: UNDO_MS },
+      );
+    },
+    [notify],
+  );
+
+  const value = useMemo(() => ({ open, isOpen: !!session, onDone }), [open, session, onDone]);
 
   return (
     <ComposeContext.Provider value={value}>
       {children}
       {session ? (
-        <ComposePanel key={session.key} session={session} dirtyRef={dirty} onClose={close} onSent={(notice) => notify(notice, "success")} />
+        <ComposePanel key={session.key} session={session} dirtyRef={dirty} onClose={close} onSent={sent} />
       ) : null}
     </ComposeContext.Provider>
   );
@@ -88,7 +120,8 @@ function ComposePanel({
   session: Session;
   dirtyRef: React.RefObject<boolean>;
   onClose: () => void;
-  onSent: (notice: string) => void;
+  /** `workThreadId`: the reply went to a Work thread, which the toast can then finish. */
+  onSent: (notice: string, workThreadId: string | null) => void;
 }) {
   const [init, setInit] = useState<ComposeInit | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -173,7 +206,7 @@ function ComposePanel({
       });
       if (result.ok) {
         rememberAccount(result.accountId);
-        onSent(`sent from ${result.accountLabel}`);
+        onSent(`sent from ${result.accountLabel}`, result.work ? init.threadId : null);
         onClose();
       } else {
         setError(result.error);
@@ -404,5 +437,17 @@ function ComposePanel({
         </span>
       </footer>
     </div>
+  );
+}
+
+function SentToast({ message, onDone }: { message: string; onDone: () => void }) {
+  const workKey = useShortcut("work");
+  return (
+    <ToastCard type="success" message={message}>
+      <Button variant="secondary" size="sm" shortcut={workKey} onClick={onDone}>
+        done
+      </Button>
+      <Countdown ms={UNDO_MS} />
+    </ToastCard>
   );
 }

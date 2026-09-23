@@ -123,6 +123,7 @@ export async function sendCompose(input: ComposeSend): Promise<SendResult> {
   let tail = "";
   let threading: { inReplyTo?: string; references?: string } = {};
   let files: OutgoingAttachment[] = [];
+  let work = false;
 
   if (data.mode === "new") {
     if (!data.accountId) return { ok: false, error: "pick an account" };
@@ -138,6 +139,7 @@ export async function sendCompose(input: ComposeSend): Promise<SendResult> {
     if (!ctx) return { ok: false, error: "thread not found, reload" };
     // Replies and forwards always leave from the account that holds the thread.
     ({ id: accountId, label: accountLabel, signatureHtml } = ctx.account);
+    work = data.mode !== "forward" && ctx.thread.workAt !== null;
     gmailThreadId = ctx.thread.gmailThreadId;
     // Reply subjects are derived, never typed, so Gmail keeps the thread together.
     if (data.mode !== "forward" || !subject) subject = composeSubject(data.mode, ctx.target.subject ?? ctx.thread.subject);
@@ -201,5 +203,5 @@ export async function sendCompose(input: ComposeSend): Promise<SendResult> {
     return { ok: false, error: `send failed for ${accountLabel}, retry` };
   }
 
-  return { ok: true, accountId, accountLabel };
+  return { ok: true, accountId, accountLabel, work };
 }

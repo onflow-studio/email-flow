@@ -44,7 +44,7 @@ superfer/
     classify/             classifier prompt, thresholds, correction context, rules
     ai/                   provider wiring, summarize, later embed and ask
     mail/                 html sanitize, text extraction, thread grouping
-    actions/              archive, snooze, pin, move, undo log
+    actions/              archive, snooze, work, move, undo log
   scripts/
     sync.ts               loop runner for the Mac
     backfill.ts           year-to-date import per account
@@ -58,7 +58,7 @@ superfer/
 Core tables, Drizzle in `lib/db/schema.ts`.
 
 - `accounts`: id, email, label, color, oauth tokens (encrypted at rest with a key from env), gmail history cursor, last sync at, signature html.
-- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, pinned at, archived, participants summary, list summary and the last message time it covers. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
+- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, deadline at, work at (stored as `pinned_at`: when the thread entered Work, null when not in Work), archived, participants summary, list summary and the last message time it covers. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
 - `messages`: id, thread id, gmail message id, from, to, cc, date, snippet, html sanitized, text, is inbound, gmail labels, headers subset (list-unsubscribe, precedence, in-reply-to).
 - `attachments`: id, message id, filename, mime, size, gmail attachment id. Metadata only.
 - `senders`: id, email, domain, display name, first seen, screener decision (allowed, out_spam, out_not_now, none), decided at, decided by (ai, user), images allowed, notes. Shared across accounts, with a per-account seen count in a join table.
@@ -106,11 +106,11 @@ User moves write a correction row and set bucket source user. Rules are entered 
 - Ensure labels `superfer/inbox`, `superfer/news`, `superfer/paper-trail`, `superfer/triage` exist per account.
 - On bucket change: set the matching label, remove the others. For news, paper_trail, and triage: also remove INBOX so Gmail's inbox mirrors our Inbox bucket.
 - Read, archive, trash, spam: mirror both ways. Gmail changes come in via history, ours go out via modify.
-- Snooze, pin, screener decisions, deadlines: never written to Gmail.
+- Snooze, work, screener decisions, deadlines: never written to Gmail.
 
 ## Twins
 
-The same mail sent to two of the user's accounts is two Gmail threads. `lib/sync/twins.ts` links them on ingest into one group (`threads.group_id`, smallest key wins when groups merge), and `pnpm twins [--dry-run]` linked mail synced before. A group is one thread everywhere: lists and counts show one copy (live, then unsnoozed, pinned, unseen, newest; chosen among the accounts toggled on) with every account's square, the reading pane merges all copies' messages by Message-ID, and every thread action applies to all copies under one batch, writing back per copy on its own account. Replies leave from the copy in the account the latest inbound message was addressed to. A new copy joining a group takes the state the user gave it instead of being classified again; when copies disagree, the copy with the most recent user action in `actions_log` wins, logged as `reconcile`.
+The same mail sent to two of the user's accounts is two Gmail threads. `lib/sync/twins.ts` links them on ingest into one group (`threads.group_id`, smallest key wins when groups merge), and `pnpm twins [--dry-run]` linked mail synced before. A group is one thread everywhere: lists and counts show one copy (live, then unsnoozed, in Work, unseen, newest; chosen among the accounts toggled on) with every account's square, the reading pane merges all copies' messages by Message-ID, and every thread action applies to all copies under one batch, writing back per copy on its own account. Replies leave from the copy in the account the latest inbound message was addressed to. A new copy joining a group takes the state the user gave it instead of being classified again; when copies disagree, the copy with the most recent user action in `actions_log` wins, logged as `reconcile`.
 
 ## Actions and undo
 
@@ -133,14 +133,14 @@ esc           back to list
 e             archive
 r / a / f     reply / reply all / forward
 s             snooze (opens picker, with needs-reply toggle)
-h             pin / unpin
+w             work / done (done archives and leaves Work)
 m then i/n/p  move to inbox / news / paper trail (menu under the bucket badge; same bucket confirms an AI placement)
 x             keep out (from triage)
 i             let in (from triage)
 u             unsubscribe (one-click, else mailto, else opens the page)
 #             delete (to trash)
 z / cmd+z     undo last
-g then i/t/n/p  go to bucket, g d trash (snoozed and settings bindable, unbound)
+g then i/t/n/p  go to bucket, g w work, g d trash (snoozed and settings bindable, unbound)
 cmd+k         palette
 /             search
 c             compose
@@ -187,7 +187,7 @@ SYNC_SECRET
 3. Sync: history polling, message storage, sanitize, `pnpm sync` loop, refresh route.
 4. Shell: three panes, bucket rail, thread list, reading pane, status line, keyboard nav. Static buckets from Gmail labels at first.
 5. Classify: Claude call, thresholds, corrections, inline notes, triage bucket, write back.
-6. Actions: archive, snooze with flag, pin, move, undo, Gmail mirror.
+6. Actions: archive, snooze with flag, work, move, undo, Gmail mirror.
 7. Compose: Tiptap, signatures, reply all, forward, send.
 8. Palette: navigation, full-text search, actions with preview.
 9. Backfill year to date, rules in settings.

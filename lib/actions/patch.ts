@@ -15,16 +15,18 @@ export function patchFor(action: ThreadAction, t: ThreadState, now: Date): Parti
 
 function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<ThreadState> | null {
   switch (action.type) {
+    // Archiving, deleting or marking spam a Work thread also takes it out of Work.
     case "archive":
-      return { archived: true };
+    case "done":
+      return { archived: true, workAt: null };
     case "unarchive":
       return { archived: false, trashed: false, spam: false };
     case "trash":
-      return { trashed: true };
+      return { trashed: true, workAt: null };
     case "restore":
       return { trashed: false };
     case "spam":
-      return { spam: true };
+      return { spam: true, workAt: null };
     case "read":
       return { seenAt: t.seenAt ?? now };
     case "unread":
@@ -40,15 +42,20 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
         snoozedUntil: until,
         needsReply: action.needsReply ?? false,
         deadlineAt: deadline && !Number.isNaN(deadline.getTime()) ? deadline : null,
-        pinnedAt: null,
+      };
+    }
+    case "flag": {
+      const deadline = action.deadline ? new Date(action.deadline) : null;
+      return {
+        ...(action.needsReply === undefined ? {} : { needsReply: action.needsReply }),
+        ...(action.deadline === undefined ? {} : { deadlineAt: deadline && !Number.isNaN(deadline.getTime()) ? deadline : null }),
       };
     }
     case "unsnooze":
       return { snoozedUntil: null };
-    case "pin":
-      return { pinnedAt: t.pinnedAt ?? now, snoozedUntil: null };
-    case "unpin":
-      return { pinnedAt: null };
+    // Work holds live threads: one picked from the archive comes back.
+    case "work":
+      return { workAt: t.workAt ?? now, archived: false };
   }
 }
 

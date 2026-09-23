@@ -2,12 +2,12 @@ import type { Bucket } from "@/lib/db/schema";
 
 import type { CommandId } from "./keys/commands";
 
-export type ViewSlug = "inbox" | "news" | "paper-trail" | "triage" | "snoozed" | "trash";
+export type ViewSlug = "inbox" | "news" | "paper-trail" | "triage" | "work" | "snoozed" | "trash";
 
 export type View = {
   slug: ViewSlug;
   label: string;
-  /** Set for bucket views; snoozed and trash cut across buckets. */
+  /** Set for bucket views; work, snoozed and trash cut across buckets. */
   bucket?: Bucket;
   /** The go-to command; its keys live in the command registry. */
   command: CommandId;
@@ -19,6 +19,7 @@ export type View = {
 export const VIEWS: View[] = [
   { slug: "triage", command: "go.triage", label: "triage", bucket: "triage", group: "act" },
   { slug: "inbox", command: "go.inbox", label: "inbox", bucket: "inbox", group: "act" },
+  { slug: "work", command: "go.work", label: "work", group: "act" },
   { slug: "snoozed", command: "go.snoozed", label: "snoozed", group: "act" },
   { slug: "news", command: "go.news", label: "news", bucket: "news", group: "later" },
   { slug: "paper-trail", command: "go.paper-trail", label: "paper trail", bucket: "paper_trail", group: "later" },

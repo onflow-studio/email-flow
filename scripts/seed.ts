@@ -21,7 +21,7 @@ type SeedThread = {
   bucket: Bucket;
   seen?: boolean;
   snoozedHours?: number;
-  pinned?: boolean;
+  work?: boolean;
   suggested?: boolean;
   /** Sender let in by the AI screener instead of the user. Triage senders are undecided. */
   aiAllowed?: boolean;
@@ -239,7 +239,7 @@ const THREADS: SeedThread[] = [
     subject: "Alumni demo day photos",
     bucket: "inbox",
     seen: true,
-    pinned: true,
+    work: true,
     messages: [{ from: { name: "Lena Park", email: "lena@work2.example" }, minutesAgo: 5 * D, text: "Here are the demo day photos for the website.", attachments: [{ filename: "demo-day.zip", mimeType: "application/zip", size: 48_000_000 }] }],
   },
   {
@@ -247,7 +247,7 @@ const THREADS: SeedThread[] = [
     subject: "Recipe: papas arrugadas with mojo",
     bucket: "inbox",
     seen: true,
-    pinned: true,
+    work: true,
     messages: [{ from: { name: "Mum", email: "mum@example.net" }, minutesAgo: 9 * D, text: "Como me pediste: papas pequeñas, mucha sal, y el mojo con comino, ajo, pimienta palmera y vinagre." }],
   },
 ];
@@ -332,7 +332,7 @@ async function main() {
         bucketSuggested: t.suggested ?? false,
         seenAt: t.seen ? lastAt : null,
         snoozedUntil: t.snoozedHours ? new Date(now + t.snoozedHours * 3_600_000) : null,
-        pinnedAt: t.pinned ? lastAt : null,
+        workAt: t.work ? lastAt : null,
         participantsSummary: [
           ...new Set(t.messages.map((m) => (m.from === "me" ? "me" : (m.from.name ?? m.from.email)))),
         ].join(", "),

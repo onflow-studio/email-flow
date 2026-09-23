@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { AccountSquare } from "./account-square";
 import { useMailSelection } from "./selection";
 import { Time } from "./time";
+import { UnreadDot } from "./unread-dot";
 import { mailHref } from "./views";
 
 export function ThreadList({
@@ -36,12 +37,13 @@ export function ThreadList({
 
   const byId = new Map(threads.map((t) => [t.id, t]));
   const ordered = sel.threadIds.flatMap((id) => byId.get(id) ?? []);
-  // Pinned rows sit above the groups, marked by their badge.
-  const unseen = threads.filter((t) => t.unseen && !t.pinned).length;
-  // Group labels only hold while rows sit in server order (pinned, then unseen first).
+  const work = sel.view === "work";
+  // Work keeps its own order (deadlines, then queue), so it has no unseen and seen groups.
+  const unseen = work ? 0 : threads.filter((t) => t.unseen).length;
+  // Group labels only hold while rows sit in server order (unseen first).
   const grouped = ordered.every((t, i) => t.id === threads[i]?.id);
-  const firstUnseen = grouped ? ordered.findIndex((t) => !t.pinned) : -1;
-  const firstSeen = grouped ? ordered.findIndex((t) => !t.pinned && !t.unseen) : -1;
+  const firstUnseen = grouped ? 0 : -1;
+  const firstSeen = grouped ? ordered.findIndex((t) => !t.unseen) : -1;
 
   return (
     <ul ref={listRef} role="listbox" aria-label="threads" className="flex flex-col py-1">
@@ -57,6 +59,7 @@ export function ThreadList({
             href={mailHref(sel.view, { threadId: t.id })}
             onSelect={() => sel.focus(t.id)}
             showSnooze={sel.view === "snoozed"}
+            work={work}
           />
         </li>
       ))}
@@ -76,6 +79,7 @@ function ThreadRow({
   href,
   onSelect,
   showSnooze,
+  work,
 }: {
   thread: ThreadListItem;
   /** One per account the conversation reached: twins show every square. */
@@ -85,6 +89,8 @@ function ThreadRow({
   href: string;
   onSelect: () => void;
   showSnooze: boolean;
+  /** Work rows show the deadline and needs reply, and mark an unread reply with the dot. */
+  work: boolean;
 }) {
   const [now] = useState(() => Date.now());
   const overdue = !!t.deadlineAt && new Date(t.deadlineAt).getTime() < now;
@@ -125,8 +131,23 @@ function ThreadRow({
         ) : null}
       </span>
       {t.resurfaced ? <Badge>back</Badge> : null}
-      {overdue ? <Badge className="text-warning">overdue</Badge> : t.needsReply ? <Badge>reply</Badge> : null}
-      {t.pinned ? <Badge>pinned</Badge> : null}
+      {work ? (
+        <>
+          {t.needsReply ? <Badge>reply</Badge> : null}
+          {overdue ? (
+            <Badge className="text-warning">overdue</Badge>
+          ) : t.deadlineAt ? (
+            <Badge>
+              due <Time iso={t.deadlineAt} />
+            </Badge>
+          ) : null}
+          {t.unseen ? <UnreadDot /> : null}
+        </>
+      ) : overdue ? (
+        <Badge className="text-warning">overdue</Badge>
+      ) : t.needsReply ? (
+        <Badge>reply</Badge>
+      ) : null}
       {showSnooze && t.snoozedUntil ? (
         <Time iso={t.snoozedUntil} className="shrink-0 text-11 text-text-muted" />
       ) : (

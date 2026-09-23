@@ -14,8 +14,11 @@ export type ThreadAction =
   | { type: "move"; bucket: MovableBucket }
   | { type: "snooze"; until: string; needsReply?: boolean; deadline?: string | null }
   | { type: "unsnooze" }
-  | { type: "pin" }
-  | { type: "unpin" };
+  | { type: "work" }
+  /** Finishes a Work thread: out of Work and archived. */
+  | { type: "done" }
+  /** Sets needs reply and the deadline without snoozing; a field left out keeps its value. */
+  | { type: "flag"; needsReply?: boolean; deadline?: string | null };
 
 /** Actions on a thread's sender, through the screener. */
 export type SenderAction =
@@ -43,7 +46,7 @@ export const STATE_COLUMNS = [
   "snoozedUntil",
   "needsReply",
   "deadlineAt",
-  "pinnedAt",
+  "workAt",
   "archived",
   "trashed",
   "spam",
