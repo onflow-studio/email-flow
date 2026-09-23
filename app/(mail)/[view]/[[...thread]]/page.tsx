@@ -72,7 +72,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
         >
         <PaletteProvider counts={counts}>
           <div className="flex h-dvh flex-col bg-bg">
-            <Header className={cn(detail && "hidden md:grid")} />
+            <Header className={cn(detail && "hidden md:flex")} />
             <div className="flex min-h-0 flex-1">
               <Rail view={view.slug} counts={counts} />
               <PaneHandle pane="rail" label="resize rail" className="hidden rail:block" />

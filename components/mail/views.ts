@@ -15,11 +15,11 @@ export type View = {
 
 /** In rail order. */
 export const VIEWS: View[] = [
-  { slug: "inbox", label: "inbox", bucket: "inbox", goKey: "i", group: "act" },
   { slug: "triage", label: "triage", bucket: "triage", goKey: "t", group: "act" },
+  { slug: "inbox", label: "inbox", bucket: "inbox", goKey: "i", group: "act" },
+  { slug: "snoozed", label: "snoozed", group: "act" },
   { slug: "news", label: "news", bucket: "news", goKey: "n", group: "later" },
   { slug: "paper-trail", label: "paper trail", bucket: "paper_trail", goKey: "p", group: "later" },
-  { slug: "snoozed", label: "snoozed", group: "later" },
   { slug: "trash", label: "trash", goKey: "d", group: "bottom" },
 ];
 

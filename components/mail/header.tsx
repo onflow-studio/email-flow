@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 
-import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 
 import { AccountSquare } from "./account-square";
 import { useAccountToggles } from "./account-toggles";
 import { useOpenPalette } from "./palette/palette";
 
-/** Logo, the one search, and the account toggles. Phone shows it on the list screen only. */
+/** Logo and the account toggles, plus a search button on phone. Phone shows it on the list screen only. */
 export function Header({ className }: { className?: string }) {
   const openPalette = useOpenPalette();
   const { accounts, toggle } = useAccountToggles();
@@ -18,8 +17,7 @@ export function Header({ className }: { className?: string }) {
   return (
     <header
       className={cn(
-        // Sides share the leftover width equally so the search sits at the window's centre and shrinks first.
-        "flex h-touch shrink-0 items-center gap-3 border-b border-header-border bg-header pl-3 md:grid md:h-header md:grid-cols-[minmax(max-content,1fr)_minmax(0,var(--container-search))_minmax(max-content,1fr)] md:px-3",
+        "flex h-touch shrink-0 items-center gap-3 border-b border-header-border bg-header pl-3 md:h-header md:justify-between md:px-3",
         className,
       )}
     >
@@ -28,16 +26,7 @@ export function Header({ className }: { className?: string }) {
         <span className="hidden text-text md:inline">superfer</span>
       </Link>
 
-      <div className="flex min-w-0 flex-1 justify-end md:justify-center">
-        <button
-          type="button"
-          onClick={openPalette}
-          aria-label="search"
-          className="hidden h-6 w-full max-w-search min-w-0 items-center justify-between rounded-sm border border-border bg-bg px-2 text-12 text-text-dim outline-none transition-colors duration-80 ease-snap focus-visible:border-accent md:flex"
-        >
-          search
-          <Kbd keys="/" />
-        </button>
+      <div className="flex min-w-0 flex-1 justify-end md:hidden">
         <button
           type="button"
           onClick={openPalette}
