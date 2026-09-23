@@ -25,6 +25,7 @@ export type SenderFacts = {
 
 export type ThreadInput = {
   accountEmail: string;
+  accountLabel?: string;
   subject: string | null;
   fromName: string | null;
   fromEmail: string;
@@ -43,13 +44,15 @@ export type Exemplar = {
   createdAt: Date;
 };
 
-export type RuleInput = { text: string; structured: unknown };
+export type RuleInput = { id?: string; text: string; structured: unknown; updatedAt?: Date };
 
 export type ClassifyContext = {
   thread: ThreadInput;
   sender: SenderFacts;
   rules: RuleInput[];
   exemplars: Exemplar[];
+  // Latest user correction for this exact sender; newer than a rule, it wins over the rule.
+  senderCorrectedAt?: Date | null;
 };
 
 // Parsed model output, before thresholds.

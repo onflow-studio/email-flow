@@ -77,7 +77,7 @@ export function buildJevRequest(ctx: ClassifyContext): JevRequest {
       userHasWrittenTo: sender.userHasWrittenTo,
       userStartedThread: sender.userStartedThread,
     },
-    rules: ctx.rules.map((r) => (r.structured == null ? { text: r.text } : r)),
+    rules: ctx.rules.map((r) => (r.structured == null ? { text: r.text } : { text: r.text, structured: r.structured })),
     examples: ctx.exemplars.map((e) => ({
       from: e.senderEmail,
       subject: e.subject,
