@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ActionsProvider } from "@/components/mail/actions/actions";
 import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
+import { FocusPane } from "@/components/mail/focus-pane";
 import { NavKeys } from "@/components/mail/keys/nav-keys";
 import { PaletteProvider, SearchButton } from "@/components/mail/palette/palette";
 import { PaneHandle } from "@/components/mail/pane-handle";
@@ -69,7 +70,9 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
               <Rail view={view.slug} account={account} counts={counts} accounts={accounts} />
               <PaneHandle pane="rail" label="resize rail" className="hidden rail:block" />
 
-              <section
+              <FocusPane
+                pane="list"
+                as="section"
                 aria-label={view.label}
                 className={cn(
                   "flex min-h-0 w-full flex-col border-r border-border bg-surface md:w-list md:min-w-list-min",
@@ -108,16 +111,20 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
                     emptyLabel={view.bucket ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
                   />
                 </div>
-              </section>
+              </FocusPane>
               <PaneHandle pane="list" label="resize thread list" className="hidden md:block" />
 
-              <main className={cn("pane-depth min-w-0 flex-1 md:min-w-reading overflow-y-auto", !detail && "hidden md:block")}>
+              <FocusPane
+                pane="reading"
+                as="main"
+                className={cn("pane-depth min-w-0 flex-1 md:min-w-reading overflow-y-auto", !detail && "hidden md:block")}
+              >
                 {detail ? (
                   <ReadingPane key={detail.id} thread={detail} />
                 ) : (
                   <p className="p-3 text-text-dim">no thread open</p>
                 )}
-              </main>
+              </FocusPane>
             </div>
 
             <StatusLine

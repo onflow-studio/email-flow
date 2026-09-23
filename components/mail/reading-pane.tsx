@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, Paperclip } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
 import { markSeen } from "@/app/(mail)/thread-actions";
@@ -14,6 +14,7 @@ import { AiNote } from "./actions/ai-note";
 import { ActionToolbar } from "./actions/toolbar";
 import { ReplyBar } from "./compose/reply-bar";
 import { EmailFrame } from "./email-frame";
+import { useKeys } from "./keys/keymap";
 import { useMailSelection } from "./selection";
 import { Time } from "./time";
 
@@ -26,6 +27,8 @@ const BUCKET_LABELS: Record<ThreadDetail["bucket"], string> = {
 };
 
 type MessageItem = ThreadDetail["messages"][number];
+
+const SCROLL_STEP = 64;
 
 export function ReadingPane({ thread }: { thread: ThreadDetail }) {
   const sel = useMailSelection();
@@ -40,13 +43,46 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
       return next;
     });
 
+  // Arrow keys in the reading pane: scroll through the message under the cursor, then step to the next one.
+  const articleRef = useRef<HTMLElement>(null);
+  const [cursor, setCursor] = useState(thread.messages.length - 1);
+  const reading = () => sel.pane === "reading";
+  const moveCursor = (dir: 1 | -1) => {
+    const scroller = articleRef.current?.closest("main");
+    const items = articleRef.current?.querySelectorAll<HTMLElement>("[data-message]");
+    const item = items?.[cursor];
+    if (!scroller || !items || !item) return;
+    const view = scroller.getBoundingClientRect();
+    const box = item.getBoundingClientRect();
+    const more = dir === 1 ? box.bottom > view.bottom : box.top < view.top;
+    const next = items[cursor + dir];
+    if (more || !next) {
+      scroller.scrollBy({ top: dir * SCROLL_STEP });
+      return;
+    }
+    setCursor(cursor + dir);
+    next.scrollIntoView({ block: "nearest" });
+  };
+  useKeys([
+    { keys: "arrowdown", when: reading, run: () => moveCursor(1) },
+    { keys: "arrowup", when: reading, run: () => moveCursor(-1) },
+    {
+      keys: "enter",
+      label: "expand message",
+      group: "panes",
+      // A focused button or link keeps its own enter.
+      when: () => reading() && !!thread.messages[cursor] && !document.activeElement?.closest("button, a"),
+      run: () => toggle(thread.messages[cursor].id),
+    },
+  ]);
+
   // Opening marks seen and mirrors read state to Gmail.
   useEffect(() => {
     markSeen(thread.id).catch(() => {});
   }, [thread.id]);
 
   return (
-    <article className="flex w-full flex-col gap-4 px-3 pt-8 pb-8 md:px-6">
+    <article ref={articleRef} className="flex w-full flex-col gap-4 px-3 pt-8 pb-8 md:px-6">
       <div className="sticky top-0 z-10 -mx-3 -mt-8 flex h-touch shrink-0 items-center border-b border-border bg-surface px-1 md:hidden">
         <button type="button" onClick={sel.close} className="flex h-touch items-center gap-2 px-2 text-text-muted">
           <ArrowLeft aria-hidden className="size-4" strokeWidth={1.5} />
@@ -89,8 +125,16 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
       </header>
 
       <ol className="flex flex-col gap-2">
-        {thread.messages.map((m) => (
-          <li key={m.id} className="rounded-sm border border-border bg-surface">
+        {thread.messages.map((m, i) => (
+          <li
+            key={m.id}
+            data-message
+            onPointerDown={() => setCursor(i)}
+            className={cn(
+              "rounded-sm border border-border bg-surface transition-colors duration-80 ease-snap",
+              sel.pane === "reading" && i === cursor && thread.messages.length > 1 && "md:border-accent-dim",
+            )}
+          >
             {expanded.has(m.id) ? (
               <ExpandedMessage message={m} onCollapse={() => toggle(m.id)} />
             ) : (

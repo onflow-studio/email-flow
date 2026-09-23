@@ -48,6 +48,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
   - Never on buttons, badges, or text. A gradient on a control makes it look like a 2010 app.
 - Contrast is the other half of the character: hard edges between dark and lit. Unseen rows sit visibly brighter than seen ones, the reading pane is clearly a different layer from the list, and the palette is the brightest surface in the app when open. Mid-tones are avoided, things are either lit or dark.
 - Focus: the focused row has a 2px `--accent` bar on its left edge and a `--surface-raised` background. No outline ring on rows, rings are for form inputs only.
+- Pane focus (desktop): arrow keys act in one of three panes, rail, thread list, reading pane. The focused pane gets a 1px `--accent-dim` hairline along its top edge, drawn inset so nothing shifts. No ring. The rail's keyboard cursor looks like a focused row: 2px `--accent` bar, `--surface-raised`, accent glow. In the reading pane, the message under the cursor of a multi-message thread has its hairline border turn `--accent-dim`. Phone has no pane focus.
 
 ## Motion
 
@@ -101,6 +102,7 @@ Tokens live in `app/globals.css`: raw values as CSS variables on `:root` with th
 - Shape: `rounded-sm` 2px, `rounded-md` 4px.
 - Motion: `duration-80`, `duration-150`, `ease-snap`. Reduced motion zeroes all durations globally.
 - Gradients: `glow-focus`, `pane-depth`, `status-rule`. The only three.
+- Pane focus: `pane-focus`, the inset top hairline, applied with `md:`.
 - Breakpoints: `md` 768, `rail` 1100. Below `md`, interactive rows and buttons are `h-touch`, and keyboard hints are hidden.
 - Safe area: `pb-safe` (with `box-content`) on bottom bars, so the installed app clears the phone's home indicator.
 

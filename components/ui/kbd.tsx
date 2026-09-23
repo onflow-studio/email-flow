@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 
-const NAMES: Record<string, string> = { escape: "esc", arrowup: "↑", arrowdown: "↓" }
+const NAMES: Record<string, string> = { escape: "esc", arrowup: "↑", arrowdown: "↓", arrowleft: "←", arrowright: "→" }
 
 /**
  * A shortcut as keycaps, in the keymap's own notation: space-separated steps

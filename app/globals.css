@@ -156,6 +156,11 @@
   background-image: linear-gradient(to bottom, var(--surface), var(--bg));
 }
 
+/* The focused pane's top hairline. Drawn inset so it takes no space; not a shadow. */
+@utility pane-focus {
+  box-shadow: inset 0 1px 0 var(--accent-dim);
+}
+
 @utility status-rule {
   border-top: 1px solid;
   border-image: linear-gradient(to right, var(--accent-dim), transparent) 1;

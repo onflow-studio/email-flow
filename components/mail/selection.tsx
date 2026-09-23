@@ -5,6 +5,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import { mailHref, type ViewSlug } from "./views";
 
+/** The desktop pane arrow keys act in. Phone has no pane focus. */
+export type Pane = "rail" | "list" | "reading";
+
 /**
  * Which thread the keyboard is on. Actions read `target` to know what to act
  * on (the open thread, else the focused row) and call `focusNext` after
@@ -17,10 +20,14 @@ export type MailSelection = {
   focusedId: string | null;
   openId: string | null;
   target: string | null;
+  /** Focused pane; reading only while a thread is open. */
+  pane: Pane;
+  setPane: (pane: Pane) => void;
   focus: (id: string) => void;
   focusNext: () => void;
   focusPrev: () => void;
-  open: (id?: string | null) => void;
+  /** Opens a thread and focuses the reading pane, unless `keepPane` (stepping from the list). */
+  open: (id?: string | null, keepPane?: boolean) => void;
   close: () => void;
   go: (view: ViewSlug) => void;
 };
@@ -34,6 +41,8 @@ type FocusStore = {
   /** Stable order of the view you are working in; a view you come back to starts fresh. */
   order: (key: string) => string[] | undefined;
   setOrder: (key: string, ids: string[]) => void;
+  pane: Pane | null;
+  setPane: (pane: Pane) => void;
 };
 
 const FocusStoreContext = createContext<FocusStore | null>(null);
@@ -59,6 +68,7 @@ export function stableOrder(prev: string[] | undefined, next: string[]) {
 export function FocusStoreProvider({ children }: { children: React.ReactNode }) {
   const [picked, setPicked] = useState<Record<string, Picked>>({});
   const [order, setOrderState] = useState<{ key: string; ids: string[] } | null>(null);
+  const [pane, setPane] = useState<Pane | null>(null);
   const set = useCallback((key: string, p: Picked) => setPicked((prev) => ({ ...prev, [key]: p })), []);
   const setOrder = useCallback(
     (key: string, ids: string[]) =>
@@ -66,8 +76,15 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
     [],
   );
   const value = useMemo<FocusStore>(
-    () => ({ get: (key) => picked[key], set, order: (key) => (order?.key === key ? order.ids : undefined), setOrder }),
-    [picked, order, set, setOrder],
+    () => ({
+      get: (key) => picked[key],
+      set,
+      order: (key) => (order?.key === key ? order.ids : undefined),
+      setOrder,
+      pane,
+      setPane,
+    }),
+    [picked, order, set, setOrder, pane],
   );
   return <FocusStoreContext.Provider value={value}>{children}</FocusStoreContext.Provider>;
 }
@@ -131,12 +148,18 @@ export function SelectionProvider({
     [threadIds, setPicked],
   );
 
+  const { setPane } = store;
+  // First load: a thread opened by URL is being read.
+  const pane: Pane = store.pane === "reading" && !openId ? "list" : (store.pane ?? (openId ? "reading" : "list"));
+
   const open = useCallback(
-    (id?: string | null) => {
+    (id?: string | null, keepPane = false) => {
       const target = id ?? focusedId;
-      if (target) router.push(mailHref(view, { threadId: target, account }), { scroll: false });
+      if (!target) return;
+      if (!keepPane) setPane("reading");
+      router.push(mailHref(view, { threadId: target, account }), { scroll: false });
     },
-    [router, view, account, focusedId],
+    [router, view, account, focusedId, setPane],
   );
 
   const value = useMemo<MailSelection>(
@@ -147,14 +170,19 @@ export function SelectionProvider({
       focusedId,
       openId,
       target: openId ?? focusedId,
+      pane,
+      setPane,
       focus: (id) => focusAt(threadIds.indexOf(id)),
       focusNext: () => focusAt(focusedIndex + 1),
       focusPrev: () => focusAt(focusedIndex - 1),
       open,
-      close: () => router.push(mailHref(view, { account }), { scroll: false }),
+      close: () => {
+        setPane("list");
+        router.push(mailHref(view, { account }), { scroll: false });
+      },
       go: (next) => router.push(mailHref(next, { account })),
     }),
-    [view, account, threadIds, focusedId, focusedIndex, openId, focusAt, open, router],
+    [view, account, threadIds, focusedId, focusedIndex, openId, pane, setPane, focusAt, open, router],
   );
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

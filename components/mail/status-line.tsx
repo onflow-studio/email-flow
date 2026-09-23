@@ -73,9 +73,13 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
       <KeyHints
         className="ml-auto min-w-0"
         hints={
-          sel.openId
-            ? [[["j", "k"], "next"], ["escape", "back"], ["?", "keys"]]
-            : [[["j", "k"], "move"], ["enter", "open"], ["?", "keys"]]
+          sel.pane === "rail"
+            ? [[["arrowup", "arrowdown"], "move"], ["arrowright", "open"], ["?", "keys"]]
+            : sel.pane === "reading"
+              ? [[["arrowup", "arrowdown"], "scroll"], ["arrowleft", "list"], [["j", "k"], "next"], ["escape", "back"], ["?", "keys"]]
+              : sel.openId
+                ? [[["j", "k"], "next"], ["arrowleft", "rail"], ["arrowright", "read"], ["escape", "back"], ["?", "keys"]]
+                : [[["j", "k"], "move"], ["enter", "open"], ["arrowleft", "rail"], ["?", "keys"]]
         }
       />
     );

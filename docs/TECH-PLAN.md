@@ -118,6 +118,8 @@ Global handler in the mail shell. Phase 1 map:
 
 ```
 j / k         next / previous thread
+← / →         focus rail / list / reading pane (→ in the list opens the thread)
+↑ / ↓         move in the focused pane: rail items, threads, or scroll and step messages
 enter         open thread
 esc           back to list
 e             archive
