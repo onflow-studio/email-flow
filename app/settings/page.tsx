@@ -74,7 +74,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         </div>
       </main>
 
-      <footer className="status-rule flex h-status shrink-0 items-center justify-between gap-3 bg-surface px-3 text-11 text-text-muted">
+      <footer className="status-rule box-content flex h-status shrink-0 pb-safe items-center justify-between gap-3 bg-surface px-3 text-11 text-text-muted">
         {error ? (
           <span className="truncate text-danger">{error}</span>
         ) : connected ? (

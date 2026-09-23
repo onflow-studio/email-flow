@@ -69,7 +69,7 @@ function defaultAccount(accounts: ComposeAccount[], hint: string | null): string
 }
 
 const field = "flex min-h-touch items-center gap-3 border-b border-border px-3 md:min-h-row";
-const fieldLabel = "w-14 shrink-0 text-11 text-text-muted";
+const fieldLabel = "w-label shrink-0 text-11 text-text-muted";
 const fieldInput = "h-touch min-w-0 flex-1 bg-transparent text-13 text-text outline-none placeholder:text-text-dim md:h-row";
 
 function formatSize(bytes: number) {
@@ -390,7 +390,7 @@ function ComposePanel({
         </div>
       )}
 
-      <footer className="flex h-touch shrink-0 items-center gap-2 border-t border-border px-3 md:h-row">
+      <footer className="box-content flex h-touch shrink-0 items-center gap-2 border-t border-border px-3 pb-safe md:h-row md:pb-0">
         <Button variant="primary" shortcut="mod+enter" onClick={send} disabled={!init || sending} className="hidden md:inline-flex">
           {sending ? "sending" : "send"}
         </Button>

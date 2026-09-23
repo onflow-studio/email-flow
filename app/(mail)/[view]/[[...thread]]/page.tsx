@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ActionsProvider } from "@/components/mail/actions/actions";
 import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
 import { NavKeys } from "@/components/mail/keys/nav-keys";
-import { Palette } from "@/components/mail/palette/palette";
+import { PaletteProvider, SearchButton } from "@/components/mail/palette/palette";
 import { Rail } from "@/components/mail/rail";
 import { ReadingPane } from "@/components/mail/reading-pane";
 import { SelectionProvider } from "@/components/mail/selection";
@@ -62,69 +62,72 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
       <NavKeys />
       <ComposeKeys />
       <ActionsProvider targets={targets}>
-        <div className="flex h-dvh flex-col bg-bg">
-          <div className="flex min-h-0 flex-1">
-            <Rail view={view.slug} account={account} counts={counts} accounts={accounts} />
+        <PaletteProvider accounts={accounts.map((a) => ({ id: a.id, label: a.label, color: a.color }))}>
+          <div className="flex h-dvh flex-col bg-bg">
+            <div className="flex min-h-0 flex-1">
+              <Rail view={view.slug} account={account} counts={counts} accounts={accounts} />
 
-            <section
-              aria-label={view.label}
-              className={cn(
-                "flex min-h-0 w-full flex-col border-r border-border bg-surface md:w-list md:shrink-0",
-                detail && "hidden md:flex",
-              )}
-            >
-              <nav aria-label="views" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 md:hidden">
-                {VIEWS.map((v) => (
-                  <Link
-                    key={v.slug}
-                    href={mailHref(v.slug, { account })}
-                    className={cn(
-                      "flex h-touch shrink-0 items-center px-2 whitespace-nowrap",
-                      v.slug === view.slug ? "font-medium text-text" : "text-text-muted",
-                    )}
-                  >
-                    {v.label}
-                  </Link>
-                ))}
-              </nav>
-              <header className="flex h-row shrink-0 items-center justify-between border-b border-border px-3">
-                <h1 className="font-medium">{view.label}</h1>
-                <span className="flex items-center gap-2">
-                  <span className="text-11 text-text-muted">
-                    {view.bucket ? `${unseen} unseen` : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
+              <section
+                aria-label={view.label}
+                className={cn(
+                  "flex min-h-0 w-full flex-col border-r border-border bg-surface md:w-list md:shrink-0",
+                  detail && "hidden md:flex",
+                )}
+              >
+                <nav aria-label="views" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 md:hidden">
+                  {VIEWS.map((v) => (
+                    <Link
+                      key={v.slug}
+                      href={mailHref(v.slug, { account })}
+                      className={cn(
+                        "flex h-touch shrink-0 items-center px-2 whitespace-nowrap",
+                        v.slug === view.slug ? "font-medium text-text" : "text-text-muted",
+                      )}
+                    >
+                      {v.label}
+                      {counts[v.slug] ? <span className="ml-2 text-11 text-text-muted">{counts[v.slug]}</span> : null}
+                    </Link>
+                  ))}
+                </nav>
+                <header className="flex h-touch shrink-0 items-center justify-between border-b border-border px-3 md:h-row">
+                  <h1 className="font-medium">{view.label}</h1>
+                  <span className="flex items-center gap-2">
+                    <span className="text-11 text-text-muted">
+                      {view.bucket ? `${unseen} unseen` : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
+                    </span>
+                    <SearchButton />
+                    <ComposeButton />
                   </span>
-                  <ComposeButton />
-                </span>
-              </header>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <ThreadList
-                  threads={threads}
-                  accountColors={accountColors}
-                  emptyLabel={view.bucket ? `${view.label} clear` : `nothing ${view.label}`}
-                />
-              </div>
-            </section>
+                </header>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <ThreadList
+                    threads={threads}
+                    accountColors={accountColors}
+                    emptyLabel={view.bucket ? `${view.label} clear` : `nothing ${view.label}`}
+                  />
+                </div>
+              </section>
 
-            <main className={cn("pane-depth min-w-0 flex-1 overflow-y-auto", !detail && "hidden md:block")}>
-              {detail ? (
-                <ReadingPane key={detail.id} thread={detail} />
-              ) : (
-                <p className="p-3 text-text-dim">no thread open</p>
-              )}
-            </main>
+              <main className={cn("pane-depth min-w-0 flex-1 overflow-y-auto", !detail && "hidden md:block")}>
+                {detail ? (
+                  <ReadingPane key={detail.id} thread={detail} />
+                ) : (
+                  <p className="p-3 text-text-dim">no thread open</p>
+                )}
+              </main>
+            </div>
+
+            <StatusLine
+              accounts={accounts.map((a) => ({
+                id: a.id,
+                label: a.label,
+                color: a.color,
+                lastSyncAt: a.lastSyncAt?.toISOString() ?? null,
+                lastSyncError: a.lastSyncError,
+              }))}
+            />
           </div>
-
-          <StatusLine
-            accounts={accounts.map((a) => ({
-              id: a.id,
-              label: a.label,
-              color: a.color,
-              lastSyncAt: a.lastSyncAt?.toISOString() ?? null,
-              lastSyncError: a.lastSyncError,
-            }))}
-          />
-        </div>
-        <Palette accounts={accounts.map((a) => ({ id: a.id, label: a.label, color: a.color }))} />
+        </PaletteProvider>
       </ActionsProvider>
     </SelectionProvider>
   );

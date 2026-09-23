@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex h-row shrink-0 items-center justify-center gap-2 rounded-sm border border-transparent px-3 text-13 whitespace-nowrap transition-colors duration-80 ease-snap outline-none select-none focus-visible:border-accent disabled:pointer-events-none disabled:text-text-dim",
+  "inline-flex h-touch shrink-0 items-center justify-center gap-2 rounded-sm border border-transparent px-3 text-13 whitespace-nowrap transition-colors duration-80 ease-snap outline-none select-none focus-visible:border-accent disabled:pointer-events-none disabled:text-text-dim md:h-row",
   {
     variants: {
       variant: {
@@ -37,7 +37,7 @@ function Button({
     >
       {children}
       {shortcut ? (
-        <kbd className="font-mono text-11 opacity-60">{shortcut}</kbd>
+        <kbd className="hidden font-mono text-11 opacity-60 md:inline">{shortcut}</kbd>
       ) : null}
     </ButtonPrimitive>
   )

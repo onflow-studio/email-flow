@@ -57,7 +57,7 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-4 pt-[15vh]" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-4 pt-palette-top" onClick={onClose}>
       <div
         role="dialog"
         aria-label="snooze"
@@ -66,7 +66,7 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
       >
         <div className="flex items-center justify-between text-11 text-text-muted">
           <span>snooze</span>
-          <span>esc close</span>
+          <span className="hidden md:inline">esc close</span>
         </div>
 
         <ul className="flex flex-col">
@@ -75,12 +75,12 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
               <button
                 type="button"
                 onClick={() => pick(p.until)}
-                className="flex h-row w-full items-center justify-between gap-4 rounded-sm px-2 transition-colors duration-80 ease-snap hover:bg-surface-raised"
+                className="flex h-touch w-full items-center justify-between gap-4 rounded-sm px-2 transition-colors duration-80 ease-snap hover:bg-surface-raised md:h-row"
               >
                 <span>{p.label}</span>
                 <span className="flex items-center gap-4 text-11 text-text-muted">
                   <span suppressHydrationWarning>{fullTime(p.until.toISOString())}</span>
-                  <kbd className="opacity-60">{p.key}</kbd>
+                  <kbd className="hidden opacity-60 md:inline">{p.key}</kbd>
                 </span>
               </button>
             </li>
@@ -94,7 +94,7 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
             pick(new Date(custom));
           }}
         >
-          <label htmlFor="snooze-custom" className="w-20 shrink-0 text-text-muted">
+          <label htmlFor="snooze-custom" className="w-label shrink-0 text-text-muted">
             until
           </label>
           <input
@@ -102,13 +102,13 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
             type="datetime-local"
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
-            className="h-row min-w-0 flex-1 rounded-sm border border-border bg-surface px-2 outline-none focus:border-accent"
+            className="h-touch min-w-0 flex-1 rounded-sm md:h-row border border-border bg-surface px-2 outline-none focus:border-accent"
           />
           <button
             type="submit"
-            className="h-row shrink-0 rounded-sm border border-border px-3 transition-colors duration-80 ease-snap hover:bg-surface-raised"
+            className="h-touch shrink-0 rounded-sm border border-border px-3 md:h-row transition-colors duration-80 ease-snap hover:bg-surface-raised"
           >
-            snooze <kbd className="text-11 opacity-60">enter</kbd>
+            snooze <kbd className="hidden text-11 opacity-60 md:inline">enter</kbd>
           </button>
         </form>
 
@@ -118,14 +118,14 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
             role="switch"
             aria-checked={needsReply}
             onClick={() => setNeedsReply((v) => !v)}
-            className="flex h-row items-center gap-2"
+            className="flex h-touch items-center gap-2 md:h-row"
           >
             <span
               aria-hidden
               className={cn("size-3 rounded-sm border", needsReply ? "border-accent bg-accent" : "border-border")}
             />
             <span className={needsReply ? "text-text" : "text-text-muted"}>needs reply</span>
-            <kbd className="text-11 text-text-muted opacity-60">r</kbd>
+            <kbd className="hidden text-11 text-text-muted opacity-60 md:inline">r</kbd>
           </button>
           <label className="flex items-center gap-2 text-text-muted">
             deadline
@@ -133,7 +133,7 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
               type="date"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
-              className="h-row rounded-sm border border-border bg-surface px-2 text-text outline-none focus:border-accent"
+              className="h-touch rounded-sm border border-border bg-surface px-2 text-text md:h-row outline-none focus:border-accent"
             />
           </label>
         </div>

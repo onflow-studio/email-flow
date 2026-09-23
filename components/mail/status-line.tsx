@@ -6,7 +6,6 @@ import { useState, useTransition } from "react";
 
 import { refreshSync } from "@/app/(mail)/actions";
 import { needsReconnect } from "@/lib/gmail/status";
-import { cn } from "@/lib/utils";
 
 import { usePendingKeys } from "./keys/keymap";
 import { useMailSelection } from "./selection";
@@ -66,16 +65,16 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
   else hint = "j/k move  enter open  ? keys";
 
   return (
-    <footer className="status-rule flex h-status shrink-0 items-center gap-4 bg-surface px-3 text-11 text-text-muted">
+    <footer className="status-rule box-content flex h-status shrink-0 items-center gap-4 bg-surface px-3 pb-safe text-11 text-text-muted">
       <button
         type="button"
         onClick={refresh}
         disabled={syncing}
         aria-label="refresh"
         title="refresh"
-        className="-ml-1 flex size-5 items-center justify-center rounded-sm transition-colors duration-80 ease-snap hover:text-text disabled:text-text-dim"
+        className="-ml-1 flex size-6 items-center justify-center rounded-sm transition-colors duration-80 ease-snap hover:text-text disabled:text-text-dim"
       >
-        <RefreshCw aria-hidden className={cn("size-3", syncing && "animate-spin")} strokeWidth={1.5} />
+        <RefreshCw aria-hidden className="size-3" strokeWidth={1.5} />
       </button>
       <span className="truncate">{state}</span>
       <span className="hidden items-center gap-1 sm:flex">

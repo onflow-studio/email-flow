@@ -2,7 +2,7 @@
 
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 import { BULK_ACTIONS } from "@/app/(mail)/_lib/bulk";
 import { paletteSearch, previewSearchAction, type PaletteSearch } from "@/app/(mail)/palette-actions";
@@ -33,14 +33,43 @@ const BUCKET_VIEW: Record<Bucket, ViewSlug> = {
   out: "triage",
 };
 
+const PaletteContext = createContext<(() => void) | null>(null);
+
+/** Opens the palette from a button, for touch where there is no cmd+k. */
+export function useOpenPalette() {
+  const open = useContext(PaletteContext);
+  if (!open) throw new Error("useOpenPalette must be used inside <PaletteProvider>");
+  return open;
+}
+
 /** cmd+k or `/`: one entry point for going somewhere, finding mail, and acting on it. */
-export function Palette({ accounts }: { accounts: PaletteAccount[] }) {
+export function PaletteProvider({ accounts, children }: { accounts: PaletteAccount[]; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [openPalette] = useState(() => () => setOpen(true));
   useKeys([
     { keys: "mod+k", label: "palette", group: "general", allowInInput: true, run: () => setOpen((o) => !o) },
-    { keys: "/", label: "search", group: "general", run: () => setOpen(true) },
+    { keys: "/", label: "search", group: "general", run: openPalette },
   ]);
-  return open ? <PaletteDialog accounts={accounts} onClose={() => setOpen(false)} /> : null;
+  return (
+    <PaletteContext.Provider value={openPalette}>
+      {children}
+      {open ? <PaletteDialog accounts={accounts} onClose={() => setOpen(false)} /> : null}
+    </PaletteContext.Provider>
+  );
+}
+
+export function SearchButton() {
+  const open = useOpenPalette();
+  return (
+    <button
+      type="button"
+      onClick={open}
+      aria-label="search"
+      className="flex h-touch items-center px-2 text-text-muted transition-colors duration-80 ease-snap hover:text-text md:h-6"
+    >
+      search <kbd className="ml-2 hidden text-11 opacity-60 md:inline">/</kbd>
+    </button>
+  );
 }
 
 type Mode = { kind: "search" } | { kind: "preview"; key: string; label: string; preview: ActionPreview | null };
@@ -119,7 +148,7 @@ function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onCl
   const colorOf = new Map(accounts.map((a) => [a.id, a.color]));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-4 pt-[15vh] pb-[15vh]" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-4 pt-palette-top pb-palette-top" onClick={onClose}>
       <Command
         label="palette"
         shouldFilter={false}
@@ -174,7 +203,7 @@ function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onCl
                         className="h-3 w-0.5 shrink-0"
                         style={{ backgroundColor: colorOf.get(hit.accountId) ?? "var(--text-dim)" }}
                       />
-                      <span className="w-28 shrink-0 truncate text-text-muted">
+                      <span className="w-sender shrink-0 truncate text-text-muted">
                         <Highlight text={hit.sender} words={words} />
                       </span>
                       <span className="min-w-0 flex-1 truncate">
@@ -213,11 +242,11 @@ function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onCl
             </Command.List>
             <div className="flex h-status shrink-0 items-center gap-4 border-t border-border px-3 text-11 text-text-dim">
               <span>from: account: before: after:</span>
-              <span className="ml-auto">enter select  esc close</span>
+              <span className="ml-auto hidden md:inline">enter select  esc close</span>
             </div>
           </>
         ) : (
-          <PreviewPane mode={mode} busy={busy} onConfirm={execute} />
+          <PreviewPane mode={mode} busy={busy} onConfirm={execute} onBack={() => setMode({ kind: "search" })} />
         )}
       </Command>
     </div>
@@ -228,10 +257,12 @@ function PreviewPane({
   mode,
   busy,
   onConfirm,
+  onBack,
 }: {
   mode: Extract<Mode, { kind: "preview" }>;
   busy: boolean;
   onConfirm: (preview: ActionPreview) => void;
+  onBack: () => void;
 }) {
   const { preview } = mode;
   // cmdk needs a focused element inside the root to drive arrows and Enter.
@@ -256,13 +287,13 @@ function PreviewPane({
                 <span className="flex-1">
                   {mode.label} {preview.count} {preview.count === 1 ? "thread" : "threads"}
                 </span>
-                <kbd className="text-11 text-text-muted">enter</kbd>
+                <kbd className="hidden text-11 text-text-muted md:inline">enter</kbd>
               </Item>
             </Group>
             <Group heading="affected">
               {preview.threads.slice(0, 100).map((t) => (
-                <div key={t.id} className="flex h-row items-center gap-2 px-3 text-text-muted">
-                  <span className="w-28 shrink-0 truncate">{t.sender}</span>
+                <div key={t.id} className="flex h-touch items-center gap-2 px-3 text-text-muted md:h-row">
+                  <span className="w-sender shrink-0 truncate">{t.sender}</span>
                   <span className="min-w-0 flex-1 truncate text-text">{t.subject}</span>
                   <span className="shrink-0 text-11">{t.account}</span>
                 </div>
@@ -274,8 +305,11 @@ function PreviewPane({
           <Line>nothing to change</Line>
         ) : null}
       </Command.List>
-      <div className="flex h-status shrink-0 items-center border-t border-border px-3 text-11 text-text-dim">
-        <span className="ml-auto">enter run  esc back</span>
+      <div className="flex h-touch shrink-0 items-center border-t border-border px-3 text-11 text-text-dim md:h-status">
+        <button type="button" onClick={onBack} className="h-touch text-13 text-text-muted md:hidden">
+          back
+        </button>
+        <span className="ml-auto hidden md:inline">enter run  esc back</span>
       </div>
     </>
   );
@@ -312,7 +346,7 @@ function Item({
   return (
     <Command.Item
       className={cn(
-        "flex h-row cursor-default items-center gap-2 border-l-2 border-transparent pr-3 pl-2 transition-colors duration-80 ease-snap",
+        "flex h-touch cursor-default items-center gap-2 border-l-2 border-transparent pr-3 pl-2 transition-colors duration-80 ease-snap md:h-row",
         "data-[selected=true]:glow-focus data-[selected=true]:border-accent data-[selected=true]:bg-surface-raised",
         "data-[disabled=true]:text-text-dim",
         className,

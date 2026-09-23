@@ -44,15 +44,13 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
   }, [thread.id]);
 
   return (
-    <article className="flex w-full flex-col gap-4 px-3 pt-8 pb-16 md:px-6">
-      <button
-        type="button"
-        onClick={sel.close}
-        className="-mt-4 flex h-touch items-center gap-2 self-start text-text-muted md:hidden"
-      >
-        <ArrowLeft aria-hidden className="size-4" strokeWidth={1.5} />
-        back
-      </button>
+    <article className="flex w-full flex-col gap-4 px-3 pt-8 pb-8 md:px-6">
+      <div className="sticky top-0 z-10 -mx-3 -mt-8 flex h-touch shrink-0 items-center border-b border-border bg-surface px-1 md:hidden">
+        <button type="button" onClick={sel.close} className="flex h-touch items-center gap-2 px-2 text-text-muted">
+          <ArrowLeft aria-hidden className="size-4" strokeWidth={1.5} />
+          back
+        </button>
+      </div>
 
       <header className="flex flex-col gap-2">
         <AiNote thread={thread} />
@@ -87,9 +85,9 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
               <button
                 type="button"
                 onClick={() => toggle(m.id)}
-                className="flex h-row w-full items-center gap-2 px-3 text-left transition-colors duration-80 ease-snap hover:bg-surface-raised"
+                className="flex h-touch w-full items-center gap-2 px-3 text-left md:h-row transition-colors duration-80 ease-snap hover:bg-surface-raised"
               >
-                <span className="w-28 shrink-0 truncate text-text-muted">{displayName(m)}</span>
+                <span className="w-sender shrink-0 truncate text-text-muted">{displayName(m)}</span>
                 <span className="min-w-0 flex-1 truncate text-text-dim">{m.snippet}</span>
                 {m.attachments.length ? <Paperclip aria-hidden className="size-3 text-text-dim" /> : null}
                 <Time iso={m.date} className="shrink-0 text-11 text-text-muted" />
@@ -143,7 +141,7 @@ function ExpandedMessage({
                   href={attachmentUrl(a.id, { inline })}
                   {...(inline ? { target: "_blank", rel: "noreferrer" } : { download: a.filename })}
                   title={inline ? "open" : "download"}
-                  className="flex h-row items-center gap-2 rounded-sm px-1 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised hover:text-text"
+                  className="flex h-touch items-center gap-2 rounded-sm px-1 text-text-muted md:h-row transition-colors duration-80 ease-snap hover:bg-surface-raised hover:text-text"
                 >
                   <Paperclip aria-hidden className="size-3 shrink-0" strokeWidth={1.5} />
                   <span className="min-w-0 flex-1 truncate text-text">{a.filename}</span>
