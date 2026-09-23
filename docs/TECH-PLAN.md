@@ -19,7 +19,7 @@ Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
 | Database | Postgres 16 with pgvector, Docker locally, Neon later | Same engine both places, built-in full-text search now, vectors in 1.5 |
 | ORM | Drizzle | SQL-shaped, migrations are plain SQL that run identically on Neon |
 | Gmail | Google APIs Node client, OAuth 2 per account | Official, supports history sync and label writes |
-| Classification | Jev via direct API key (AI SDK provider) | Fast calibrated probabilities, cheap, confidence built in |
+| Classification | Jev via jevai.org REST API, small fetch client in `lib/ai` | Fast calibrated probabilities, cheap, confidence built in |
 | LLM | Claude via `@ai-sdk/anthropic` with existing key | Summaries, questions, later drafts |
 | Embeddings | Deferred to 1.5, likely via Vercel AI Gateway | No key yet, not needed in phase 1 |
 | UI | Tailwind 4, shadcn base, custom tokens from DESIGN.md | Fast to build, restyled hard so it isn't generic |
