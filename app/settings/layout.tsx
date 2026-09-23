@@ -16,9 +16,9 @@ export default async function SettingsLayout({ children }: LayoutProps<"/setting
 
   return (
     <div className="flex h-dvh flex-col bg-bg">
-      <nav className="flex h-touch shrink-0 items-center gap-3 overflow-x-auto border-b border-border bg-surface px-3">
-        <SettingsBack className="self-center" />
+      <nav className="relative flex h-touch shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-3 md:justify-center">
         <SettingsTabs />
+        <SettingsBack className="self-center md:absolute md:right-3" />
       </nav>
       <main id="settings-section" className="min-h-0 flex-1 overflow-y-auto p-3 md:p-8">
         <div className="mx-auto flex max-w-palette flex-col gap-4">{children}</div>
