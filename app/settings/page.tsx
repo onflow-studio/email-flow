@@ -1,11 +1,13 @@
-import { asc } from "drizzle-orm";
+import { asc, desc } from "drizzle-orm";
 import type { Metadata } from "next";
 
 import { buttonVariants } from "@/components/ui/button";
 import { db } from "@/lib/db";
-import { accounts } from "@/lib/db/schema";
+import type { RuleStructure } from "@/lib/ai/rules";
+import { accounts, rules } from "@/lib/db/schema";
 
 import { AccountForm } from "./account-form";
+import { RulesSection } from "./rules-section";
 
 export const metadata: Metadata = { title: "settings · superfer" };
 
@@ -26,6 +28,11 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
     })
     .from(accounts)
     .orderBy(asc(accounts.createdAt));
+  const ruleRows = await db
+    .select({ id: rules.id, text: rules.text, enabled: rules.enabled, structured: rules.structured })
+    .from(rules)
+    .orderBy(desc(rules.enabled), desc(rules.createdAt));
+  const parserConfigured = Boolean(process.env.ANTHROPIC_API_KEY);
 
   return (
     <div className="flex h-dvh flex-col bg-bg">
@@ -59,6 +66,11 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
               )}
             </div>
           </section>
+
+          <RulesSection
+            parserConfigured={parserConfigured}
+            rules={ruleRows.map((r) => ({ ...r, structured: r.structured as RuleStructure | null }))}
+          />
         </div>
       </main>
 

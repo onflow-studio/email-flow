@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ActionsProvider } from "@/components/mail/actions/actions";
-import { Palette } from "@/components/mail/palette/palette";
+import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
 import { NavKeys } from "@/components/mail/keys/nav-keys";
+import { Palette } from "@/components/mail/palette/palette";
 import { Rail } from "@/components/mail/rail";
 import { ReadingPane } from "@/components/mail/reading-pane";
 import { SelectionProvider } from "@/components/mail/selection";
@@ -59,6 +60,7 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
   return (
     <SelectionProvider view={view.slug} account={account} threadIds={threads.map((t) => t.id)} openId={threadId}>
       <NavKeys />
+      <ComposeKeys />
       <ActionsProvider targets={targets}>
         <div className="flex h-dvh flex-col bg-bg">
           <div className="flex min-h-0 flex-1">
@@ -87,8 +89,11 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
               </nav>
               <header className="flex h-row shrink-0 items-center justify-between border-b border-border px-3">
                 <h1 className="font-medium">{view.label}</h1>
-                <span className="text-11 text-text-muted">
-                  {view.bucket ? `${unseen} unseen` : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
+                <span className="flex items-center gap-2">
+                  <span className="text-11 text-text-muted">
+                    {view.bucket ? `${unseen} unseen` : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
+                  </span>
+                  <ComposeButton />
                 </span>
               </header>
               <div className="min-h-0 flex-1 overflow-y-auto">

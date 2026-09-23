@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 import { AiNote } from "./actions/ai-note";
 import { ActionToolbar } from "./actions/toolbar";
+import { ReplyBar } from "./compose/reply-bar";
 import { EmailFrame } from "./email-frame";
 import { useMailSelection } from "./selection";
 import { Time } from "./time";
@@ -97,6 +98,8 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           </li>
         ))}
       </ol>
+
+      <ReplyBar threadId={thread.id} accountId={thread.account.id} />
     </article>
   );
 }

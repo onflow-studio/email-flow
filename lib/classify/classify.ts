@@ -7,7 +7,8 @@ import { enqueueWriteback, type JobContext } from "@/lib/sync/jobs";
 
 import { loadContext } from "./context";
 import { buildJevRequest, parseJevAnswers, type JevAnswer } from "./prompt";
-import { decide } from "./thresholds";
+import { evaluateRules, jevConfirms, ruleDecision } from "./rules";
+import { decide, needsScreening } from "./thresholds";
 import type { ClassifyContext, Decision, ModelResult } from "./types";
 
 export type Evaluator = (
@@ -22,7 +23,7 @@ export type Evaluator = (
 
 export type ClassifierRun = {
   decision: Decision;
-  // Null when the sender is kept out and the model was not called.
+  // Null when the model was not called: sender kept out, or a literal rule decided.
   model: { id: string; raw: unknown; result: ModelResult } | null;
 };
 
@@ -34,11 +35,24 @@ export async function runClassifier(
   if (screened === "out_spam" || screened === "out_not_now") {
     return { decision: decide(null, ctx.sender), model: null };
   }
-  const request = buildJevRequest(ctx);
+
+  const rules = evaluateRules(ctx.rules, ctx.thread, {
+    senderCorrectedAt: ctx.senderCorrectedAt ?? null,
+    screening: needsScreening(ctx.sender),
+  });
+  if (rules.direct) {
+    return { decision: ruleDecision(rules.direct.bucket, ctx.sender), model: null };
+  }
+
+  const request = buildJevRequest({ ...ctx, rules: rules.hints });
   const response = await evaluate(request.state, request.questions);
   const result = parseJevAnswers(response.answers);
+  const decision =
+    rules.conditional && jevConfirms(rules.conditional, result)
+      ? ruleDecision(rules.conditional.bucket, ctx.sender)
+      : decide(result, ctx.sender);
   return {
-    decision: decide(result, ctx.sender),
+    decision,
     model: {
       id: response.response.modelId,
       raw: {

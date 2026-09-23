@@ -65,6 +65,7 @@ export async function loadContext(db: Db, threadId: string): Promise<LoadedConte
       senderId: threads.senderId,
       subject: threads.subject,
       accountEmail: accounts.email,
+      accountLabel: accounts.label,
     })
     .from(threads)
     .innerJoin(accounts, eq(threads.accountId, accounts.id))
@@ -112,7 +113,10 @@ export async function loadContext(db: Db, threadId: string): Promise<LoadedConte
           sql`${messages.to} @> ${JSON.stringify([{ email }])}::jsonb`,
         ),
       ),
-    db.select({ text: rules.text, structured: rules.structured }).from(rules).where(eq(rules.enabled, true)),
+    db
+      .select({ id: rules.id, text: rules.text, structured: rules.structured, updatedAt: rules.updatedAt })
+      .from(rules)
+      .where(eq(rules.enabled, true)),
     loadExemplarCandidates(db, email, domain),
   ]);
 
@@ -129,12 +133,18 @@ export async function loadContext(db: Db, threadId: string): Promise<LoadedConte
   };
 
   const subject = thread.subject ?? first.subject;
+  const senderCorrectedAt =
+    candidates
+      .filter((c) => c.senderEmail === email)
+      .map((c) => c.createdAt)
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
   return {
     thread,
     senderId,
     ctx: {
       thread: {
         accountEmail: thread.accountEmail,
+        accountLabel: thread.accountLabel,
         subject,
         fromName: first.fromName,
         fromEmail: email,
@@ -145,6 +155,7 @@ export async function loadContext(db: Db, threadId: string): Promise<LoadedConte
       sender: facts,
       rules: enabledRules,
       exemplars: selectExemplars(candidates, { senderEmail: email, domain, subject }),
+      senderCorrectedAt,
     },
   };
 }
