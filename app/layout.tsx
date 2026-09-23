@@ -11,11 +11,15 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "superfer",
   description: "Personal mail client",
+  applicationName: "superfer",
+  appleWebApp: { capable: true, title: "superfer", statusBarStyle: "black" },
 };
 
+// themeColor is DESIGN.md --bg; metadata cannot read CSS variables.
 export const viewport: Viewport = {
   themeColor: "#0A0E12",
   colorScheme: "dark",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
