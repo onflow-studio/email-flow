@@ -16,6 +16,9 @@ export interface GmailLabelsPort {
 }
 
 export const INBOX_LABEL = "INBOX";
+export const UNREAD_LABEL = "UNREAD";
+export const TRASH_LABEL = "TRASH";
+export const SPAM_LABEL = "SPAM";
 
 export type LabelledBucket = "inbox" | "news" | "paper_trail" | "triage";
 
@@ -76,6 +79,42 @@ export async function writeBucket(
   }
 }
 
+export type MirroredState = {
+  bucket: Bucket;
+  archived: boolean;
+  seen: boolean;
+  trashed: boolean;
+  spam: boolean;
+};
+
+// Full mirrored state in one modify: bucket label, inbox, read, trash, spam.
+export function mirrorChange(state: MirroredState, ids: LabelIds) {
+  const { addLabelIds, removeLabelIds } = labelChange(state.bucket, state.archived, ids);
+  const flag = (label: string, on: boolean) => (on ? addLabelIds : removeLabelIds).push(label);
+  if (state.trashed || state.spam) {
+    const i = addLabelIds.indexOf(INBOX_LABEL);
+    if (i >= 0) addLabelIds.splice(i, 1);
+    if (!removeLabelIds.includes(INBOX_LABEL)) removeLabelIds.push(INBOX_LABEL);
+  }
+  flag(UNREAD_LABEL, !state.seen);
+  flag(TRASH_LABEL, state.trashed);
+  flag(SPAM_LABEL, state.spam);
+  return { addLabelIds, removeLabelIds };
+}
+
+export async function writeThread(
+  thread: MirroredState & { accountId: string; gmailThreadId: string },
+  gmail: GmailLabelsPort,
+) {
+  const ids = await ensureLabels(thread.accountId, gmail);
+  try {
+    await gmail.modifyThread(thread.gmailThreadId, mirrorChange(thread, ids));
+  } catch (error) {
+    clearLabelCache(thread.accountId);
+    throw error;
+  }
+}
+
 async function loadThread(db: Db, threadId: string) {
   const [row] = await db
     .select({
@@ -83,18 +122,20 @@ async function loadThread(db: Db, threadId: string) {
       gmailThreadId: threads.gmailThreadId,
       bucket: threads.bucket,
       archived: threads.archived,
+      seenAt: threads.seenAt,
       trashed: threads.trashed,
+      spam: threads.spam,
     })
     .from(threads)
     .where(eq(threads.id, threadId));
   return row;
 }
 
-// Reads the bucket at run time, so a queued job always writes the latest state.
+// Reads state at run time, so a queued job always writes the latest state.
 export async function writebackJob(job: Job, ctx: JobContext) {
   const { threadId } = job.payload as { threadId?: string };
   if (!threadId) throw new Error("writeback job without threadId");
   const thread = await loadThread(ctx.db, threadId);
-  if (!thread || thread.trashed) return;
-  await writeBucket(thread, await ctx.gmail(thread.accountId));
+  if (!thread) return;
+  await writeThread({ ...thread, seen: thread.seenAt !== null }, await ctx.gmail(thread.accountId));
 }
