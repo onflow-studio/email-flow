@@ -161,6 +161,11 @@
   );
 }
 
+/* The focus glow's light around a point (open timeline node): a 12px accent bleed. Light, not elevation. */
+@utility glow-bleed {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 @utility pane-depth {
   background-image: linear-gradient(to bottom, var(--surface), var(--bg));
 }

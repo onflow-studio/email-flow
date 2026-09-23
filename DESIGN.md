@@ -160,7 +160,7 @@ Tokens live in `app/globals.css`: raw values as CSS variables on `:root` with th
 - Layers: `z-30` radio, `z-40` compose and undo toast, `z-50` palette and modals.
 - Shape: `rounded-sm` 2px, `rounded-md` 4px.
 - Motion: `duration-80`, `duration-150`, `ease-snap`, and `--duration-drift` 6s for the radio loop only. Reduced motion zeroes all durations globally.
-- Gradients: `glow-focus`, `pane-depth`, `status-rule`, `radio-live`. The only four. `radio-live` uses `--duration-drift`.
+- Gradients: `glow-focus`, `pane-depth`, `status-rule`, `radio-live`. The only four. `radio-live` uses `--duration-drift`. `glow-bleed` is the focus glow's light around a point, the 12px `--accent` bleed at 12% (open timeline node, the radio's reduced-motion glow); it is light, not a shadow.
 - Pane focus: `pane-focus`, the inset top hairline, applied with `md:`.
 - Breakpoints: `md` 768, `rail` 1100. Below `md`, interactive rows and buttons are `h-touch`, and keyboard hints are hidden.
 - Safe area: `pb-safe` (with `box-content`) on bottom bars, so the installed app clears the phone's home indicator.

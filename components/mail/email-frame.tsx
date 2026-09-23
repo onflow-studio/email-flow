@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { alwaysLoadImages } from "@/app/(mail)/thread-actions";
+import { markQuote, QUOTE_ATTR } from "@/lib/mail/quote";
 import { hasBlockedImages, restoreRemoteImages } from "@/lib/mail/remote";
+
+import { QuoteFold } from "./quote-fold";
 
 /** Declares a dark scheme via meta, CSS `color-scheme`, or a dark media query. */
 export function declaresDarkScheme(html: string) {
@@ -23,6 +26,8 @@ export function hasRemoteImages(html: string) {
     /background\s*=\s*["']?\s*(https?:)?\/\//i.test(html)
   );
 }
+
+const QUOTE_OPEN = "data-quote-open";
 
 // CSP does not govern navigation; a refresh would load a remote page in the frame.
 const META_REFRESH = /<meta[^>]+http-equiv\s*=\s*["']?refresh[^>]*>/gi;
@@ -57,7 +62,7 @@ img,picture,video,svg,[style*="background-image"],[background]{filter:invert(1) 
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="referrer" content="no-referrer">
 <base target="_blank">
-<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}${invertCss}</style>
+<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}body:not([${QUOTE_OPEN}]) [${QUOTE_ATTR}]{display:none!important}${invertCss}</style>
 </head><body>${(allowImages ? restoreRemoteImages(html) : html).replace(META_REFRESH, "")}</body></html>`;
 }
 
@@ -65,16 +70,23 @@ export function EmailFrame({
   html,
   imagesAllowed,
   senderId,
+  quoteLabel = null,
 }: {
   html: string;
   imagesAllowed: boolean;
   senderId: string | null;
+  /** Fold the trailing quote under this label; null leaves the email whole. */
+  quoteLabel?: string | null;
 }) {
   const [loadImages, setLoadImages] = useState(false);
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
   const allowImages = imagesAllowed || loadImages;
   const blocked = !allowImages && hasRemoteImages(html);
+
+  const [hasQuote, setHasQuote] = useState(false);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const quoteOpenRef = useRef(quoteOpen);
 
   const observer = useRef<ResizeObserver | null>(null);
   // The document already observed, so a late onLoad after the mount check does not double-wire keys.
@@ -91,7 +103,9 @@ export function EmailFrame({
       const fit = doc.documentElement.clientWidth / doc.documentElement.scrollWidth;
       doc.body.style.zoom = fit < 0.99 ? String(Math.round(fit * 1000) / 1000) : "";
     }
-    const content = Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight ?? 0);
+    // The body, not the root: the root never reports less than the frame, so the frame could not shrink
+    // when the quote folds again.
+    const content = doc.body?.scrollHeight ?? doc.documentElement.scrollHeight;
     // The frame is border-box with a 1px border on each side.
     setHeight(content + 2);
   }, []);
@@ -101,6 +115,10 @@ export function EmailFrame({
   const onLoad = useCallback(() => {
     const doc = ref.current?.contentDocument;
     if (!doc?.body) return;
+    if (quoteLabel !== null) {
+      setHasQuote(markQuote(doc));
+      doc.body.toggleAttribute(QUOTE_OPEN, quoteOpenRef.current);
+    }
     measure();
     if (wired.current === doc) return;
     wired.current = doc;
@@ -121,7 +139,15 @@ export function EmailFrame({
       window.dispatchEvent(forwarded);
       if (forwarded.defaultPrevented) e.preventDefault();
     });
-  }, [measure]);
+  }, [measure, quoteLabel]);
+
+  const toggleQuote = () => {
+    const open = !quoteOpen;
+    quoteOpenRef.current = open;
+    setQuoteOpen(open);
+    ref.current?.contentDocument?.body?.toggleAttribute(QUOTE_OPEN, open);
+    measure();
+  };
 
   // A server-rendered srcDoc can finish loading before React attaches onLoad.
   useEffect(() => {
@@ -166,6 +192,7 @@ export function EmailFrame({
         style={{ height }}
         className="w-full rounded-sm border border-border bg-transparent"
       />
+      {hasQuote && quoteLabel !== null ? <QuoteFold label={quoteLabel} open={quoteOpen} onToggle={toggleQuote} /> : null}
     </div>
   );
 }
