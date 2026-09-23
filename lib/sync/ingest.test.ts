@@ -103,6 +103,19 @@ describe("parseGmailMessage", () => {
     );
     expect(latin1.text).toBe("Información útil para el año");
   });
+
+  it("keeps UTF-8 bodies that are labelled ISO-8859-1", () => {
+    const mislabelled = parseGmailMessage(
+      message({
+        payload: {
+          mimeType: "text/plain",
+          headers: [{ name: "From", value: "a@b.com" }, { name: "Content-Type", value: "text/plain; charset=iso-8859-1" }],
+          body: { data: Buffer.from("Buenos días, la información", "utf8").toString("base64url") },
+        },
+      }),
+    );
+    expect(mislabelled.text).toBe("Buenos días, la información");
+  });
 });
 
 describe("deriveThreadFields", () => {

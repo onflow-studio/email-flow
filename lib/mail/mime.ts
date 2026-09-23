@@ -48,12 +48,18 @@ function charsetOf(part: Part): string {
   return type.match(/charset\s*=\s*"?([^";\s]+)/i)?.[1] ?? "utf-8";
 }
 
+// Gmail often hands back text parts already transcoded to UTF-8 while the part header still
+// declares the original charset (Outlook's ISO-8859-1), so valid UTF-8 wins over the label.
 function decodeBody(part: Part): string {
   const bytes = Buffer.from(part.body?.data ?? "", "base64url");
   try {
-    return new TextDecoder(charsetOf(part)).decode(bytes);
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    return new TextDecoder("utf-8").decode(bytes);
+    try {
+      return new TextDecoder(charsetOf(part)).decode(bytes);
+    } catch {
+      return new TextDecoder("utf-8").decode(bytes);
+    }
   }
 }
 
