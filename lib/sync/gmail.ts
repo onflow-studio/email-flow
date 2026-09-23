@@ -2,6 +2,8 @@ import type { gmail_v1 } from "@googleapis/gmail";
 
 import { getGmailClient } from "@/lib/gmail/client";
 
+import { httpStatus } from "./http";
+
 export type HistoryPage = {
   history: gmail_v1.Schema$History[];
   historyId: string;
@@ -25,16 +27,11 @@ export interface GmailSyncPort {
   getMessage(gmailMessageId: string): Promise<gmail_v1.Schema$Message | null>;
 }
 
-function status(error: unknown): number | undefined {
-  const e = error as { status?: number; code?: number | string; response?: { status?: number } };
-  return e?.status ?? e?.response?.status ?? (typeof e?.code === "number" ? e.code : undefined);
-}
-
 async function orNull<T>(call: Promise<T>): Promise<T | null> {
   try {
     return await call;
   } catch (error) {
-    if (status(error) === 404) return null;
+    if (httpStatus(error) === 404) return null;
     throw error;
   }
 }

@@ -16,7 +16,7 @@ import { parseGmailMessage, type ParsedMessage } from "@/lib/mail/mime";
 import { rewriteCidImages } from "@/lib/mail/remote";
 
 import type { GmailSyncPort } from "./gmail";
-import { enqueueClassify } from "./jobs";
+import { PRIORITY_LIVE, enqueueClassify } from "./jobs";
 import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt } from "./mirror";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -108,6 +108,7 @@ export async function ingestThread(
   account: Pick<Account, "id" | "email">,
   gmailThreadId: string,
   now = new Date(),
+  { classifyPriority = PRIORITY_LIVE }: { classifyPriority?: number } = {},
 ): Promise<IngestResult> {
   const [existing] = await db
     .select({ id: threads.id, bucket: threads.bucket, seenAt: threads.seenAt })
@@ -156,7 +157,7 @@ export async function ingestThread(
     }
 
     let threadId = existing?.id;
-    const created = !existing;
+    let created = false;
     if (!threadId) {
       const first = parsed.map((p) => p.m).sort((a, b) => a.date.getTime() - b.date.getTime())[0];
       const bucket = initialBucket(live.flatMap((m) => m.labelIds));
@@ -173,8 +174,19 @@ export async function ingestThread(
           spam: mirror.spam,
           seenAt: nextSeenAt(mirror.unread, null, now),
         })
+        // Backfill and live sync can meet on the same new thread; the second one just joins it.
+        .onConflictDoNothing()
         .returning({ id: threads.id });
-      threadId = row.id;
+      if (row) {
+        threadId = row.id;
+        created = true;
+      } else {
+        const [other] = await tx
+          .select({ id: threads.id })
+          .from(threads)
+          .where(and(eq(threads.accountId, account.id), eq(threads.gmailThreadId, gmailThreadId)));
+        threadId = other.id;
+      }
     }
 
     for (const { m, inbound } of parsed) {
@@ -260,7 +272,7 @@ export async function ingestThread(
       .where(eq(threads.id, threadId));
 
     const classify = created && derived.hasInbound && !mirror.trashed && !mirror.spam;
-    if (classify) await enqueueClassify(tx, { id: threadId, accountId: account.id });
+    if (classify) await enqueueClassify(tx, { id: threadId, accountId: account.id }, classifyPriority);
 
     return { status: "stored" as const, threadId, created, newMessages: parsed.length, classify };
   });

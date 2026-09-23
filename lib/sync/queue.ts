@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, lte, ne } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
 import { jobs } from "@/lib/db/schema";
@@ -23,7 +23,15 @@ export async function claimJobs(db: Db, accountId: string, limit: number, now = 
   const due = db
     .select({ id: jobs.id })
     .from(jobs)
-    .where(and(eq(jobs.accountId, accountId), eq(jobs.status, "pending"), lte(jobs.runAfter, now)))
+    .where(
+      and(
+        eq(jobs.accountId, accountId),
+        eq(jobs.status, "pending"),
+        lte(jobs.runAfter, now),
+        // Backfill rows hold scripts/backfill.ts progress; only that script touches them.
+        ne(jobs.type, "backfill"),
+      ),
+    )
     .orderBy(desc(jobs.priority), asc(jobs.runAfter))
     .limit(limit)
     .for("update", { skipLocked: true });

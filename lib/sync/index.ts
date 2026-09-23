@@ -16,10 +16,9 @@ export type AccountSyncOutcome =
 
 // Session advisory lock on a reserved connection, so the loop and the API route never run
 // the same account at once. Needs a direct (session) connection, not a transaction pooler.
-async function withAccountLock<T>(accountId: string, fn: () => Promise<T>): Promise<T | "busy"> {
+export async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T | "busy"> {
   const conn = await db.$client.reserve();
   try {
-    const key = `superfer:sync:${accountId}`;
     const [{ locked }] = await conn`select pg_try_advisory_lock(hashtext(${key})) as locked`;
     if (!locked) return "busy";
     try {
@@ -35,7 +34,7 @@ async function withAccountLock<T>(accountId: string, fn: () => Promise<T>): Prom
 async function syncOne(account: typeof accounts.$inferSelect): Promise<AccountSyncOutcome> {
   const base = { accountId: account.id, email: account.email, label: account.label };
   try {
-    const outcome = await withAccountLock(account.id, async () => {
+    const outcome = await withLock(`superfer:sync:${account.id}`, async () => {
       const gmail = await getGmailSyncAdapter(account.id);
       return syncAccount(db, account, gmail, { db, gmail: getGmailLabelsAdapter });
     });
