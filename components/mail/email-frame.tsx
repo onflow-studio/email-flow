@@ -56,7 +56,7 @@ img,picture,video,svg,[style*="background-image"],[background]{filter:invert(1) 
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="referrer" content="no-referrer">
 <base target="_blank">
-<style>html,body{margin:0}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}${invertCss}</style>
+<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}${invertCss}</style>
 </head><body>${(allowImages ? restoreRemoteImages(html) : html).replace(META_REFRESH, "")}</body></html>`;
 }
 
@@ -74,6 +74,14 @@ export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowe
   const measure = useCallback(() => {
     const doc = ref.current?.contentDocument;
     if (!doc?.documentElement) return;
+    // Fixed-width newsletters wider than the pane are scaled down to fit instead of scrolling
+    // sideways inside the frame; the pane then scrolls as one.
+    if (doc.body) {
+      const current = Number(doc.body.style.zoom || 1);
+      const natural = doc.documentElement.scrollWidth / current;
+      const fit = Math.min(1, doc.documentElement.clientWidth / natural);
+      if (Math.abs(fit - current) > 0.01) doc.body.style.zoom = String(fit);
+    }
     const content = Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight ?? 0);
     // The frame is border-box with a 1px border on each side.
     setHeight(content + 2);
