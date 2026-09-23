@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ActionsProvider } from "@/components/mail/actions/actions";
 import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
@@ -15,7 +15,7 @@ import { ReadingPane } from "@/components/mail/reading-pane";
 import { SelectionProvider } from "@/components/mail/selection";
 import { StatusLine } from "@/components/mail/status-line";
 import { ThreadList } from "@/components/mail/thread-list";
-import { findView, mailHref, VIEWS } from "@/components/mail/views";
+import { findView, mailHref, VIEWS, type ViewSlug } from "@/components/mail/views";
 import { cn } from "@/lib/utils";
 
 import { accountsOff, accountsOn } from "../../_lib/account-filter";
@@ -41,6 +41,13 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
     threadId ? getThread(threadId) : null,
   ]);
   if (threadId && !detail) notFound();
+  // A thread opened under a view it no longer belongs to (an old link, a thread snoozed elsewhere) moves to its
+  // own view, so the list always holds the open thread. Archived and kept-out threads have no view and stay put.
+  const home = detail ? homeView(detail) : null;
+  if (detail && home && home !== view.slug) redirect(mailHref(home, { threadId: detail.id }));
+  // The list shows one copy per conversation; open that copy so the row and the pane line up.
+  const listed = detail && !threads.some((t) => t.id === detail.id) ? threads.find((t) => detail.copyIds.includes(t.id)) : null;
+  if (listed) redirect(mailHref(view.slug, { threadId: listed.id }));
 
   const targets = threads.map((t) => ({
     id: t.id,
@@ -153,4 +160,20 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       </ActionsProvider>
     </SelectionProvider>
   );
+}
+
+function homeView(t: {
+  bucket: string;
+  trashed: boolean;
+  archived: boolean;
+  spam: boolean;
+  pinned: boolean;
+  snoozedUntil: string | null;
+}): ViewSlug | null {
+  if (t.trashed) return "trash";
+  if (t.archived || t.spam) return null;
+  // A past-due snooze has resurfaced at the top of Inbox.
+  if (t.snoozedUntil) return Date.parse(t.snoozedUntil) > Date.now() ? "snoozed" : "inbox";
+  if (t.pinned) return "inbox";
+  return VIEWS.find((v) => v.bucket === t.bucket)?.slug ?? null;
 }

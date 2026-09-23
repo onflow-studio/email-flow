@@ -222,10 +222,14 @@ export async function getThread(id: string) {
     deadlineAt: thread.deadlineAt?.toISOString() ?? null,
     pinned: thread.pinnedAt !== null,
     trashed: thread.trashed,
+    archived: thread.archived,
+    spam: thread.spam,
     canUnsubscribe: !!latestInbound?.headers.listUnsubscribe,
     account: thread.account,
     // Every account the conversation reached, twins included, in account order.
     accounts: reached,
+    // This thread and its twins, so a page can find whichever copy its list shows.
+    copyIds: all.map((t) => t.id),
     // Headers stay on the server; the client only needs canUnsubscribe.
     messages: thread.messages.map((m) => {
       const { headers, messageId, ...rest } = m;
