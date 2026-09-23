@@ -245,8 +245,14 @@ function MenuButton({
       setOpen(false);
       buttonRef.current?.focus();
     };
+    // A click inside the email lands in its iframe and never reaches this document; the window blurs instead.
+    const onBlur = () => setOpen(false);
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("blur", onBlur);
+    };
   }, [open]);
 
   const menu = (

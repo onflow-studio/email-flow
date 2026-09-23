@@ -185,11 +185,15 @@ export function Radio() {
     const onPointer = (e: PointerEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
+    // A click inside the email lands in its iframe and never reaches this document; the window blurs instead.
+    const onBlur = () => setOpen(false);
     window.addEventListener("keydown", onKey, true);
     document.addEventListener("pointerdown", onPointer);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", onKey, true);
       document.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("blur", onBlur);
     };
   }, [open]);
 

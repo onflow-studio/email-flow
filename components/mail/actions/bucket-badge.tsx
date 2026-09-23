@@ -88,8 +88,14 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
       if (rootRef.current?.contains(e.target as Node)) return;
       setOpen(false);
     };
+    // A click inside the email lands in its iframe and never reaches this document; the window blurs instead.
+    const onBlur = () => setOpen(false);
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("blur", onBlur);
+    };
   }, [open]);
 
   return (
