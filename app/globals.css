@@ -77,6 +77,8 @@
   --spacing-rail: 200px;
   --spacing-list: 360px;
   --container-palette: 640px;
+  --spacing-compose: 640px;
+  --spacing-compose-h: 70vh;
 
   --breakpoint-md: 768px;
   --breakpoint-rail: 1100px;

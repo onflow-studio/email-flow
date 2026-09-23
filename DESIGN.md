@@ -62,6 +62,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 - Phone: single pane, list then thread, back via header. Touch targets 44px.
 - Command palette: centered, 640px max, top-aligned at 15vh so results grow downward.
 - Status line: a 24px bar at the bottom of the window, terminal-style, showing sync state, account, and the active keyboard hint. This is where "what to do next" lives.
+- Compose: a panel docked bottom-right over the reading pane, 640px wide, at most 70vh tall, sitting just above the status line with a 16px right gap. No backdrop, so the thread stays readable above it. Phone: a full-screen sheet.
 
 ## Components
 
@@ -77,6 +78,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 - Input: `--surface` background, `--border` border, 2px radius, `--accent` border on focus.
 - Command palette: `--surface-top`, hairline border, backdrop darkens the app to 60%, results as rows, matched text in `--accent`, action rows show a `--info` preview count when they would touch more than one thread.
 - Status line: `--surface`, 11px, `--text-muted`, sync state at left, keyboard hint at right.
+- Compose: `--surface-top`, hairline border, 4px radius. Header row names the mode and account (`reply  work1`), fields are label-left rows (`to`, `cc`, `subject`) on hairlines, the toolbar is ghost buttons in 11px, the body is 13px at prose line height and at least 160px tall. Signature and quoted text show as one dim line each, never inline. Footer: primary `send  mod+enter`, ghost `discard`, errors in `--danger` on the same row. Body headings: h1 20, h2 15, h3 13, all 600. Links in the body are `--text` underlined, not accent.
 
 ## Voice
 
@@ -90,7 +92,7 @@ Tokens live in `app/globals.css`: raw values as CSS variables on `:root` with th
 
 - Color: `bg-bg`, `bg-surface`, `bg-surface-raised`, `bg-surface-top`, `border-border`, `text-text`, `text-text-muted`, `text-text-dim`, `*-accent`, `*-accent-dim`, `*-info`, `*-warning`, `*-danger`, `*-success`. shadcn names (`primary`, `muted`, `popover`, `destructive`, `ring`) alias these; `accent` keeps its meaning here.
 - Type: `text-11` `text-12` `text-13` `text-15` `text-20`, `font-normal` `font-medium` `font-semibold`, `leading-list` `leading-prose`. One family, `font-mono`.
-- Space: the default 4px scale (`p-1` 4, `p-2` 8, `p-3` 12, `p-4` 16, `p-6` 24, `p-8` 32). Layout sizes: `h-row` 32, `h-touch` 44, `h-status` 24, `w-rail` 200, `w-list` 360, `max-w-palette` 640.
+- Space: the default 4px scale (`p-1` 4, `p-2` 8, `p-3` 12, `p-4` 16, `p-6` 24, `p-8` 32). Layout sizes: `h-row` 32, `h-touch` 44, `h-status` 24, `w-rail` 200, `w-list` 360, `max-w-palette` 640, `w-compose` 640, `max-h-compose-h` 70vh.
 - Shape: `rounded-sm` 2px, `rounded-md` 4px.
 - Motion: `duration-80`, `duration-150`, `ease-snap`. Reduced motion zeroes all durations globally.
 - Gradients: `glow-focus`, `pane-depth`, `status-rule`. The only three.

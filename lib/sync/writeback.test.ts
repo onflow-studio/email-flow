@@ -6,7 +6,12 @@ import {
   clearLabelCache,
   ensureLabels,
   labelChange,
+  mirrorChange,
+  SPAM_LABEL,
+  TRASH_LABEL,
+  UNREAD_LABEL,
   writeBucket,
+  writeThread,
   type GmailLabelsPort,
   type LabelIds,
 } from "./writeback";
@@ -85,5 +90,46 @@ describe("writeBucket", () => {
     ).rejects.toThrow("label not found");
     await ensureLabels("acc1", gmail);
     expect(gmail.listLabels).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("mirrorChange", () => {
+  const base = { bucket: "inbox" as const, archived: false, seen: true, trashed: false, spam: false };
+
+  it("read inbox thread: bucket label and INBOX, clears unread, trash and spam", () => {
+    expect(mirrorChange(base, ids)).toEqual({
+      addLabelIds: ["L_in", INBOX_LABEL],
+      removeLabelIds: ["L_news", "L_pt", "L_tri", UNREAD_LABEL, TRASH_LABEL, SPAM_LABEL],
+    });
+  });
+
+  it("unseen thread gets UNREAD back", () => {
+    expect(mirrorChange({ ...base, seen: false }, ids).addLabelIds).toContain(UNREAD_LABEL);
+  });
+
+  it.each([
+    ["trashed", TRASH_LABEL],
+    ["spam", SPAM_LABEL],
+  ] as const)("%s: adds %s and leaves Gmail's inbox", (flag, label) => {
+    const change = mirrorChange({ ...base, [flag]: true }, ids);
+    expect(change.addLabelIds).toContain(label);
+    expect(change.addLabelIds).not.toContain(INBOX_LABEL);
+    expect(change.removeLabelIds).toContain(INBOX_LABEL);
+  });
+
+  it("never adds and removes the same label", () => {
+    for (const flags of [base, { ...base, trashed: true, seen: false }, { ...base, spam: true, archived: true }]) {
+      const { addLabelIds, removeLabelIds } = mirrorChange(flags, ids);
+      expect(addLabelIds.filter((l) => removeLabelIds.includes(l))).toEqual([]);
+    }
+  });
+});
+
+describe("writeThread", () => {
+  it("modifies the Gmail thread with the full mirrored state", async () => {
+    const gmail = mockGmail(Object.entries(BUCKET_LABELS).map(([b, name]) => ({ id: ids[b as keyof LabelIds], name })));
+    const state = { bucket: "news" as const, archived: true, seen: false, trashed: false, spam: false };
+    await writeThread({ accountId: "acc1", gmailThreadId: "g1", ...state }, gmail);
+    expect(gmail.modifyThread).toHaveBeenCalledWith("g1", mirrorChange(state, ids));
   });
 });

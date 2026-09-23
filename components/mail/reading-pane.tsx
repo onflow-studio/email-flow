@@ -1,13 +1,17 @@
 "use client";
 
 import { ArrowLeft, Paperclip } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
+import { markSeen } from "@/app/(mail)/thread-actions";
 import type { Address } from "@/lib/db/schema";
 import { attachmentUrl, opensInline } from "@/lib/mail/remote";
 import { cn } from "@/lib/utils";
 
+import { AiNote } from "./actions/ai-note";
+import { ActionToolbar } from "./actions/toolbar";
+import { ReplyBar } from "./compose/reply-bar";
 import { EmailFrame } from "./email-frame";
 import { useMailSelection } from "./selection";
 import { Time } from "./time";
@@ -34,6 +38,11 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
       return next;
     });
 
+  // Opening marks seen and mirrors read state to Gmail.
+  useEffect(() => {
+    markSeen(thread.id).catch(() => {});
+  }, [thread.id]);
+
   return (
     <article className="flex w-full flex-col gap-4 px-3 pt-8 pb-16 md:px-6">
       <button
@@ -46,6 +55,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
       </button>
 
       <header className="flex flex-col gap-2">
+        <AiNote thread={thread} />
         <h1 className="text-20 font-semibold text-text">{thread.subject}</h1>
         <div className="flex flex-wrap items-center gap-2 text-11 text-text-muted">
           <span className="flex items-center gap-1">
@@ -56,7 +66,16 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           <span>
             {thread.messages.length} {thread.messages.length === 1 ? "message" : "messages"}
           </span>
+          {thread.snoozedUntil ? (
+            <span>
+              snoozed until <Time iso={thread.snoozedUntil} format="full" />
+            </span>
+          ) : null}
+          {thread.needsReply ? <span className="text-text">needs reply</span> : null}
+          {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
+          {thread.setAside ? <span>set aside</span> : null}
         </div>
+        <ActionToolbar thread={thread} />
       </header>
 
       <ol className="flex flex-col gap-2">
@@ -79,6 +98,8 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           </li>
         ))}
       </ol>
+
+      <ReplyBar threadId={thread.id} accountId={thread.account.id} />
     </article>
   );
 }
@@ -134,6 +155,16 @@ function ExpandedMessage({
         </ul>
       ) : null}
     </div>
+  );
+}
+
+function Deadline({ iso }: { iso: string }) {
+  const [now] = useState(() => Date.now());
+  const late = new Date(iso).getTime() < now;
+  return (
+    <span className={late ? "text-warning" : undefined}>
+      {late ? "overdue since" : "due"} <Time iso={iso} format="full" />
+    </span>
   );
 }
 
