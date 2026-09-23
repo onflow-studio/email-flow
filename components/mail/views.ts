@@ -1,5 +1,7 @@
 import type { Bucket } from "@/lib/db/schema";
 
+import type { CommandId } from "./keys/commands";
+
 export type ViewSlug = "inbox" | "news" | "paper-trail" | "triage" | "snoozed" | "trash";
 
 export type View = {
@@ -7,20 +9,20 @@ export type View = {
   label: string;
   /** Set for bucket views; snoozed and trash cut across buckets. */
   bucket?: Bucket;
-  /** Second key after `g`. */
-  goKey?: string;
+  /** The go-to command; its keys live in the command registry. */
+  command: CommandId;
   /** Rail group: act on now, later, or the dim bottom of the rail. */
   group: "act" | "later" | "bottom";
 };
 
 /** In rail order. */
 export const VIEWS: View[] = [
-  { slug: "triage", label: "triage", bucket: "triage", goKey: "t", group: "act" },
-  { slug: "inbox", label: "inbox", bucket: "inbox", goKey: "i", group: "act" },
-  { slug: "snoozed", label: "snoozed", group: "act" },
-  { slug: "news", label: "news", bucket: "news", goKey: "n", group: "later" },
-  { slug: "paper-trail", label: "paper trail", bucket: "paper_trail", goKey: "p", group: "later" },
-  { slug: "trash", label: "trash", goKey: "d", group: "bottom" },
+  { slug: "triage", command: "go.triage", label: "triage", bucket: "triage", group: "act" },
+  { slug: "inbox", command: "go.inbox", label: "inbox", bucket: "inbox", group: "act" },
+  { slug: "snoozed", command: "go.snoozed", label: "snoozed", group: "act" },
+  { slug: "news", command: "go.news", label: "news", bucket: "news", group: "later" },
+  { slug: "paper-trail", command: "go.paper-trail", label: "paper trail", bucket: "paper_trail", group: "later" },
+  { slug: "trash", command: "go.trash", label: "trash", group: "bottom" },
 ];
 
 export function findView(slug: string): View | undefined {

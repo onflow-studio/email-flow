@@ -2,7 +2,8 @@
 
 import { Kbd, KeyHints } from "@/components/ui/kbd";
 
-import { useKeyMap, useKeyMapEntries, useKeys } from "./keymap";
+import { COMMANDS, effectiveKeys, GROUPS } from "./commands";
+import { useKeyMap, useKeys, useOverrides } from "./keymap";
 
 export function KeyMapOverlay() {
   const { open } = useKeyMap();
@@ -12,9 +13,16 @@ export function KeyMapOverlay() {
 
 function KeyMapDialog() {
   const { setOpen } = useKeyMap();
-  const groups = useKeyMapEntries();
+  const overrides = useOverrides();
+  // Every command with a key, grouped like settings; unbound ones are left out.
+  const groups = GROUPS.map((group) => [
+    group,
+    COMMANDS.filter((c) => c.group === group)
+      .map((c) => ({ label: c.label, keys: effectiveKeys(c.id, overrides) }))
+      .filter((e) => e.keys.length),
+  ] as const).filter(([, entries]) => entries.length);
 
-  useKeys([{ keys: ["escape", "?"], run: () => setOpen(false) }], { exclusive: true });
+  useKeys([{ keys: ["escape", ...effectiveKeys("key-map", overrides)], run: () => setOpen(false) }], { exclusive: true });
 
   return (
     <div

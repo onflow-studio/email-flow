@@ -7,25 +7,28 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
+
+import { Kbd } from "@/components/ui/kbd";
+
+import { boundKeys, effectiveKeys, findCommand, type CommandId, type Overrides } from "./commands";
 
 /**
  * One global keydown listener for the mail shell. Features register bindings
- * with `useKeys`; the same registry drives dispatch and the `?` overlay, so a
- * binding added by actions or the palette shows up in the map automatically.
+ * with `useKeys`. A binding names a command from `commands.ts` by `id`, and its
+ * keys are that command's effective keys (defaults plus the user's overrides),
+ * so rebinding in settings changes dispatch, buttons and the map together.
+ * Local keys that are not commands (arrows in a menu) give `keys` instead.
  *
  * Keys are space-separated sequences of tokens: `j`, `g i`, `mod+k`,
  * `escape`, `?`. Printable keys match `event.key` as typed (so `?` and `J`
  * work without spelling out shift). `mod` is cmd on mac, ctrl elsewhere.
  */
 export type KeyBinding = {
-  /** One sequence or several aliases, e.g. `["j", "arrowdown"]`. */
-  keys: string | string[];
-  /** Lowercase verb for the map, e.g. `archive`. Omit to hide from the map. */
-  label?: string;
-  /** Section in the map, e.g. `navigate`, `triage`. */
-  group?: string;
+  /** The command this runs; its keys come from the registry. */
+  id?: CommandId;
+  /** Keys for a local binding with no command: one sequence or several aliases, e.g. `["j", "arrowdown"]`. */
+  keys?: string | string[];
   run: (event: KeyboardEvent) => void;
   /** Evaluated at keypress time; the binding is skipped when false. */
   when?: () => boolean;
@@ -50,16 +53,12 @@ const SEQUENCE_TIMEOUT_MS = 1000;
 
 class KeyRegistry {
   private layers: Layer[] = [];
-  private listeners = new Set<() => void>();
-  version = 0;
 
   add(bindings: () => KeyBinding[], exclusive: boolean) {
     const layer: Layer = { exclusive, bindings };
     this.layers = [...this.layers, layer];
-    this.emit();
     return () => {
       this.layers = this.layers.filter((l) => l !== layer);
-      this.emit();
     };
   }
 
@@ -74,25 +73,11 @@ class KeyRegistry {
       .reverse()
       .flatMap((l) => l.bindings());
   }
-
-  /** Every registered binding in registration order, for the map. */
-  all(): KeyBinding[] {
-    return this.layers.flatMap((l) => l.bindings());
-  }
-
-  subscribe = (listener: () => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
-
-  private emit() {
-    this.version++;
-    this.listeners.forEach((l) => l());
-  }
 }
 
 type KeymapContextValue = {
   registry: KeyRegistry;
+  overrides: Overrides;
   /** Tokens typed so far in an unfinished sequence, e.g. `["g"]`. */
   pending: string[];
   mapOpen: boolean;
@@ -107,16 +92,28 @@ function useKeymapContext() {
   return ctx;
 }
 
-export function tokenFromEvent(event: KeyboardEvent): string | null {
-  const { key } = event;
-  if (key === "Shift" || key === "Control" || key === "Meta" || key === "Alt") {
+/**
+ * The token for a keypress. A printable key without mod or alt is the
+ * character typed (`U`, `?`), so shift is implied. With mod or alt, letters
+ * and digits come from the physical key (alt+e on mac types `´`) and shift is
+ * spelled out: `mod+shift+k`. Named keys spell shift out too: `shift+enter`.
+ */
+export function tokenFromEvent(event: Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">): string | null {
+  const { key, code } = event;
+  if (key === "Shift" || key === "Control" || key === "Meta" || key === "Alt" || key === "Dead") {
     return null;
   }
-  const base = key.length === 1 ? key : key.toLowerCase();
+  const mod = event.metaKey || event.ctrlKey;
+  const chord = mod || event.altKey;
+  const physical = /^(Key[A-Z]|Digit[0-9])$/.test(code ?? "") ? code.slice(-1).toLowerCase() : null;
+  let base = key === " " ? "space" : key.length === 1 ? key : key.toLowerCase();
+  if (chord && physical) base = physical;
+  else if (chord && key.length === 1) base = key.toLowerCase();
   const mods: string[] = [];
-  if (event.metaKey || event.ctrlKey) mods.push("mod");
+  if (mod) mods.push("mod");
   if (event.altKey) mods.push("alt");
-  return [...mods, base === " " ? "space" : base].join("+");
+  if (event.shiftKey && (chord || base.length > 1)) mods.push("shift");
+  return [...mods, base].join("+");
 }
 
 const ALIASES: Record<string, string> = { esc: "escape", return: "enter", up: "arrowup", down: "arrowdown" };
@@ -128,8 +125,9 @@ function parseSequence(keys: string): string[] {
     .map((t) => ALIASES[t] ?? t);
 }
 
-function sequences(binding: KeyBinding): string[][] {
-  return (Array.isArray(binding.keys) ? binding.keys : [binding.keys]).map(parseSequence);
+function sequences(binding: KeyBinding, overrides: Overrides): string[][] {
+  const keys = binding.id ? effectiveKeys(binding.id, overrides) : [binding.keys ?? []].flat();
+  return keys.map(parseSequence);
 }
 
 function isEditable(target: EventTarget | null) {
@@ -143,8 +141,12 @@ function startsWith(seq: string[], prefix: string[]) {
   return prefix.length <= seq.length && prefix.every((t, i) => seq[i] === t);
 }
 
-export function KeymapProvider({ children }: { children: React.ReactNode }) {
+export function KeymapProvider({ overrides, children }: { overrides: Overrides; children: React.ReactNode }) {
   const [registry] = useState(() => new KeyRegistry());
+  const overridesRef = useRef(overrides);
+  useEffect(() => {
+    overridesRef.current = overrides;
+  }, [overrides]);
   const [pending, setPending] = useState<string[]>([]);
   const [mapOpen, setMapOpen] = useState(false);
   const pendingRef = useRef<string[]>([]);
@@ -163,7 +165,7 @@ export function KeymapProvider({ children }: { children: React.ReactNode }) {
       for (const binding of registry.active()) {
         if (inInput && !binding.allowInInput) continue;
         if (binding.when && !binding.when()) continue;
-        for (const seq of sequences(binding)) {
+        for (const seq of sequences(binding, overridesRef.current)) {
           if (seq.length === typed.length && startsWith(seq, typed)) return binding;
           if (seq.length > typed.length && startsWith(seq, typed)) prefixMatch = true;
         }
@@ -203,7 +205,10 @@ export function KeymapProvider({ children }: { children: React.ReactNode }) {
     };
   }, [registry]);
 
-  const value = useMemo(() => ({ registry, pending, mapOpen, setMapOpen }), [registry, pending, mapOpen]);
+  const value = useMemo(
+    () => ({ registry, overrides, pending, mapOpen, setMapOpen }),
+    [registry, overrides, pending, mapOpen],
+  );
   return <KeymapContext.Provider value={value}>{children}</KeymapContext.Provider>;
 }
 
@@ -232,22 +237,27 @@ export function useKeyMap() {
   return { open: mapOpen, setOpen: setMapOpen };
 }
 
-/** Labelled bindings, grouped for the `?` overlay. */
-export function useKeyMapEntries() {
-  const { registry } = useKeymapContext();
-  useSyncExternalStore(
-    registry.subscribe,
-    () => registry.version,
-    () => 0,
-  );
-  const groups = new Map<string, { keys: string[]; label: string }[]>();
-  const seen = new Set<string>();
-  for (const b of registry.all()) {
-    if (!b.label || seen.has(b.label)) continue;
-    seen.add(b.label);
-    const group = b.group ?? "general";
-    const keys = [b.keys].flat();
-    groups.set(group, [...(groups.get(group) ?? []), { keys, label: b.label }]);
-  }
-  return [...groups.entries()];
+/** The user's overrides, for anything that lists commands. */
+export function useOverrides() {
+  return useKeymapContext().overrides;
+}
+
+/** Every key that triggers a command, bound ones first. */
+export function useBinding(id: CommandId) {
+  return effectiveKeys(id, useKeymapContext().overrides);
+}
+
+/** The one key to show on a button: the first bound key, else the first fixed one. Undefined when unbound. */
+export function useShortcut(id: CommandId): string | undefined {
+  return shortcutOf(id, useKeymapContext().overrides);
+}
+
+export function shortcutOf(id: CommandId, overrides: Overrides): string | undefined {
+  return boundKeys(id, overrides)[0] ?? findCommand(id)?.fixed?.[0];
+}
+
+/** A command's shortcut as keycaps, or nothing when it is unbound. */
+export function CommandKbd({ id }: { id: CommandId }) {
+  const keys = useShortcut(id);
+  return keys ? <Kbd keys={keys} /> : null;
 }

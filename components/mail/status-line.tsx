@@ -8,11 +8,11 @@ import { refreshSync } from "@/app/(mail)/actions";
 import { Kbd, KeyHints } from "@/components/ui/kbd";
 import { needsReconnect } from "@/lib/gmail/status";
 
-import { usePendingKeys } from "./keys/keymap";
+import { COMMANDS, effectiveKeys, type CommandId } from "./keys/commands";
+import { useOverrides, usePendingKeys, shortcutOf } from "./keys/keymap";
 import { useMailSelection } from "./selection";
 import { AccountSquare } from "./account-square";
 import { Time } from "./time";
-import { VIEWS } from "./views";
 
 type SyncAccount = {
   id: string;
@@ -73,27 +73,42 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
   else if (lastSync) state = <>synced <Time iso={lastSync} format="ago" /></>;
   else state = "never synced";
 
+  const overrides = useOverrides();
+  const key = (id: CommandId) => shortcutOf(id, overrides);
+  // j/k style pairs show as `j/k`; an unbound half drops out.
+  const pair = (a: CommandId, b: CommandId) =>
+    [key(a), key(b)].filter((k): k is string => !!k);
+  const hints = (list: [string | string[] | undefined, string][]) =>
+    list.filter((h): h is [string | string[], string] => !!h[0] && [h[0]].flat().length > 0);
+
   let hint: React.ReactNode;
-  if (pending[0] === "g")
+  if (pending.length) {
+    // Mid-sequence: every command the typed keys can still finish, with the key that finishes it.
+    const typed = pending.join(" ");
+    const next = COMMANDS.flatMap((c) =>
+      effectiveKeys(c.id, overrides)
+        .filter((k) => k.startsWith(`${typed} `))
+        .map((k) => [k.slice(typed.length + 1), c.label.replace(/^go to /, "")] as [string, string]),
+    );
     hint = (
       <span className="ml-auto hidden min-w-0 items-center gap-3 md:flex">
-        <Kbd keys="g" />
-        <KeyHints hints={VIEWS.flatMap((v) => (v.goKey ? [[v.goKey, v.label] as [string, string]] : []))} />
+        <Kbd keys={typed} />
+        <KeyHints hints={next} />
       </span>
     );
-  else
+  } else
     hint = (
       <KeyHints
         className="ml-auto min-w-0"
-        hints={
+        hints={hints(
           sel.pane === "rail"
-            ? [[["arrowup", "arrowdown"], "move"], ["arrowright", "open"], ["?", "keys"]]
+            ? [[["arrowup", "arrowdown"], "move"], ["arrowright", "open"], [key("key-map"), "keys"]]
             : sel.pane === "reading"
-              ? [[["arrowup", "arrowdown"], "scroll"], ["arrowleft", "list"], [["j", "k"], "next"], ["escape", "back"], ["?", "keys"]]
+              ? [[["arrowup", "arrowdown"], "scroll"], ["arrowleft", "list"], [pair("thread.next", "thread.prev"), "next"], ["escape", "back"], [key("key-map"), "keys"]]
               : sel.openId
-                ? [[["j", "k"], "next"], ["arrowleft", "rail"], ["arrowright", "read"], ["escape", "back"], ["?", "keys"]]
-                : [[["j", "k"], "move"], ["enter", "open"], ["arrowleft", "rail"], ["?", "keys"]]
-        }
+                ? [[pair("thread.next", "thread.prev"), "next"], ["arrowleft", "rail"], ["arrowright", "read"], ["escape", "back"], [key("key-map"), "keys"]]
+                : [[pair("thread.next", "thread.prev"), "move"], ["enter", "open"], ["arrowleft", "rail"], [key("key-map"), "keys"]],
+        )}
       />
     );
 

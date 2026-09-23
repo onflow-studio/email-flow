@@ -9,7 +9,7 @@ import { defaultAccountStyle, exchangeCode } from "@/lib/gmail/oauth";
 import { STATE_COOKIE } from "../state";
 
 function back(request: NextRequest, params: Record<string, string>) {
-  const url = new URL("/settings", request.url);
+  const url = new URL("/settings/accounts", request.url);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const response = NextResponse.redirect(url);
   response.cookies.delete({ name: STATE_COOKIE, path: "/api/auth/google" });

@@ -6,6 +6,8 @@ import { undo } from "@/app/(mail)/thread-actions";
 import { Button } from "@/components/ui/button";
 import { Countdown, dismissToast, showToast, ToastCard, Toaster, type ToastType } from "@/components/ui/toast";
 
+import { useShortcut } from "../keys/keymap";
+
 type UndoContextValue = {
   /** Show a result line; with a token it becomes an undo toast and the next thing `z` undoes. */
   report: (message: string, token?: string | null) => void;
@@ -94,9 +96,10 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
 
 function UndoToast({ message, token }: { message: string; token: string }) {
   const { undoToken, lastToken } = useUndo();
+  const undoKey = useShortcut("undo");
   return (
     <ToastCard message={message}>
-      <Button variant="secondary" size="sm" shortcut={token === lastToken ? "z" : undefined} onClick={() => undoToken(token)}>
+      <Button variant="secondary" size="sm" shortcut={token === lastToken ? undoKey : undefined} onClick={() => undoToken(token)}>
         undo
       </Button>
       <Countdown ms={UNDO_MS} />

@@ -204,34 +204,26 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   }, [sel.target]);
 
   const move = (bucket: MovableBucket): KeyBinding => ({
-    keys: { inbox: "1", news: "2", paper_trail: "3" }[bucket],
-    label: `move to ${BUCKET_NAMES[bucket]}`,
-    group: "triage",
+    id: `move.${bucket}`,
     when: () => !!target,
     run: () => void run({ type: "move", bucket }),
   });
   const inTriage = () => target?.bucket === "triage";
 
   useKeys([
-    { keys: "e", label: "archive", group: "triage", when: () => !!target, run: () => void run({ type: "archive" }) },
-    { keys: "s", label: "snooze", group: "triage", when: () => !!target, run: openSnooze },
-    {
-      keys: "h",
-      label: "pin",
-      group: "triage",
-      when: () => !!target,
-      run: () => void run({ type: target?.pinned ? "unpin" : "pin" }),
-    },
+    { id: "archive", when: () => !!target, run: () => void run({ type: "archive" }) },
+    { id: "snooze", when: () => !!target, run: openSnooze },
+    { id: "pin", when: () => !!target, run: () => void run({ type: target?.pinned ? "unpin" : "pin" }) },
     move("inbox"),
     move("news"),
     move("paper_trail"),
-    { keys: "i", label: "let in", group: "screener", when: inTriage, run: () => void runSender({ type: "letIn" }) },
-    { keys: "x", label: "keep out", group: "screener", when: inTriage, run: () => void runSender({ type: "keepOut" }) },
-    { keys: "#", label: "delete", group: "triage", when: () => !!target, run: () => void run({ type: "trash" }) },
-    { keys: "!", label: "mark spam", group: "triage", when: () => !!target, run: () => void run({ type: "spam" }) },
-    { keys: "U", label: "mark unread", group: "triage", when: () => !!target, run: () => void run({ type: "unread" }) },
-    { keys: "u", label: "unsubscribe", group: "triage", when: () => !!target, run: () => void unsubscribe() },
-    { keys: ["z", "mod+z"], label: "undo last", group: "general", run: undoLast },
+    { id: "let-in", when: inTriage, run: () => void runSender({ type: "letIn" }) },
+    { id: "keep-out", when: inTriage, run: () => void runSender({ type: "keepOut" }) },
+    { id: "delete", when: () => !!target, run: () => void run({ type: "trash" }) },
+    { id: "spam", when: () => !!target, run: () => void run({ type: "spam" }) },
+    { id: "unread", when: () => !!target, run: () => void run({ type: "unread" }) },
+    { id: "unsubscribe", when: () => !!target, run: () => void unsubscribe() },
+    { id: "undo", run: undoLast },
   ]);
 
   const value = useMemo(

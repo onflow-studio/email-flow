@@ -435,3 +435,13 @@ export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type ActionLog = typeof actionsLog.$inferSelect;
 export type NewActionLog = typeof actionsLog.$inferInsert;
+
+// Keyboard shortcut overrides, only where they differ from the defaults in
+// components/mail/keys/commands.ts. An empty list unbinds the command.
+export const keybindings = pgTable("keybindings", {
+  commandId: text().primaryKey(),
+  keys: text().array().notNull(),
+  updatedAt: updatedAt(),
+});
+
+export type Keybinding = typeof keybindings.$inferSelect;

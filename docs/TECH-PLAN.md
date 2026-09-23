@@ -67,6 +67,7 @@ Core tables, Drizzle in `lib/db/schema.ts`.
 - `rules`: id, text, structured json parsed by Claude on save, enabled, created at.
 - `jobs`: id, type (classify, writeback, backfill), payload json, status, attempts, run after, error. The queue.
 - `actions_log`: id, thread id, action, payload, undone at. Powers undo.
+- `keybindings`: command id, keys (text array, empty unbinds), updated at. Only overrides of the defaults in code.
 
 Phase 1.5 adds `embeddings` (chunk, vector) and `entities` (people, projects, companies) with `entity_links`.
 
@@ -116,7 +117,7 @@ cmdk with three sources: navigation (buckets, accounts, settings), thread search
 
 ## Keyboard
 
-Global handler in the mail shell. Phase 1 map:
+Global handler in the mail shell. Every bindable command is declared once in `components/mail/keys/commands.ts` with a stable id, a group, a scope (mail or compose) and its default keys; bindings, button shortcut segments, the palette, the status line and the `?` map all read the effective keys from there. The defaults are customisable in settings (keyboard): overrides live in the `keybindings` table (command id, keys), only where they differ from the defaults, and the mail layout loads them. Settings refuses reserved keys and any clash (same sequence, or one a prefix of the other) within a scope, offering a swap when one action holds the key. Default map:
 
 ```
 j / k         next / previous thread
@@ -134,11 +135,12 @@ i             let in (from triage)
 u             unsubscribe (one-click, else mailto, else opens the page)
 #             delete (to trash)
 z / cmd+z     undo last
-g then i/t/n/p  go to bucket, g d trash
+g then i/t/n/p  go to bucket, g d trash (snoozed and settings bindable, unbound)
 cmd+k         palette
 /             search
 c             compose
 ?             show this map
+              toggle radio: bindable, unbound
 ```
 
 ## Compose

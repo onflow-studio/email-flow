@@ -82,6 +82,8 @@ AI-gated:
 
 Full keyboard triage in phase 1: navigate, archive, reply, snooze, move to bucket, open cmd+k. No user-defined split inboxes (redundant with AI buckets).
 
+Every shortcut has a default and can be rebound in settings (keyboard): single keys, modifiers, two-key sequences, or unbound. A few structural keys are fixed (esc, enter, arrows, mod+enter in compose, mod+z). Two actions never share a key in the same scope.
+
 ## Gmail sync (hybrid model)
 
 - Own database is source of truth for triage state. Gmail is transport plus rough mirror.

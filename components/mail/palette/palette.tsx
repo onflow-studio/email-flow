@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 import { describeAction } from "../actions/actions";
 import { useUndo } from "../actions/undo";
-import { useKeys } from "../keys/keymap";
+import { CommandKbd, shortcutOf, useKeys, useOverrides } from "../keys/keymap";
 import { RADIO_TOGGLE_EVENT } from "@/components/radio";
 
 import { AccountSquare } from "../account-square";
@@ -51,8 +51,8 @@ export function PaletteProvider({ counts, children }: { counts: Record<ViewSlug,
   const [open, setOpen] = useState(false);
   const [openPalette] = useState(() => () => setOpen(true));
   useKeys([
-    { keys: "mod+k", label: "palette", group: "general", allowInInput: true, run: () => setOpen((o) => !o) },
-    { keys: "/", label: "search", group: "general", run: openPalette },
+    { id: "palette", allowInInput: true, run: () => setOpen((o) => !o) },
+    { id: "search", run: openPalette },
   ]);
   return (
     <PaletteContext.Provider value={openPalette}>
@@ -108,7 +108,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   useKeys(
     [
       { keys: "escape", allowInInput: true, run: back },
-      { keys: "mod+k", allowInInput: true, run: onClose },
+      { id: "palette", allowInInput: true, run: onClose },
     ],
     { exclusive: true },
   );
@@ -163,10 +163,16 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   const words = current?.words ?? [];
   const colorOf = new Map(accounts.map((a) => [a.id, a.color]));
 
+  const overrides = useOverrides();
   const views = VIEWS.filter((v) => matches(v.label, query));
   const actions = [
-    { key: "compose", label: "compose", keys: "c", run: () => compose.open("new", null, sel.account) },
-    { key: "radio", label: "toggle radio", keys: "", run: () => window.dispatchEvent(new Event(RADIO_TOGGLE_EVENT)) },
+    { key: "compose", label: "compose", keys: shortcutOf("compose", overrides), run: () => compose.open("new", null, sel.account) },
+    {
+      key: "radio",
+      label: "toggle radio",
+      keys: shortcutOf("radio", overrides),
+      run: () => window.dispatchEvent(new Event(RADIO_TOGGLE_EVENT)),
+    },
   ].filter((a) => matches(a.label, query));
   const accountRows = accounts.length > 1 ? accounts.filter((a) => matches(`${a.label} ${a.email}`, query)) : [];
   const app = matches("settings", query);
@@ -274,7 +280,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                           <Highlight text={v.label} words={query ? [query] : []} />
                         </span>
                         {!dim && counts[v.slug] ? <span className="text-11 text-text-muted">{counts[v.slug]}</span> : null}
-                        {v.goKey ? <Kbd keys={`g ${v.goKey}`} /> : null}
+                        <CommandKbd id={v.command} />
                       </Item>
                     );
                   })}
@@ -322,6 +328,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                     <span className="flex-1">
                       <Highlight text="settings" words={query ? [query] : []} />
                     </span>
+                    <CommandKbd id="go.settings" />
                   </Item>
                 </Command.Group>
               ) : null}

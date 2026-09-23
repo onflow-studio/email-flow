@@ -10,9 +10,10 @@ import type { MovableBucket } from "@/lib/actions/types";
 import { cn } from "@/lib/utils";
 
 import { useCompose } from "../compose/compose";
-import { useKeys } from "../keys/keymap";
+import { useKeys, useOverrides, shortcutOf } from "../keys/keymap";
 import { useMailSelection } from "../selection";
 import type { ViewSlug } from "../views";
+import type { CommandId } from "../keys/commands";
 import { useThreadActions } from "./actions";
 
 type BarAction = {
@@ -30,10 +31,10 @@ type Layout = { large: BarAction[]; small: BarAction[]; more: BarAction[] };
 // Keeps the bar clear of the radio in the corner; centered, so both sides give it up.
 const RADIO_CLEARANCE = 64;
 
-const MOVES: { bucket: MovableBucket; label: string; keys: string }[] = [
-  { bucket: "inbox", label: "inbox", keys: "1" },
-  { bucket: "news", label: "news", keys: "2" },
-  { bucket: "paper_trail", label: "paper trail", keys: "3" },
+const MOVES: { bucket: MovableBucket; label: string }[] = [
+  { bucket: "inbox", label: "inbox" },
+  { bucket: "news", label: "news" },
+  { bucket: "paper_trail", label: "paper trail" },
 ];
 
 const subscribeWide = (cb: () => void) => {
@@ -52,29 +53,31 @@ const useWide = () =>
 function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
   const { run, runSender, openSnooze, unsubscribe } = useThreadActions();
   const compose = useCompose();
+  const overrides = useOverrides();
+  const key = (id: CommandId) => shortcutOf(id, overrides);
   const ids = [thread.id];
 
-  const reply: BarAction = { id: "reply", label: "reply", keys: "r", run: () => compose.open("reply", thread.id) };
-  const replyAll: BarAction = { id: "reply-all", label: "reply all", keys: "a", run: () => compose.open("reply-all", thread.id) };
-  const forward: BarAction = { id: "forward", label: "forward", keys: "f", run: () => compose.open("forward", thread.id) };
-  const archive: BarAction = { id: "archive", label: "archive", keys: "e", run: () => void run({ type: "archive" }, ids) };
-  const snooze: BarAction = { id: "snooze", label: "snooze", keys: "s", run: openSnooze };
+  const reply: BarAction = { id: "reply", label: "reply", keys: key("reply"), run: () => compose.open("reply", thread.id) };
+  const replyAll: BarAction = { id: "reply-all", label: "reply all", keys: key("reply-all"), run: () => compose.open("reply-all", thread.id) };
+  const forward: BarAction = { id: "forward", label: "forward", keys: key("forward"), run: () => compose.open("forward", thread.id) };
+  const archive: BarAction = { id: "archive", label: "archive", keys: key("archive"), run: () => void run({ type: "archive" }, ids) };
+  const snooze: BarAction = { id: "snooze", label: "snooze", keys: key("snooze"), run: openSnooze };
   const unsnooze: BarAction | null = thread.snoozedUntil
     ? { id: "unsnooze", label: "unsnooze", run: () => void run({ type: "unsnooze" }, ids) }
     : null;
   const pin: BarAction = thread.pinned
     ? { id: "pin", label: "unpin", run: () => void run({ type: "unpin" }, ids) }
-    : { id: "pin", label: "pin", keys: "h", run: () => void run({ type: "pin" }, ids) };
+    : { id: "pin", label: "pin", keys: key("pin"), run: () => void run({ type: "pin" }, ids) };
   const del: BarAction = thread.trashed
     ? { id: "restore", label: "restore", run: () => void run({ type: "restore" }, ids) }
-    : { id: "delete", label: "delete", keys: "#", tone: "delete", run: () => void run({ type: "trash" }, ids) };
+    : { id: "delete", label: "delete", keys: key("delete"), tone: "delete", run: () => void run({ type: "trash" }, ids) };
   const unsub: BarAction | null = thread.canUnsubscribe
-    ? { id: "unsubscribe", label: "unsubscribe", keys: "u", run: () => void unsubscribe(thread.id) }
+    ? { id: "unsubscribe", label: "unsubscribe", keys: key("unsubscribe"), run: () => void unsubscribe(thread.id) }
     : null;
-  const unread: BarAction = { id: "unread", label: "mark unread", keys: "U", run: () => void run({ type: "unread" }, ids) };
-  const spam: BarAction = { id: "spam", label: "mark spam", keys: "!", run: () => void run({ type: "spam" }, ids) };
-  const letIn: BarAction = { id: "let-in", label: "let in", keys: "i", run: () => void runSender({ type: "letIn" }, thread.id) };
-  const keepOut: BarAction = { id: "keep-out", label: "keep out", keys: "x", run: () => void runSender({ type: "keepOut" }, thread.id) };
+  const unread: BarAction = { id: "unread", label: "mark unread", keys: key("unread"), run: () => void run({ type: "unread" }, ids) };
+  const spam: BarAction = { id: "spam", label: "mark spam", keys: key("spam"), run: () => void run({ type: "spam" }, ids) };
+  const letIn: BarAction = { id: "let-in", label: "let in", keys: key("let-in"), run: () => void runSender({ type: "letIn" }, thread.id) };
+  const keepOut: BarAction = { id: "keep-out", label: "keep out", keys: key("keep-out"), run: () => void runSender({ type: "keepOut" }, thread.id) };
   const moveTo: BarAction = {
     id: "move",
     label: "move to",
@@ -82,7 +85,7 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
     menu: MOVES.filter((m) => m.bucket !== thread.bucket).map((m) => ({
       id: `move-${m.bucket}`,
       label: m.label,
-      keys: m.keys,
+      keys: key(`move.${m.bucket}`),
       run: () => void run({ type: "move", bucket: m.bucket }, ids),
     })),
   };

@@ -76,8 +76,6 @@ export function ThreadTimeline({ messages }: { messages: MessageItem[] }) {
     { keys: "arrowup", when: reading, run: () => moveCursor(-1) },
     {
       keys: "enter",
-      label: "open message",
-      group: "panes",
       // A focused button or link keeps its own enter.
       when: () => reading() && !document.activeElement?.closest("button, a"),
       run: () => {

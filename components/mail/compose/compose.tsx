@@ -10,7 +10,7 @@ import { KeyHints } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 
 import { useUndo } from "../actions/undo";
-import { useKeys } from "../keys/keymap";
+import { useKeys, useShortcut } from "../keys/keymap";
 import { ComposeBody, ComposeToolbar, useComposeEditor } from "./editor";
 import { readLastAccount, rememberAccount } from "./last-account";
 
@@ -187,11 +187,12 @@ function ComposePanel({
     onClose();
   };
 
+  const sendKey = useShortcut("compose.send");
   useKeys(
     [
-      { keys: "mod+enter", label: "send", group: "compose", allowInInput: true, run: send },
-      { keys: "escape", label: "close compose", group: "compose", allowInInput: true, run: escape },
-      { keys: "mod+k", label: "link", group: "compose", allowInInput: true, run: () => setLinkOpen((o) => !o) },
+      { id: "compose.send", allowInInput: true, run: send },
+      { id: "compose.close", allowInInput: true, run: escape },
+      { id: "compose.link", allowInInput: true, run: () => setLinkOpen((o) => !o) },
     ],
     { exclusive: true },
   );
@@ -392,7 +393,7 @@ function ComposePanel({
       )}
 
       <footer className="box-content flex h-touch shrink-0 items-center gap-2 border-t border-border px-3 pb-safe md:h-row md:pb-0">
-        <Button variant="primary" shortcut="mod+enter" onClick={send} disabled={!init || sending} className="hidden md:inline-flex">
+        <Button variant="primary" shortcut={sendKey} onClick={send} disabled={!init || sending} className="hidden md:inline-flex">
           {sending ? "sending" : "send"}
         </Button>
         <Button variant="ghost" onClick={onClose} disabled={sending}>

@@ -1,5 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
+import { RADIO_TOGGLE_EVENT } from "@/components/radio";
+
 import { useMailSelection } from "../selection";
 import { VIEWS } from "../views";
 import { useKeyMap, useKeys, type KeyBinding } from "./keymap";
@@ -15,6 +19,7 @@ export const isDesktop = () => window.matchMedia("(min-width: 768px)").matches;
 export function NavKeys() {
   const sel = useMailSelection();
   const map = useKeyMap();
+  const router = useRouter();
 
   // With a thread open, j/k step through threads in reading mode.
   const step = (dir: 1 | -1) => {
@@ -27,39 +32,26 @@ export function NavKeys() {
   };
 
   const bindings: KeyBinding[] = [
-    { keys: "j", label: "next thread", group: "navigate", run: () => step(1) },
-    { keys: "k", label: "previous thread", group: "navigate", run: () => step(-1) },
-    { keys: "arrowdown", label: "down in pane", group: "panes", when: () => sel.pane === "list", run: () => step(1) },
-    { keys: "arrowup", label: "up in pane", group: "panes", when: () => sel.pane === "list", run: () => step(-1) },
+    { id: "thread.next", run: () => step(1) },
+    { id: "thread.prev", run: () => step(-1) },
+    { keys: "arrowdown", when: () => sel.pane === "list", run: () => step(1) },
+    { keys: "arrowup", when: () => sel.pane === "list", run: () => step(-1) },
     {
-      keys: "arrowleft",
-      label: "pane left",
-      group: "panes",
+      id: "pane.left",
       when: () => isDesktop() && sel.pane !== "rail",
       run: () => sel.setPane(sel.pane === "reading" ? "list" : "rail"),
     },
     {
-      keys: "arrowright",
-      label: "pane right",
-      group: "panes",
+      id: "pane.right",
       when: () => isDesktop() && sel.pane === "list" && !!sel.focusedId,
       run: () => (sel.focusedId === sel.openId ? sel.setPane("reading") : sel.open()),
     },
-    {
-      keys: ["enter", "o"],
-      label: "open thread",
-      group: "navigate",
-      when: () => !!sel.focusedId && sel.focusedId !== sel.openId,
-      run: () => sel.open(),
-    },
-    { keys: "escape", label: "back to list", group: "navigate", when: () => !!sel.openId, run: () => sel.close() },
-    ...VIEWS.filter((v) => v.goKey).map<KeyBinding>((v) => ({
-      keys: `g ${v.goKey}`,
-      label: `go to ${v.label}`,
-      group: "go",
-      run: () => sel.go(v.slug),
-    })),
-    { keys: "?", label: "show this map", group: "general", run: () => map.setOpen(!map.open) },
+    { id: "thread.open", when: () => !!sel.focusedId && sel.focusedId !== sel.openId, run: () => sel.open() },
+    { id: "thread.close", when: () => !!sel.openId, run: () => sel.close() },
+    ...VIEWS.map<KeyBinding>((v) => ({ id: v.command, run: () => sel.go(v.slug) })),
+    { id: "go.settings", run: () => router.push("/settings") },
+    { id: "radio", run: () => window.dispatchEvent(new Event(RADIO_TOGGLE_EVENT)) },
+    { id: "key-map", run: () => map.setOpen(!map.open) },
   ];
 
   useKeys(bindings);

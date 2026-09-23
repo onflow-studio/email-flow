@@ -50,6 +50,13 @@
       "when": 1790184205204,
       "tag": "0006_threads_drop_set_aside",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790190979345,
+      "tag": "0007_keybindings",
+      "breakpoints": true
     }
   ]
 }
