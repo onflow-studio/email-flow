@@ -15,7 +15,7 @@ function answers(overrides: Record<string, JevAnswer> = {}): Record<string, JevA
   return {
     bucket: { type: "choice", choice: "paper_trail", probabilities: { inbox: 0.1, news: 0.02, paper_trail: 0.88 } },
     urgency: { type: "score", score: 0.2 },
-    humanWritten: { type: "boolean", probability: 0.05 },
+    humanWritten: { type: "noul", noul: 0.05 },
     ...overrides,
   };
 }
@@ -24,7 +24,6 @@ function mockJev(a: Record<string, JevAnswer>) {
   return vi.fn<Evaluator>(async () => ({
     answers: a,
     response: { modelId: "jev-1.13.0" },
-    usage: { inputTokens: 200 },
   }));
 }
 
@@ -62,10 +61,10 @@ describe("buildJevRequest", () => {
       "paper_trail",
     ]);
     expect(known.questions.urgency).toMatchObject({ type: "score", criteria: expect.any(Array) });
-    expect(known.questions.urgency.criteria).toHaveLength(5);
+    expect(known.questions.urgency).toMatchObject({ criteria: ["1", "2", "3", "4", "5"] });
 
     const unknown = buildJevRequest(context({ sender: sender({ decision: "none" }) }));
-    expect(unknown.questions.legitNewSender).toMatchObject({ type: "boolean" });
+    expect(unknown.questions.legitNewSender).toMatchObject({ type: "noul" });
   });
 
   it("includes enabled rules and exemplars", () => {
@@ -99,10 +98,30 @@ describe("buildJevRequest", () => {
 });
 
 describe("parseJevAnswers", () => {
-  it("maps urgency score 0-4 to 1-5", () => {
-    expect(parseJevAnswers(answers({ urgency: { type: "score", score: 0 } })).urgency).toBe(1);
-    expect(parseJevAnswers(answers({ urgency: { type: "score", score: 2.6 } })).urgency).toBe(4);
-    expect(parseJevAnswers(answers({ urgency: { type: "score", score: 4 } })).urgency).toBe(5);
+  const legend = { "0": "1", "1": "2", "2": "3", "3": "4", "4": "5" };
+
+  it("maps the 0-indexed urgency score to the 1-5 level through the legend", () => {
+    const urgency = (score: number) => parseJevAnswers(answers({ urgency: { type: "score", score, legend } })).urgency;
+    expect(urgency(0)).toBe(1);
+    expect(urgency(2.6)).toBe(4);
+    expect(urgency(3.09)).toBe(4);
+    expect(urgency(4)).toBe(5);
+  });
+
+  it("falls back to the index when the legend is missing", () => {
+    expect(parseJevAnswers(answers({ urgency: { type: "score", score: 1.4 } })).urgency).toBe(2);
+  });
+
+  it("rejects a legend level outside 1-5", () => {
+    expect(() =>
+      parseJevAnswers(answers({ urgency: { type: "score", score: 0, legend: { "0": "low" } } })),
+    ).toThrow(/legend/);
+  });
+
+  it("reads noul answers as probabilities", () => {
+    const r = parseJevAnswers(answers({ legitNewSender: { type: "noul", noul: 0.7 } }));
+    expect(r.humanWritten).toBe(0.05);
+    expect(r.legitNewSender).toBe(0.7);
   });
 
   it("fills missing probabilities from the choice", () => {
@@ -133,7 +152,7 @@ describe("runClassifier with Jev mocked", () => {
   });
 
   it("sends a doubtful new sender to triage", async () => {
-    const jev = mockJev(answers({ legitNewSender: { type: "boolean", probability: 0.2 } }));
+    const jev = mockJev(answers({ legitNewSender: { type: "noul", noul: 0.2 } }));
     const run = await runClassifier(context({ sender: sender({ decision: "none" }) }), jev);
     expect(run.decision.bucket).toBe("triage");
     expect(run.model?.result.legitNewSender).toBe(0.2);

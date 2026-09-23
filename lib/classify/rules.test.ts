@@ -37,8 +37,8 @@ function answers(bucket: string, urgencyScore = 0.2): Record<string, JevAnswer> 
   return {
     bucket: { type: "choice", choice: bucket, probabilities: { inbox: 0.1, news: 0.1, paper_trail: 0.1, [bucket]: 0.9 } },
     urgency: { type: "score", score: urgencyScore },
-    humanWritten: { type: "boolean", probability: 0.05 },
-    legitNewSender: { type: "boolean", probability: 0.9 },
+    humanWritten: { type: "noul", noul: 0.05 },
+    legitNewSender: { type: "noul", noul: 0.9 },
   };
 }
 
