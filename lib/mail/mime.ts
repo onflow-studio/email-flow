@@ -64,13 +64,15 @@ function walk(part: Part, out: Walked) {
   const headers = headerMap(part);
   const disposition = headers.get("content-disposition")?.toLowerCase() ?? "";
 
-  if (part.body?.attachmentId && (part.filename || disposition.startsWith("attachment"))) {
+  const contentId = headers.get("content-id")?.trim().replace(/^<|>$/g, "") ?? null;
+  // Inline images often carry only a Content-ID, no filename.
+  if (part.body?.attachmentId && (part.filename || contentId || disposition.startsWith("attachment"))) {
     out.attachments.push({
-      filename: part.filename || "attachment",
+      filename: part.filename || contentId || "attachment",
       mimeType: mime || "application/octet-stream",
       size: part.body.size ?? 0,
       gmailAttachmentId: part.body.attachmentId,
-      contentId: headers.get("content-id")?.replace(/^<|>$/g, "") ?? null,
+      contentId,
     });
     return;
   }

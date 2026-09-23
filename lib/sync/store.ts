@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
@@ -11,6 +13,7 @@ import {
   type Account,
 } from "@/lib/db/schema";
 import { parseGmailMessage, type ParsedMessage } from "@/lib/mail/mime";
+import { rewriteCidImages } from "@/lib/mail/remote";
 
 import type { GmailSyncPort } from "./gmail";
 import { enqueueClassify } from "./jobs";
@@ -175,6 +178,11 @@ export async function ingestThread(
     }
 
     for (const { m, inbound } of parsed) {
+      const files = m.attachments.map((a) => ({ ...a, id: randomUUID() }));
+      const byContentId = new Map(
+        files.flatMap((f) => (f.contentId ? [[f.contentId.toLowerCase(), f.id] as const] : [])),
+      );
+      const html = m.htmlSanitized && byContentId.size ? rewriteCidImages(m.htmlSanitized, byContentId) : m.htmlSanitized;
       const [row] = await tx
         .insert(messages)
         .values({
@@ -190,7 +198,7 @@ export async function ingestThread(
           subject: m.subject,
           date: m.date,
           snippet: m.snippet,
-          htmlSanitized: m.htmlSanitized,
+          htmlSanitized: html,
           text: m.text,
           isInbound: inbound,
           gmailLabels: m.labelIds,
@@ -198,8 +206,8 @@ export async function ingestThread(
         })
         .onConflictDoNothing()
         .returning({ id: messages.id });
-      if (row && m.attachments.length > 0) {
-        await tx.insert(attachments).values(m.attachments.map((a) => ({ ...a, messageId: row.id })));
+      if (row && files.length > 0) {
+        await tx.insert(attachments).values(files.map((f) => ({ ...f, messageId: row.id })));
       }
     }
 

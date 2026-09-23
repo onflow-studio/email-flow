@@ -1,7 +1,8 @@
 import type { gmail_v1 } from "@googleapis/gmail";
 import { describe, expect, it } from "vitest";
 
-import { REMOTE_SRC_ATTR } from "@/lib/mail/sanitize";
+import { REMOTE_SRC_ATTR, hasBlockedImages, restoreRemoteImages, rewriteCidImages } from "@/lib/mail/remote";
+import { sanitizeEmailHtml } from "@/lib/mail/sanitize";
 import { parseGmailMessage } from "@/lib/mail/mime";
 
 import { deriveThreadFields } from "./store";
@@ -140,5 +141,39 @@ describe("deriveThreadFields", () => {
       senderId: n,
     }));
     expect(deriveThreadFields(rows).participantsSummary).toBe("a, b, c +2");
+  });
+});
+
+describe("inline cid images", () => {
+  it("keeps Content-ID parts without a filename as attachments", () => {
+    const parsed = parseGmailMessage(
+      message({
+        payload: {
+          mimeType: "multipart/related",
+          headers: [{ name: "From", value: "a@b.com" }],
+          parts: [
+            { mimeType: "text/html", body: { data: b64('<p>Hi</p><img src="cid:Logo@Brand" alt="logo">') } },
+            { mimeType: "image/png", headers: [{ name: "Content-ID", value: "<Logo@Brand>" }], body: { attachmentId: "ATT9", size: 300 } },
+          ],
+        },
+      }),
+    );
+    expect(parsed.attachments).toEqual([
+      { filename: "Logo@Brand", mimeType: "image/png", size: 300, gmailAttachmentId: "ATT9", contentId: "Logo@Brand" },
+    ]);
+    expect(parsed.htmlSanitized).toContain('src="cid:Logo@Brand"');
+  });
+
+  it("rewrites cid: sources to the attachment route, case-insensitively, leaving unknown ones", () => {
+    const html = '<img src="cid:Logo@Brand" alt="logo" /><img src="cid:missing@x" />';
+    expect(rewriteCidImages(html, new Map([["logo@brand", "att-1"]]))).toBe(
+      '<img src="/api/attachments/att-1?inline=1" alt="logo" /><img src="cid:missing@x" />',
+    );
+  });
+
+  it("restores blocked remote images only when asked", () => {
+    const blocked = sanitizeEmailHtml('<img src="https://cdn.x.com/a.png" alt="a">');
+    expect(hasBlockedImages(blocked)).toBe(true);
+    expect(restoreRemoteImages(blocked)).toBe('<img alt="a" src="https://cdn.x.com/a.png" />');
   });
 });

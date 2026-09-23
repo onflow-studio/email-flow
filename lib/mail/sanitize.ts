@@ -1,10 +1,10 @@
 import sanitizeHtml from "sanitize-html";
 
+import { REMOTE_SRC_ATTR } from "./remote";
+
 // Sanitized once on ingest, stored, rendered in a sandboxed iframe with a strict CSP.
 // Remote images never load from stored HTML: <img> keeps the URL in data-remote-src and the
 // renderer restores it only when the sender or message is allowed. Remote CSS urls are removed.
-
-export const REMOTE_SRC_ATTR = "data-remote-src";
 
 const REMOTE_URL = /^(https?:)?\/\//i;
 const CSS_REMOTE_URL = /url\(\s*(['"]?)\s*(?:https?:)?\/\/[^)]*\)/gi;
@@ -117,9 +117,4 @@ export function sanitizeEmailHtml(html: string): string {
       return clean ? `<style>${clean}</style>` : "";
     })
     .trim();
-}
-
-// True when the stored HTML has remote images waiting for permission.
-export function hasBlockedImages(html: string | null): boolean {
-  return Boolean(html?.includes(`${REMOTE_SRC_ATTR}=`));
 }
