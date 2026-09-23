@@ -246,7 +246,7 @@ export function useKeyMapEntries() {
     if (!b.label || seen.has(b.label)) continue;
     seen.add(b.label);
     const group = b.group ?? "general";
-    const keys = (Array.isArray(b.keys) ? b.keys[0] : b.keys).split(/\s+/).join(" then ");
+    const keys = Array.isArray(b.keys) ? b.keys[0] : b.keys;
     groups.set(group, [...(groups.get(group) ?? []), { keys, label: b.label }]);
   }
   return [...groups.entries()];

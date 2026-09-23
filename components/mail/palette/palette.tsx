@@ -8,6 +8,7 @@ import { BULK_ACTIONS } from "@/app/(mail)/_lib/bulk";
 import { paletteSearch, previewSearchAction, type PaletteSearch } from "@/app/(mail)/palette-actions";
 import { runThreadAction } from "@/app/(mail)/thread-actions";
 import type { ActionPreview } from "@/lib/actions/types";
+import { Kbd, KeyHints } from "@/components/ui/kbd";
 import type { Bucket } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
@@ -67,7 +68,7 @@ export function SearchButton() {
       aria-label="search"
       className="flex h-touch items-center px-2 text-text-muted transition-colors duration-80 ease-snap hover:text-text md:h-6"
     >
-      search <kbd className="ml-2 hidden text-11 opacity-60 md:inline">/</kbd>
+      search <Kbd keys="/" className="ml-2" />
     </button>
   );
 }
@@ -178,7 +179,7 @@ function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onCl
                   {nav.map((item) => (
                     <Item key={item.href + item.label} value={`nav:${item.label}`} onSelect={() => go(item.href)}>
                       <span className="flex-1">{item.label}</span>
-                      {item.hint ? <span className="text-11 text-text-dim">{item.hint}</span> : null}
+                      {item.hint ? <Kbd keys={item.hint} /> : null}
                     </Item>
                   ))}
                 </Group>
@@ -242,7 +243,7 @@ function PaletteDialog({ accounts, onClose }: { accounts: PaletteAccount[]; onCl
             </Command.List>
             <div className="flex h-status shrink-0 items-center gap-4 border-t border-border px-3 text-11 text-text-dim">
               <span>from: account: before: after:</span>
-              <span className="ml-auto hidden md:inline">enter select  esc close</span>
+              <KeyHints className="ml-auto" hints={[["enter", "select"], ["escape", "close"]]} />
             </div>
           </>
         ) : (
@@ -287,7 +288,7 @@ function PreviewPane({
                 <span className="flex-1">
                   {mode.label} {preview.count} {preview.count === 1 ? "thread" : "threads"}
                 </span>
-                <kbd className="hidden text-11 text-text-muted md:inline">enter</kbd>
+                <Kbd keys="enter" />
               </Item>
             </Group>
             <Group heading="affected">
@@ -309,7 +310,7 @@ function PreviewPane({
         <button type="button" onClick={onBack} className="h-touch text-13 text-text-muted md:hidden">
           back
         </button>
-        <span className="ml-auto hidden md:inline">enter run  esc back</span>
+        <KeyHints className="ml-auto" hints={[["enter", "run"], ["escape", "back"]]} />
       </div>
     </>
   );

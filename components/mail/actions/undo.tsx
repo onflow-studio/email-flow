@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { undo } from "@/app/(mail)/thread-actions";
+import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 
 type Toast = { id: number; message: string; token: string | null; leaving: boolean };
@@ -88,7 +89,7 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
               onClick={() => undoToken(toast.token!)}
               className="flex items-center gap-2 text-text-muted transition-colors duration-80 ease-snap hover:text-text"
             >
-              undo <kbd className="text-11 opacity-60">u</kbd>
+              undo <Kbd keys="u" />
             </button>
           ) : null}
         </div>

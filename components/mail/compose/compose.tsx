@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { prepareCompose, sendCompose } from "@/app/(mail)/_compose/actions";
 import { MODE_LABELS, type ComposeAccount, type ComposeInit, type ComposeMode } from "@/app/(mail)/_compose/types";
 import { Button } from "@/components/ui/button";
+import { KeyHints } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 
 import { useUndo } from "../actions/undo";
@@ -223,7 +224,7 @@ function ComposePanel({
             {account.label}
           </span>
         ) : null}
-        <span className="ml-auto hidden text-11 text-text-dim md:inline">esc close</span>
+        <KeyHints className="ml-auto text-11 text-text-dim" hints={[["escape", "close"]]} />
         <Button variant="primary" onClick={send} disabled={!init || sending} className="ml-auto md:hidden">
           {sending ? "sending" : "send"}
         </Button>

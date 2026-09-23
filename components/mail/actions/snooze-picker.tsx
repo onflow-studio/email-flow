@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Kbd, KeyHints } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 
 import { useKeys } from "../keys/keymap";
@@ -66,7 +67,7 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
       >
         <div className="flex items-center justify-between text-11 text-text-muted">
           <span>snooze</span>
-          <span className="hidden md:inline">esc close</span>
+          <KeyHints hints={[["escape", "close"]]} />
         </div>
 
         <ul className="flex flex-col">
@@ -80,7 +81,7 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
                 <span>{p.label}</span>
                 <span className="flex items-center gap-4 text-11 text-text-muted">
                   <span suppressHydrationWarning>{fullTime(p.until.toISOString())}</span>
-                  <kbd className="hidden opacity-60 md:inline">{p.key}</kbd>
+                  <Kbd keys={p.key} />
                 </span>
               </button>
             </li>
@@ -106,9 +107,9 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
           />
           <button
             type="submit"
-            className="h-touch shrink-0 rounded-sm border border-border px-3 md:h-row transition-colors duration-80 ease-snap hover:bg-surface-raised"
+            className="flex h-touch shrink-0 items-center gap-2 rounded-sm border border-border px-3 md:h-row transition-colors duration-80 ease-snap hover:bg-surface-raised"
           >
-            snooze <kbd className="hidden text-11 opacity-60 md:inline">enter</kbd>
+            snooze <Kbd keys="enter" />
           </button>
         </form>
 
@@ -125,7 +126,7 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
               className={cn("size-3 rounded-sm border", needsReply ? "border-accent bg-accent" : "border-border")}
             />
             <span className={needsReply ? "text-text" : "text-text-muted"}>needs reply</span>
-            <kbd className="hidden text-11 text-text-muted opacity-60 md:inline">r</kbd>
+            <Kbd keys="r" />
           </button>
           <label className="flex items-center gap-2 text-text-muted">
             deadline

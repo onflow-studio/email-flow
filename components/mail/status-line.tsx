@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { refreshSync } from "@/app/(mail)/actions";
+import { Kbd, KeyHints } from "@/components/ui/kbd";
 import { needsReconnect } from "@/lib/gmail/status";
 
 import { usePendingKeys } from "./keys/keymap";
@@ -59,10 +60,25 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
   else if (lastSync) state = <>synced <Time iso={lastSync} format="ago" /></>;
   else state = "never synced";
 
-  let hint: string;
-  if (pending[0] === "g") hint = `g- ${VIEWS.filter((v) => v.goKey).map((v) => `${v.goKey} ${v.label}`).join("  ")}`;
-  else if (sel.openId) hint = "j/k next  esc back  ? keys";
-  else hint = "j/k move  enter open  ? keys";
+  let hint: React.ReactNode;
+  if (pending[0] === "g")
+    hint = (
+      <span className="ml-auto hidden min-w-0 items-center gap-3 md:flex">
+        <Kbd keys="g" />
+        <KeyHints hints={VIEWS.flatMap((v) => (v.goKey ? [[v.goKey, v.label] as [string, string]] : []))} />
+      </span>
+    );
+  else
+    hint = (
+      <KeyHints
+        className="ml-auto min-w-0"
+        hints={
+          sel.openId
+            ? [[["j", "k"], "next"], ["escape", "back"], ["?", "keys"]]
+            : [[["j", "k"], "move"], ["enter", "open"], ["?", "keys"]]
+        }
+      />
+    );
 
   return (
     <footer className="status-rule box-content flex h-status shrink-0 items-center gap-4 bg-surface px-3 pb-safe text-11 text-text-muted">
@@ -87,7 +103,7 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
           "all accounts"
         )}
       </span>
-      <span className="ml-auto hidden truncate md:inline">{hint}</span>
+      {hint}
     </footer>
   );
 }

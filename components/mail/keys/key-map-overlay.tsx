@@ -1,5 +1,7 @@
 "use client";
 
+import { Kbd, KeyHints } from "@/components/ui/kbd";
+
 import { useKeyMap, useKeyMapEntries, useKeys } from "./keymap";
 
 export function KeyMapOverlay() {
@@ -27,7 +29,7 @@ function KeyMapDialog() {
       >
         <div className="mb-4 flex items-center justify-between text-11 text-text-muted">
           <span>keys</span>
-          <span>esc close</span>
+          <KeyHints hints={[["escape", "close"]]} />
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {groups.map(([group, entries]) => (
@@ -37,7 +39,7 @@ function KeyMapDialog() {
                 {entries.map((e) => (
                   <li key={e.label} className="flex items-center justify-between gap-4">
                     <span>{e.label}</span>
-                    <kbd className="rounded-sm bg-surface-raised px-1 text-11 text-text-muted">{e.keys}</kbd>
+                    <Kbd keys={e.keys} />
                   </li>
                 ))}
               </ul>
