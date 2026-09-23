@@ -78,7 +78,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 - Input: `--surface` background, `--border` border, 2px radius, `--accent` border on focus.
 - Command palette: `--surface-top`, hairline border, backdrop darkens the app to 60%, results as rows, matched text in `--accent`, action rows show a `--info` preview count when they would touch more than one thread.
 - Status line: `--surface`, 11px, `--text-muted`, sync state at left, keyboard hint at right.
-- Compose: `--surface-top`, hairline border, 4px radius. Header row names the mode and account (`reply  work1`), fields are label-left rows (`to`, `cc`, `subject`) on hairlines, the toolbar is ghost buttons in 11px, the body is 13px at prose line height. Signature and quoted text show as one dim line each, never inline. Footer: primary `send  mod+enter`, ghost `discard`, errors in `--danger` on the same row. Body headings: h1 20, h2 15, h3 13, all 600. Links in the body are `--text` underlined, not accent.
+- Compose: `--surface-top`, hairline border, 4px radius. Header row names the mode and account (`reply  work1`), fields are label-left rows (`to`, `cc`, `subject`) on hairlines, the toolbar is ghost buttons in 11px, the body is 13px at prose line height and at least 160px tall. Signature and quoted text show as one dim line each, never inline. Footer: primary `send  mod+enter`, ghost `discard`, errors in `--danger` on the same row. Body headings: h1 20, h2 15, h3 13, all 600. Links in the body are `--text` underlined, not accent.
 
 ## Voice
 
