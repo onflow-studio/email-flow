@@ -10,6 +10,8 @@ type AccountToggles = {
   accounts: ToggleAccount[];
   /** Turns an account on or off; the last account that is on stays on. */
   toggle: (id: string) => void;
+  /** Changes once the server has applied a toggle, for results fetched per account set. */
+  appliedKey: string;
 };
 
 const TogglesContext = createContext<AccountToggles | null>(null);
@@ -36,5 +38,10 @@ export function AccountTogglesProvider({ accounts, children }: { accounts: Toggl
     });
   };
 
-  return <TogglesContext.Provider value={{ accounts: optimistic, toggle }}>{children}</TogglesContext.Provider>;
+  const appliedKey = accounts
+    .filter((a) => a.on)
+    .map((a) => a.id)
+    .join();
+
+  return <TogglesContext.Provider value={{ accounts: optimistic, toggle, appliedKey }}>{children}</TogglesContext.Provider>;
 }

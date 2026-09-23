@@ -125,6 +125,9 @@ function subscribeStation(listener: () => void) {
   return () => stationListeners.delete(listener);
 }
 
+/** Dispatched on window by the palette's `toggle radio` action. */
+export const RADIO_TOGGLE_EVENT = "superfer:radio-toggle";
+
 type Status = "idle" | "loading" | "playing" | "paused" | "buffering" | "error";
 
 export function Radio() {
@@ -253,6 +256,16 @@ export function Radio() {
       tuneTo(player, next);
     } else void start();
   };
+
+  const toggleRef = useRef(toggle);
+  useEffect(() => {
+    toggleRef.current = toggle;
+  });
+  useEffect(() => {
+    const onToggle = () => toggleRef.current();
+    window.addEventListener(RADIO_TOGGLE_EVENT, onToggle);
+    return () => window.removeEventListener(RADIO_TOGGLE_EVENT, onToggle);
+  }, []);
 
   const openNow = () => {
     clearTimeout(closeTimer.current);

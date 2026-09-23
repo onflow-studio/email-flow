@@ -15,7 +15,12 @@ import { cn } from "@/lib/utils";
 import { describeAction } from "../actions/actions";
 import { useUndo } from "../actions/undo";
 import { useKeys } from "../keys/keymap";
-import { useAccountToggles, type ToggleAccount } from "../account-toggles";
+import { RADIO_TOGGLE_EVENT } from "@/components/radio";
+
+import { AccountSquare } from "../account-square";
+import { useAccountToggles } from "../account-toggles";
+import { useCompose } from "../compose/compose";
+import { useMailSelection } from "../selection";
 import { Time } from "../time";
 import { mailHref, VIEWS, type ViewSlug } from "../views";
 import { Highlight, Snippet } from "./highlight";
@@ -42,7 +47,7 @@ export function useOpenPalette() {
 }
 
 /** cmd+k or `/`: one entry point for going somewhere, finding mail, and acting on it. */
-export function PaletteProvider({ children }: { children: React.ReactNode }) {
+export function PaletteProvider({ counts, children }: { counts: Record<ViewSlug, number>; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [openPalette] = useState(() => () => setOpen(true));
   useKeys([
@@ -52,17 +57,29 @@ export function PaletteProvider({ children }: { children: React.ReactNode }) {
   return (
     <PaletteContext.Provider value={openPalette}>
       {children}
-      {open ? <PaletteDialog onClose={() => setOpen(false)} /> : null}
+      {open ? <PaletteDialog counts={counts} onClose={() => setOpen(false)} /> : null}
     </PaletteContext.Provider>
   );
 }
 
 type Mode = { kind: "search" } | { kind: "preview"; key: string; label: string; preview: ActionPreview | null };
 
-function PaletteDialog({ onClose }: { onClose: () => void }) {
-  const { accounts, toggle } = useAccountToggles();
+const CHIPS = ["from:", "account:", "before:", "after:"];
+
+type Section = "threads" | "act on results" | "go to" | "actions" | "accounts" | "app";
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Same word-prefix match the highlight marks. */
+const matches = (text: string, query: string) =>
+  !query || new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(query)}`, "iu").test(text);
+
+function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; onClose: () => void }) {
+  const { accounts, toggle, appliedKey } = useAccountToggles();
+  const sel = useMailSelection();
+  const compose = useCompose();
   const router = useRouter();
   const { report } = useUndo();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState<{ input: string; result: PaletteSearch } | null>(null);
   const [mode, setMode] = useState<Mode>({ kind: "search" });
@@ -70,20 +87,22 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
   const request = useRef(0);
 
   const query = input.trim();
+  // Toggling an account from the palette searches again over the new set.
+  const searchKey = `${appliedKey}|${query}`;
   useEffect(() => {
     if (!query) return;
     const id = ++request.current;
     const timer = setTimeout(() => {
       paletteSearch(query)
         .then((result) => {
-          if (id === request.current) setSearch({ input: query, result });
+          if (id === request.current) setSearch({ input: searchKey, result });
         })
         .catch(() => {
-          if (id === request.current) setSearch({ input: query, result: { hits: [], total: 0, words: [], counts: {} } });
+          if (id === request.current) setSearch({ input: searchKey, result: { hits: [], total: 0, words: [], counts: {} } });
         });
     }, SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, searchKey]);
 
   const back = () => (mode.kind === "preview" ? setMode({ kind: "search" }) : onClose());
   useKeys(
@@ -125,73 +144,89 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const current = search && search.input === query ? search.result : null;
+  // A chip drops its operator in at the caret, spaced from the word before it.
+  const insert = (chip: string) => {
+    const el = inputRef.current;
+    const at = el?.selectionStart ?? input.length;
+    const end = el?.selectionEnd ?? at;
+    const before = input.slice(0, at);
+    const text = (before && !/\s$/.test(before) ? " " : "") + chip;
+    setInput(before + text + input.slice(end));
+    const caret = at + text.length;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(caret, caret);
+    });
+  };
+
+  const current = search && search.input === searchKey ? search.result : null;
   const words = current?.words ?? [];
-  const nav = navItems(accounts).filter(
-    (item) => !query || item.label.toLowerCase().includes(query.toLowerCase()),
-  );
   const colorOf = new Map(accounts.map((a) => [a.id, a.color]));
 
+  const views = VIEWS.filter((v) => matches(v.label, query));
+  const actions = [
+    { key: "compose", label: "compose", keys: "c", run: () => compose.open("new", null, sel.account) },
+    { key: "radio", label: "toggle radio", keys: "", run: () => window.dispatchEvent(new Event(RADIO_TOGGLE_EVENT)) },
+  ].filter((a) => matches(a.label, query));
+  const accountRows = accounts.length > 1 ? accounts.filter((a) => matches(`${a.label} ${a.email}`, query)) : [];
+  const app = matches("settings", query);
+  const hits = current?.hits.slice(0, VISIBLE_HITS) ?? [];
+
+  // The first row is focused on open and after every keystroke or new result.
+  const values = [
+    ...hits.map((h) => `thread:${h.id}`),
+    ...(current?.total ? BULK_ACTIONS.filter((a) => current.counts[a.key]).map((a) => `act:${a.key}`) : []),
+    ...views.map((v) => `view:${v.slug}`),
+    ...actions.map((a) => `action:${a.key}`),
+    ...accountRows.map((a) => `account:${a.id}`),
+    ...(app ? ["app:settings"] : []),
+  ];
+  const listKey = `${query}|${current ? "results" : ""}`;
+  const [picked, setPicked] = useState<{ key: string; value: string } | null>(null);
+  const value = picked?.key === listKey && values.includes(picked.value) ? picked.value : (values[0] ?? "");
+
+  const heading = (name: Section, count: number) => <SectionHeading name={name} count={count} />;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-4 pt-palette-top pb-palette-top" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-2 pt-2 pb-2 md:px-4 md:pt-palette-top md:pb-palette-top" onClick={onClose}>
       <Command
         label="palette"
         shouldFilter={false}
         loop
+        value={value}
+        onValueChange={(v) => setPicked({ key: listKey, value: v })}
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-full w-full max-w-palette flex-col overflow-hidden rounded-md border border-border bg-surface-top"
       >
         {mode.kind === "search" ? (
           <>
-            <Command.Input
-              autoFocus
-              value={input}
-              onValueChange={setInput}
-              placeholder="search mail, go to, act on results"
-              className="h-touch w-full shrink-0 border-b border-border bg-transparent px-3 outline-none placeholder:text-text-dim"
-            />
-            <Command.List className="min-h-0 overflow-y-auto py-1">
+            <div className="flex h-touch shrink-0 items-center gap-2 border-b border-border px-3">
+              <span aria-hidden className="text-accent">
+                &gt;
+              </span>
+              <Command.Input
+                ref={inputRef}
+                autoFocus
+                value={input}
+                onValueChange={setInput}
+                placeholder="search mail, go to, act on results"
+                className="h-full min-w-0 flex-1 bg-transparent text-text outline-none placeholder:text-text-dim"
+              />
+              <Kbd keys="escape" />
+            </div>
+            <Command.List className="min-h-0 overflow-y-auto pb-1">
               {query && !current ? <Line>searching</Line> : null}
-              {query && current && !current.hits.length && !nav.length ? (
-                <Command.Empty>
-                  <Line>no matches</Line>
-                </Command.Empty>
-              ) : null}
+              {query && current && !values.length ? <Line>no matches</Line> : null}
 
-              {nav.length ? (
-                <Group heading="go to">
-                  {nav.map((item) => (
-                    <Item
-                      key={item.label}
-                      value={`nav:${item.label}`}
-                      onSelect={() => ("toggle" in item ? toggle(item.toggle) : go(item.href))}
-                    >
-                      <span className="flex-1">{item.label}</span>
-                      {item.hint ? <Kbd keys={item.hint} /> : null}
-                    </Item>
-                  ))}
-                </Group>
-              ) : null}
-
-              {current?.hits.length ? (
-                <Group
-                  heading={
-                    current.total > VISIBLE_HITS
-                      ? `top ${VISIBLE_HITS} of ${current.total} threads`
-                      : `${current.total} ${current.total === 1 ? "thread" : "threads"}`
-                  }
-                >
-                  {current.hits.slice(0, VISIBLE_HITS).map((hit) => (
+              {hits.length && current ? (
+                <Command.Group heading={heading("threads", current.total)}>
+                  {hits.map((hit) => (
                     <Item
                       key={hit.id}
                       value={`thread:${hit.id}`}
                       onSelect={() => go(mailHref(BUCKET_VIEW[hit.bucket], { threadId: hit.id }))}
                     >
-                      <span
-                        aria-hidden
-                        className="size-2 shrink-0"
-                        style={{ backgroundColor: colorOf.get(hit.accountId) ?? "var(--text-dim)" }}
-                      />
+                      <AccountSquare color={colorOf.get(hit.accountId)} />
                       <span className="w-sender shrink-0 truncate text-text-muted">
                         <Highlight text={hit.sender} words={words} />
                       </span>
@@ -208,11 +243,11 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
                       <Time iso={hit.lastMessageAt} className="shrink-0 text-11 text-text-muted" />
                     </Item>
                   ))}
-                </Group>
+                </Command.Group>
               ) : null}
 
               {current?.total ? (
-                <Group heading="act on results">
+                <Command.Group heading={heading("act on results", BULK_ACTIONS.length)}>
                   {BULK_ACTIONS.map((a) => {
                     const n = current.counts[a.key] ?? 0;
                     return (
@@ -226,12 +261,85 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
                       </Item>
                     );
                   })}
-                </Group>
+                </Command.Group>
+              ) : null}
+
+              {views.length ? (
+                <Command.Group heading={heading("go to", views.length)}>
+                  {views.map((v) => {
+                    const dim = v.group === "bottom";
+                    return (
+                      <Item key={v.slug} value={`view:${v.slug}`} onSelect={() => go(mailHref(v.slug))}>
+                        <span className={cn("flex-1 truncate", dim && "text-text-dim")}>
+                          <Highlight text={v.label} words={query ? [query] : []} />
+                        </span>
+                        {!dim && counts[v.slug] ? <span className="text-11 text-text-muted">{counts[v.slug]}</span> : null}
+                        {v.goKey ? <Kbd keys={`g ${v.goKey}`} /> : null}
+                      </Item>
+                    );
+                  })}
+                </Command.Group>
+              ) : null}
+
+              {actions.length ? (
+                <Command.Group heading={heading("actions", actions.length)}>
+                  {actions.map((a) => (
+                    <Item
+                      key={a.key}
+                      value={`action:${a.key}`}
+                      onSelect={() => {
+                        onClose();
+                        a.run();
+                      }}
+                    >
+                      <span className="flex-1 truncate">
+                        <Highlight text={a.label} words={query ? [query] : []} />
+                      </span>
+                      {a.keys ? <Kbd keys={a.keys} /> : null}
+                    </Item>
+                  ))}
+                </Command.Group>
+              ) : null}
+
+              {accountRows.length ? (
+                <Command.Group heading={heading("accounts", accountRows.length)}>
+                  {accountRows.map((a) => (
+                    // Toggles like the header; the palette stays open.
+                    <Item key={a.id} value={`account:${a.id}`} onSelect={() => toggle(a.id)} aria-pressed={a.on}>
+                      <AccountSquare color={a.color} off={!a.on} />
+                      <span className={cn("shrink-0", !a.on && "text-text-dim")}>
+                        <Highlight text={a.label} words={query ? [query] : []} />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-text-dim">{a.email}</span>
+                    </Item>
+                  ))}
+                </Command.Group>
+              ) : null}
+
+              {app ? (
+                <Command.Group heading={heading("app", 1)}>
+                  <Item value="app:settings" onSelect={() => go("/settings")}>
+                    <span className="flex-1">
+                      <Highlight text="settings" words={query ? [query] : []} />
+                    </span>
+                  </Item>
+                </Command.Group>
               ) : null}
             </Command.List>
-            <div className="flex h-status shrink-0 items-center gap-4 border-t border-border px-3 text-11 text-text-dim">
-              <span>from: account: before: after:</span>
-              <KeyHints className="ml-auto" hints={[["enter", "select"], ["escape", "close"]]} />
+            <div className="flex min-h-row shrink-0 flex-wrap items-center gap-1 border-t border-border px-3 py-1 md:h-row md:flex-nowrap md:py-0">
+              {CHIPS.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  // Keep the caret where it is so the chip lands there.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insert(chip)}
+                  className="h-6 rounded-sm border border-border px-2 text-11 text-text-muted transition-colors duration-80 ease-snap hover:text-text"
+                >
+                  {chip}
+                </button>
+              ))}
+              <KeyHints className="ml-auto text-11 text-text-muted" hints={[["arrowup arrowdown", "move"], ["enter", "open"]]} />
             </div>
           </>
         ) : (
@@ -240,6 +348,20 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
       </Command>
     </div>
   );
+}
+
+function SectionHeading({ name, count }: { name: string; count?: number }) {
+  return (
+    <span className="flex items-center gap-2 px-3 pt-3 pb-1 text-11">
+      <span className="text-text-muted uppercase">{name}</span>
+      <span aria-hidden className="h-px flex-1 bg-border" />
+      {count !== undefined ? <span className="text-text-dim">{count}</span> : null}
+    </span>
+  );
+}
+
+function Group({ heading, children }: { heading: string; children: React.ReactNode }) {
+  return <Command.Group heading={<SectionHeading name={heading} />}>{children}</Command.Group>;
 }
 
 function PreviewPane({
@@ -301,30 +423,6 @@ function PreviewPane({
         <KeyHints className="ml-auto" hints={[["enter", "run"], ["escape", "back"]]} />
       </div>
     </>
-  );
-}
-
-type NavItem = { label: string; hint: string } & ({ href: string } | { toggle: string });
-
-function navItems(accounts: ToggleAccount[]): NavItem[] {
-  return [
-    ...VIEWS.map((v) => ({ label: v.label, href: mailHref(v.slug), hint: v.goKey ? `g ${v.goKey}` : "" })),
-    // Same as the header toggles; the palette stays open.
-    ...(accounts.length > 1
-      ? accounts.map((a) => ({ label: `${a.on ? "hide" : "show"} ${a.label}`, toggle: a.id, hint: "" }))
-      : []),
-    { label: "settings", href: "/settings", hint: "" },
-  ];
-}
-
-function Group({ heading, children }: { heading: string; children: React.ReactNode }) {
-  return (
-    <Command.Group
-      heading={heading}
-      className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-11 [&_[cmdk-group-heading]]:text-text-dim"
-    >
-      {children}
-    </Command.Group>
   );
 }
 
