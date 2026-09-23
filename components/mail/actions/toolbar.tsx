@@ -7,7 +7,7 @@ import { useThreadActions } from "./actions";
 
 /** Mouse and touch path to the same actions the keys run. */
 export function ActionToolbar({ thread }: { thread: ThreadDetail }) {
-  const { run, runSender, openSnooze } = useThreadActions();
+  const { run, runSender, openSnooze, unsubscribe } = useThreadActions();
   const ids = [thread.id];
 
   return (
@@ -40,6 +40,11 @@ export function ActionToolbar({ thread }: { thread: ThreadDetail }) {
       >
         {thread.setAside ? "unset aside" : "set aside"}
       </Button>
+      {thread.canUnsubscribe ? (
+        <Button variant="ghost" shortcut="u" onClick={() => void unsubscribe(thread.id)}>
+          unsubscribe
+        </Button>
+      ) : null}
       {thread.trashed ? (
         <Button variant="ghost" onClick={() => void run({ type: "restore" }, ids)}>
           restore

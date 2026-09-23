@@ -8,10 +8,12 @@ import {
   markSeenOnOpen,
   previewThreadAction,
   undoAction,
+  unsubscribeThread,
   type ActionPreview,
   type ActionResult,
   type SenderAction,
   type ThreadAction,
+  type UnsubscribeResult,
 } from "@/lib/actions";
 import { db } from "@/lib/db";
 
@@ -59,7 +61,14 @@ export async function runSenderAction(threadId: string, action: SenderAction): P
   return result;
 }
 
-export async function undo(token: string): Promise<{ count: number }> {
+export async function unsubscribe(threadId: string): Promise<UnsubscribeResult> {
+  const [id] = ids([threadId]);
+  const result = await unsubscribeThread(db, id);
+  if (result.kind === "sent") refresh();
+  return result;
+}
+
+export async function undo(token: string): Promise<{ count: number; unsubscribed: boolean }> {
   const [id] = ids([token]);
   const result = await undoAction(db, id);
   refresh();

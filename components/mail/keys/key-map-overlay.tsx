@@ -39,7 +39,14 @@ function KeyMapDialog() {
                 {entries.map((e) => (
                   <li key={e.label} className="flex items-center justify-between gap-4">
                     <span>{e.label}</span>
-                    <Kbd keys={e.keys} />
+                    <span className="flex items-center gap-1">
+                      {e.keys.map((k, i) => (
+                        <span key={k} className="flex items-center gap-1">
+                          {i > 0 ? <span className="text-11 text-text-dim">/</span> : null}
+                          <Kbd keys={k} />
+                        </span>
+                      ))}
+                    </span>
                   </li>
                 ))}
               </ul>

@@ -4,3 +4,4 @@ export { countThreadActions, previewThreadAction } from "./preview";
 export { markSeenOnOpen } from "./seen";
 export * from "./types";
 export { undoAction } from "./undo";
+export { unsubscribeThread, type UnsubscribeResult } from "./unsubscribe";

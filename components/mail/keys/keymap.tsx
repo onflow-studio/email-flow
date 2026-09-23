@@ -240,13 +240,13 @@ export function useKeyMapEntries() {
     () => registry.version,
     () => 0,
   );
-  const groups = new Map<string, { keys: string; label: string }[]>();
+  const groups = new Map<string, { keys: string[]; label: string }[]>();
   const seen = new Set<string>();
   for (const b of registry.all()) {
     if (!b.label || seen.has(b.label)) continue;
     seen.add(b.label);
     const group = b.group ?? "general";
-    const keys = Array.isArray(b.keys) ? b.keys[0] : b.keys;
+    const keys = [b.keys].flat();
     groups.set(group, [...(groups.get(group) ?? []), { keys, label: b.label }]);
   }
   return [...groups.entries()];

@@ -22,10 +22,11 @@ function revive(before: Partial<ThreadState>): Partial<ThreadState> {
 
 /**
  * Reverse every change logged under an undo token. Undoing twice is a no-op.
+ * `unsubscribed` is set when the batch sent an unsubscribe request, which stays sent.
  * Corrections written by an undone move are removed: the user took the move
  * back, so it should not teach the classifier.
  */
-export async function undoAction(db: Db, token: string): Promise<{ count: number }> {
+export async function undoAction(db: Db, token: string): Promise<{ count: number; unsubscribed: boolean }> {
   return db.transaction(async (tx) => {
     const rows = await tx
       .select()
@@ -34,8 +35,10 @@ export async function undoAction(db: Db, token: string): Promise<{ count: number
       .for("update");
 
     let count = 0;
+    let unsubscribed = false;
     for (const row of rows) {
       const payload = row.payload as LogPayload;
+      if (payload.unsubscribe) unsubscribed = true;
 
       if (payload.sender) {
         const s = payload.sender;
@@ -81,6 +84,6 @@ export async function undoAction(db: Db, token: string): Promise<{ count: number
     if (rows.length) {
       await tx.update(actionsLog).set({ undoneAt: new Date() }).where(eq(actionsLog.batchId, token));
     }
-    return { count };
+    return { count, unsubscribed };
   });
 }

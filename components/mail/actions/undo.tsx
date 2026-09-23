@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 type Toast = { id: number; message: string; token: string | null; leaving: boolean };
 
 type UndoContextValue = {
-  /** Show a result line; with a token it becomes the next thing `u` undoes. */
+  /** Show a result line; with a token it becomes the next thing `z` undoes. */
   report: (message: string, token?: string | null) => void;
   undoLast: () => void;
   undoToken: (token: string) => void;
@@ -29,7 +29,7 @@ const STACK_LIMIT = 50;
 
 /**
  * Lives in the mail layout so the toast and the undo stack survive
- * navigation. The stack is per tab: `u` only undoes what you did here.
+ * navigation. The stack is per tab: `z` only undoes what you did here.
  */
 export function UndoProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null);
@@ -45,7 +45,7 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
     (token: string) => {
       stack.current = stack.current.filter((t) => t !== token);
       undo(token)
-        .then((r) => report(r.count ? "undone" : "nothing to undo"))
+        .then((r) => report(r.unsubscribed ? "kept in, unsubscribe already sent" : r.count ? "undone" : "nothing to undo"))
         .catch(() => report("undo failed, retry"));
     },
     [report],
@@ -89,7 +89,7 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
               onClick={() => undoToken(toast.token!)}
               className="flex items-center gap-2 text-text-muted transition-colors duration-80 ease-snap hover:text-text"
             >
-              undo <Kbd keys="u" />
+              undo <Kbd keys="z" />
             </button>
           ) : null}
         </div>

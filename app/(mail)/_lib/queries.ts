@@ -136,6 +136,7 @@ export async function getThread(id: string) {
           htmlSanitized: true,
           text: true,
           isInbound: true,
+          headers: true,
         },
         with: {
           sender: { columns: { imagesAllowed: true } },
@@ -148,6 +149,7 @@ export async function getThread(id: string) {
     },
   });
   if (!thread) return null;
+  const latestInbound = thread.messages.findLast((m) => m.isInbound);
   return {
     id: thread.id,
     gmailThreadId: thread.gmailThreadId,
@@ -167,12 +169,18 @@ export async function getThread(id: string) {
     deadlineAt: thread.deadlineAt?.toISOString() ?? null,
     setAside: thread.setAsideAt !== null,
     trashed: thread.trashed,
+    canUnsubscribe: !!latestInbound?.headers.listUnsubscribe,
     account: thread.account,
-    messages: thread.messages.map((m) => ({
-      ...m,
-      date: m.date.toISOString(),
-      imagesAllowed: m.sender?.imagesAllowed ?? thread.sender?.imagesAllowed ?? false,
-    })),
+    // Headers stay on the server; the client only needs canUnsubscribe.
+    messages: thread.messages.map((m) => {
+      const { headers, ...rest } = m;
+      void headers;
+      return {
+        ...rest,
+        date: m.date.toISOString(),
+        imagesAllowed: m.sender?.imagesAllowed ?? thread.sender?.imagesAllowed ?? false,
+      };
+    }),
   };
 }
 

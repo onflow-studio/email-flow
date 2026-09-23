@@ -127,7 +127,9 @@ h             set aside
 1 2 3         move to inbox / news / paper trail
 x             keep out (from triage)
 i             let in (from triage)
-u             undo last
+u             unsubscribe (one-click, else mailto, else opens the page)
+#             delete (to trash)
+z / cmd+z     undo last
 g then i/n/p/t  go to bucket
 cmd+k         palette
 /             search

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
-import { runSenderAction, runThreadAction } from "@/app/(mail)/thread-actions";
+import { runSenderAction, runThreadAction, unsubscribe as unsubscribeAction } from "@/app/(mail)/thread-actions";
 import type { Bucket } from "@/lib/db/schema";
 import type { ActionResult, MovableBucket, SenderAction, ThreadAction } from "@/lib/actions/types";
 
@@ -27,6 +27,7 @@ type ThreadActions = {
   run: (action: ThreadAction, ids?: string[]) => Promise<ActionResult | null>;
   runSender: (action: SenderAction, id?: string) => Promise<ActionResult | null>;
   openSnooze: () => void;
+  unsubscribe: (id?: string) => Promise<void>;
   target: ActionTarget | null;
 };
 
@@ -177,6 +178,28 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     [sel.target, byId, report, afterAction],
   );
 
+  const unsubscribe = useCallback(
+    async (id?: string) => {
+      const threadId = id ?? sel.target;
+      if (!threadId) return;
+      try {
+        const result = await unsubscribeAction(threadId);
+        if (result.kind === "sent") {
+          report(`unsubscribed from ${result.sender}`, result.token);
+          afterAction({ type: "archive" }, [threadId]);
+        } else if (result.kind === "open") {
+          const url = new URL(result.url);
+          if (url.protocol === "https:") window.open(url.href, "_blank", "noopener,noreferrer");
+          report("unsubscribe page opened");
+        } else if (result.kind === "none") report("no unsubscribe link");
+        else report("unsubscribe failed, retry");
+      } catch {
+        report("unsubscribe failed, retry");
+      }
+    },
+    [sel.target, report, afterAction],
+  );
+
   const openSnooze = useCallback(() => {
     if (sel.target) setSnoozeIds([sel.target]);
   }, [sel.target]);
@@ -208,10 +231,14 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     { keys: "#", label: "delete", group: "triage", when: () => !!target, run: () => void run({ type: "trash" }) },
     { keys: "!", label: "mark spam", group: "triage", when: () => !!target, run: () => void run({ type: "spam" }) },
     { keys: "U", label: "mark unread", group: "triage", when: () => !!target, run: () => void run({ type: "unread" }) },
-    { keys: "u", label: "undo last", group: "general", run: undoLast },
+    { keys: "u", label: "unsubscribe", group: "triage", when: () => !!target, run: () => void unsubscribe() },
+    { keys: ["z", "mod+z"], label: "undo last", group: "general", run: undoLast },
   ]);
 
-  const value = useMemo(() => ({ run, runSender, openSnooze, target }), [run, runSender, openSnooze, target]);
+  const value = useMemo(
+    () => ({ run, runSender, openSnooze, unsubscribe, target }),
+    [run, runSender, openSnooze, unsubscribe, target],
+  );
 
   return (
     <ActionsContext.Provider value={value}>

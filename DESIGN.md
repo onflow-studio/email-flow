@@ -53,7 +53,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
 
 - Durations: 80ms for hover and focus changes, 150ms for pane transitions and palette open. Nothing slower, the app should feel like it was already there.
 - Easing: `cubic-bezier(0.2, 0, 0, 1)`, fast start and clean stop.
-- Undo toasts appear instantly and fade out over 150ms. No slide-ins.
+- Undo toasts appear instantly and fade out over 150ms. No slide-ins. Undo is `z` or `mod z`.
 - Reduced motion: honor `prefers-reduced-motion`, drop all transitions to 0ms.
 
 ## Layout
@@ -75,7 +75,7 @@ Account identity uses hue, not a full palette: a 2px left bar per thread row, on
   - Destructive: transparent with `--danger` text and border. Fills `--danger` only on hover.
   - All buttons show their keyboard shortcut as a keycap after the label, e.g. `archive [e]`. On the primary button the keycap flips to the accent variant so it keeps contrast on the fill.
 - Keycap: every shortcut shown anywhere (buttons, list header, palette rows, key map, status line) is a keycap, never plain text. 11px, 2px radius, hairline `--border`, `--surface-raised` background, `--text-muted` text, at least 16px square (`h-key`, `min-w-key`) so single letters are square and words like `enter` grow sideways. Vertically centered with the label it sits next to. Multi-key shortcuts are adjacent keycaps: combos like `mod k` 2px apart, sequences like `g i` 4px apart. Key names are lowercase and short: `mod`, `enter`, `esc`. On the `--accent` fill: transparent background, `--bg` text, `--bg` border at 40%. Hidden below `md` like every keyboard hint.
-- Thread toolbar: ghost buttons for `archive`, `snooze`, `set aside`, then `delete` as the one destructive button, set 8px apart. A trashed thread shows a ghost `restore` in its place. Delete runs at once with the undo toast, like archive. The rail lists `trash` below `set aside` with its total count.
+- Thread toolbar: ghost buttons for `archive`, `snooze`, `set aside`, `unsubscribe` (only when the latest inbound message has a List-Unsubscribe header), then `delete` as the one destructive button, set 8px apart. A trashed thread shows a ghost `restore` in its place. Delete runs at once with the undo toast, like archive. The rail lists `trash` below `set aside` with its total count.
 - Thread row: account bar, sender at 500 if unseen, subject, snippet in `--text-muted`, time right-aligned in tabular 11px. Seen rows drop to 400 and `--text-dim` subject.
 - Badge: 11px, 2px radius, `--surface-raised` background, `--text-muted` text. Bucket badges use `--accent-dim` with `--accent` text. AI suggestions use `--info`.
 - Inline AI note: a single line above a thread in `--info`, prefixed with `>>`, e.g. `>> new sender, let in by AI. undo?`. Never a card, never a modal.
