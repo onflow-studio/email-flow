@@ -24,6 +24,8 @@ export function useUndo() {
 }
 
 const VISIBLE_MS = 4000;
+// An undoable toast stays long enough to change your mind, with the seconds left on it.
+const UNDO_MS = 10000;
 const FADE_MS = 150;
 const STACK_LIMIT = 50;
 
@@ -58,15 +60,23 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
   }, [undoToken, report]);
 
   const toastId = toast?.id;
+  const undoable = !!toast?.token;
+  const [left, setLeft] = useState(0);
   useEffect(() => {
     if (toastId === undefined) return;
-    const fade = setTimeout(() => setToast((t) => (t?.id === toastId ? { ...t, leaving: true } : t)), VISIBLE_MS);
-    const clear = setTimeout(() => setToast((t) => (t?.id === toastId ? null : t)), VISIBLE_MS + FADE_MS);
+    const visible = undoable ? UNDO_MS : VISIBLE_MS;
+    const end = Date.now() + visible;
+    const tick = () => setLeft(Math.max(0, Math.ceil((end - Date.now()) / 1000)));
+    tick();
+    const countdown = undoable ? setInterval(tick, 250) : undefined;
+    const fade = setTimeout(() => setToast((t) => (t?.id === toastId ? { ...t, leaving: true } : t)), visible);
+    const clear = setTimeout(() => setToast((t) => (t?.id === toastId ? null : t)), visible + FADE_MS);
     return () => {
+      clearInterval(countdown);
       clearTimeout(fade);
       clearTimeout(clear);
     };
-  }, [toastId]);
+  }, [toastId, undoable]);
 
   const value = useMemo(() => ({ report, undoLast, undoToken }), [report, undoLast, undoToken]);
 
@@ -92,6 +102,7 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
               undo <Kbd keys="z" />
             </button>
           ) : null}
+          {toast.token ? <span className="w-6 text-right text-11 text-text-muted">{left}s</span> : null}
         </div>
       ) : null}
     </UndoContext.Provider>

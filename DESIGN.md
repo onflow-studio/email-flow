@@ -58,7 +58,7 @@ Account identity uses hue, not a full palette: one hue per account, chosen at se
 
 - Durations: 80ms for hover and focus changes, 150ms for pane transitions and palette open. Nothing slower, the app should feel like it was already there.
 - Easing: `cubic-bezier(0.2, 0, 0, 1)`, fast start and clean stop.
-- Undo toasts appear instantly and fade out over 150ms. No slide-ins. Undo is `z` or `mod z`.
+- Undo toasts appear instantly and fade out over 150ms. No slide-ins. Undo is `z` or `mod z`. A toast that can be undone stays 10s and counts down the seconds left at its right end, 11px `--text-muted` tabular (`9s`); a plain result line stays 4s. The count changes text once a second, it is not an animation.
 - Reduced motion: honor `prefers-reduced-motion`, drop all transitions to 0ms.
 - One ambient loop: the radio's drifting border while it plays, 6s per turn. Nothing else animates on its own.
 
