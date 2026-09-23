@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
+import { RESTORE_PANES } from "@/components/mail/panes";
+
 import "./globals.css";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -24,7 +26,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`dark ${jetbrainsMono.variable} h-full`}>
+    // The inline script sets stored pane widths on <html> before hydration.
+    <html lang="en" className={`dark ${jetbrainsMono.variable} h-full`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: RESTORE_PANES }} />
+      </head>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

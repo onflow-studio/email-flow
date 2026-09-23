@@ -5,6 +5,7 @@ import { ActionsProvider } from "@/components/mail/actions/actions";
 import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
 import { NavKeys } from "@/components/mail/keys/nav-keys";
 import { PaletteProvider, SearchButton } from "@/components/mail/palette/palette";
+import { PaneHandle } from "@/components/mail/pane-handle";
 import { Rail } from "@/components/mail/rail";
 import { ReadingPane } from "@/components/mail/reading-pane";
 import { SelectionProvider } from "@/components/mail/selection";
@@ -66,11 +67,12 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
           <div className="flex h-dvh flex-col bg-bg">
             <div className="flex min-h-0 flex-1">
               <Rail view={view.slug} account={account} counts={counts} accounts={accounts} />
+              <PaneHandle pane="rail" label="resize rail" className="hidden rail:block" />
 
               <section
                 aria-label={view.label}
                 className={cn(
-                  "flex min-h-0 w-full flex-col border-r border-border bg-surface md:w-list md:shrink-0",
+                  "flex min-h-0 w-full flex-col border-r border-border bg-surface md:w-list md:min-w-list-min",
                   detail && "hidden md:flex",
                 )}
               >
@@ -107,8 +109,9 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
                   />
                 </div>
               </section>
+              <PaneHandle pane="list" label="resize thread list" className="hidden md:block" />
 
-              <main className={cn("pane-depth min-w-0 flex-1 overflow-y-auto", !detail && "hidden md:block")}>
+              <main className={cn("pane-depth min-w-0 flex-1 md:min-w-reading overflow-y-auto", !detail && "hidden md:block")}>
                 {detail ? (
                   <ReadingPane key={detail.id} thread={detail} />
                 ) : (
