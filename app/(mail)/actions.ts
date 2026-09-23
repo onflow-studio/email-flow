@@ -10,7 +10,10 @@ import { syncAllAccounts } from "@/lib/sync";
  */
 export async function refreshSync(): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    await syncAllAccounts();
+    const outcomes = await syncAllAccounts();
+    // Reconnects show from the saved account error, with a link to settings.
+    const failed = outcomes.filter((o) => o.status === "error").map((o) => o.label);
+    if (failed.length) return { ok: false, error: `sync failed for ${failed.join(", ")}, retry` };
     return { ok: true };
   } catch (error) {
     console.error("refresh sync failed", error);

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
 import { markSeen } from "@/app/(mail)/thread-actions";
 import type { Address } from "@/lib/db/schema";
+import { attachmentUrl, opensInline } from "@/lib/mail/remote";
 import { cn } from "@/lib/utils";
 
 import { AiNote } from "./actions/ai-note";
@@ -40,8 +41,6 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
   useEffect(() => {
     markSeen(thread.id).catch(() => {});
   }, [thread.id]);
-
-  const gmailUrl = `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(thread.account.email)}#all/${thread.gmailThreadId}`;
 
   return (
     <article className="flex w-full flex-col gap-4 px-3 pt-8 pb-16 md:px-6">
@@ -82,7 +81,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
         {thread.messages.map((m) => (
           <li key={m.id} className="rounded-sm border border-border bg-surface">
             {expanded.has(m.id) ? (
-              <ExpandedMessage message={m} gmailUrl={gmailUrl} onCollapse={() => toggle(m.id)} />
+              <ExpandedMessage message={m} onCollapse={() => toggle(m.id)} />
             ) : (
               <button
                 type="button"
@@ -104,11 +103,9 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
 
 function ExpandedMessage({
   message: m,
-  gmailUrl,
   onCollapse,
 }: {
   message: MessageItem;
-  gmailUrl: string;
   onCollapse: () => void;
 }) {
   return (
@@ -135,21 +132,23 @@ function ExpandedMessage({
 
       {m.attachments.length ? (
         <ul className="flex flex-col gap-1 border-t border-border pt-2">
-          {m.attachments.map((a) => (
-            <li key={a.id}>
-              <a
-                href={gmailUrl}
-                target="_blank"
-                rel="noreferrer"
-                title="open in gmail"
-                className="flex h-row items-center gap-2 rounded-sm px-1 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised hover:text-text"
-              >
-                <Paperclip aria-hidden className="size-3 shrink-0" strokeWidth={1.5} />
-                <span className="min-w-0 flex-1 truncate text-text">{a.filename}</span>
-                <span className="shrink-0 text-11">{formatSize(a.size)}</span>
-              </a>
-            </li>
-          ))}
+          {m.attachments.map((a) => {
+            const inline = opensInline(a.mimeType);
+            return (
+              <li key={a.id}>
+                <a
+                  href={attachmentUrl(a.id, { inline })}
+                  {...(inline ? { target: "_blank", rel: "noreferrer" } : { download: a.filename })}
+                  title={inline ? "open" : "download"}
+                  className="flex h-row items-center gap-2 rounded-sm px-1 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised hover:text-text"
+                >
+                  <Paperclip aria-hidden className="size-3 shrink-0" strokeWidth={1.5} />
+                  <span className="min-w-0 flex-1 truncate text-text">{a.filename}</span>
+                  <span className="shrink-0 text-11">{formatSize(a.size)}</span>
+                </a>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </div>

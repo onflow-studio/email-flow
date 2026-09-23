@@ -282,7 +282,8 @@ export const jobs = pgTable(
     attempts: integer().notNull().default(0),
     runAfter: timestamp({ withTimezone: true }).notNull().defaultNow(),
     lockedAt: timestamp({ withTimezone: true }),
-    // At most one pending or running job per key, e.g. `classify:<threadId>`.
+    // At most one pending job per key, e.g. `classify:<threadId>`. A running job doesn't count,
+    // so a change made while it runs queues a follow-up instead of being dropped.
     dedupeKey: text(),
     error: text(),
     createdAt: createdAt(),
@@ -291,9 +292,9 @@ export const jobs = pgTable(
   (t) => [
     index().on(t.status, t.priority, t.runAfter),
     index().on(t.accountId, t.status),
-    uniqueIndex("jobs_dedupe_key_active_idx")
+    uniqueIndex("jobs_dedupe_key_pending_idx")
       .on(t.dedupeKey)
-      .where(sql`status in ('pending', 'running')`),
+      .where(sql`status = 'pending'`),
   ],
 );
 
