@@ -8,20 +8,13 @@ import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
 import { useThreadActions } from "./actions/actions";
 import { AiNote } from "./actions/ai-note";
 import { ActionBar } from "./actions/action-bar";
+import { BucketBadge } from "./actions/bucket-badge";
 import { rememberAccount } from "./compose/last-account";
 import { useKeys } from "./keys/keymap";
 import { MessageContent } from "./message";
 import { useMailSelection } from "./selection";
 import { ThreadTimeline } from "./thread-timeline";
 import { Time } from "./time";
-
-const BUCKET_LABELS: Record<ThreadDetail["bucket"], string> = {
-  inbox: "inbox",
-  news: "news",
-  paper_trail: "paper trail",
-  triage: "triage",
-  out: "out",
-};
 
 const SCROLL_STEP = 64;
 
@@ -70,7 +63,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
             <span aria-hidden className="size-2" style={{ backgroundColor: thread.account.color }} />
             {thread.account.label}
           </span>
-          <span className="rounded-sm bg-accent-dim px-1 text-text">{BUCKET_LABELS[thread.bucket]}</span>
+          <BucketBadge thread={thread} />
           {single ? null : <span>{thread.messages.length} messages</span>}
           {thread.snoozedUntil ? (
             <span>

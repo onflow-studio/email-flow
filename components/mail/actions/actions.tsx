@@ -47,7 +47,8 @@ const BUCKET_NAMES: Record<Bucket, string> = {
   out: "out",
 };
 
-export function describeAction(action: ThreadAction | SenderAction, count: number) {
+/** `kept` marks a move to the bucket the threads were already in: a confirmation, not a move. */
+export function describeAction(action: ThreadAction | SenderAction, count: number, kept = false) {
   const n = count > 1 ? `${count} ` : "";
   switch (action.type) {
     case "archive":
@@ -65,7 +66,7 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
     case "unread":
       return `${n}marked unread`;
     case "move":
-      return `${n}moved to ${BUCKET_NAMES[action.bucket]}`;
+      return `${n}${kept ? "kept in" : "moved to"} ${BUCKET_NAMES[action.bucket]}`;
     case "snooze":
       return `${n}snoozed until ${fullTime(action.until)}${action.needsReply ? ", needs reply" : ""}`;
     case "unsnooze":
@@ -142,18 +143,20 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       const targetIds = ids ?? (sel.target ? [sel.target] : []);
       if (!targetIds.length) return null;
       try {
+        // A move to the bucket every thread is already in confirms the placement instead.
+        const kept = action.type === "move" && targetIds.every((id) => byId.get(id)?.bucket === action.bucket) ? action.bucket : null;
         const result = await runThreadAction(targetIds, action);
         if (result.count) {
-          report(describeAction(action, result.count), result.token);
+          report(describeAction(action, result.count, !!kept), result.token);
           afterAction(action, targetIds);
-        }
+        } else if (kept) notify(`already in ${BUCKET_NAMES[kept]}`, "warning");
         return result;
       } catch {
         notify(`${action.type} failed, retry`, "error");
         return null;
       }
     },
-    [sel.target, report, notify, afterAction],
+    [sel.target, byId, report, notify, afterAction],
   );
 
   const runSender = useCallback(

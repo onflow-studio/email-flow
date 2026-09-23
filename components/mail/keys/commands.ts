@@ -54,9 +54,10 @@ export const COMMANDS = [
 
   { id: "let-in", label: "let in", group: "triage", scope: "mail", keys: ["i"] },
   { id: "keep-out", label: "keep out", group: "triage", scope: "mail", keys: ["x"] },
-  { id: "move.inbox", label: "move to inbox", group: "triage", scope: "mail", keys: ["1"] },
-  { id: "move.news", label: "move to news", group: "triage", scope: "mail", keys: ["2"] },
-  { id: "move.paper_trail", label: "move to paper trail", group: "triage", scope: "mail", keys: ["3"] },
+  { id: "move", label: "move to…", group: "triage", scope: "mail", keys: ["m"] },
+  { id: "move.inbox", label: "move to inbox", group: "triage", scope: "mail", keys: [] },
+  { id: "move.news", label: "move to news", group: "triage", scope: "mail", keys: [] },
+  { id: "move.paper_trail", label: "move to paper trail", group: "triage", scope: "mail", keys: [] },
 
   { id: "compose", label: "compose", group: "write", scope: "mail", keys: ["c"] },
   { id: "reply", label: "reply", group: "write", scope: "mail", keys: ["r"] },

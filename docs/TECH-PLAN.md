@@ -129,7 +129,7 @@ e             archive
 r / a / f     reply / reply all / forward
 s             snooze (opens picker, with needs-reply toggle)
 h             pin / unpin
-1 2 3         move to inbox / news / paper trail
+m then i/n/p  move to inbox / news / paper trail (menu under the bucket badge; same bucket confirms an AI placement)
 x             keep out (from triage)
 i             let in (from triage)
 u             unsubscribe (one-click, else mailto, else opens the page)
