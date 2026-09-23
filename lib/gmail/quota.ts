@@ -25,8 +25,8 @@ export type Clock = {
 };
 
 export type LimiterOptions = {
-  // Sustained spend. 100/s plus the burst is at most 6,500 a minute: under half the per-user limit,
-  // so the sync loop, a backfill and the web app can each run one account without starving the others.
+  // Sustained spend. 100/s plus the burst is at most 6,500 a minute, under half the per-user limit;
+  // the backfill runs on less (scripts/backfill.ts --rate), so both fit with room for the web app.
   unitsPerSecond: number;
   burst: number;
   // Gmail also rejects too many parallel requests per user.
@@ -115,9 +115,9 @@ export class GmailLimiter {
       for (;;) {
         const now = this.o.clock.now();
         this.refill(now);
-        const wait = Math.max(
-          this.blockedUntil - now,
-          this.tokens >= need ? 0 : ((need - this.tokens) / this.o.unitsPerSecond) * 1000,
+        // Whole milliseconds: a fractional wait can land a float's width short and never fill the bucket.
+        const wait = Math.ceil(
+          Math.max(this.blockedUntil - now, this.tokens >= need ? 0 : ((need - this.tokens) / this.o.unitsPerSecond) * 1000),
         );
         if (wait <= 0) {
           this.tokens -= need;
@@ -148,11 +148,18 @@ export class GmailLimiter {
 
 // Per process. Separate processes (sync loop, backfill, web) each get their own, hence the headroom.
 const limiters = new Map<string, GmailLimiter>();
+let processLimits: Partial<LimiterOptions> = {};
+
+// For a whole process, before its first Gmail call: the backfill runs on a smaller budget than live sync.
+export function setGmailLimits(limits: Partial<LimiterOptions>) {
+  processLimits = limits;
+  limiters.clear();
+}
 
 export function gmailLimiter(accountId: string): GmailLimiter {
   let limiter = limiters.get(accountId);
   if (!limiter) {
-    limiter = new GmailLimiter();
+    limiter = new GmailLimiter(processLimits);
     limiters.set(accountId, limiter);
   }
   return limiter;

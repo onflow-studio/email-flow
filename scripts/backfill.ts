@@ -2,12 +2,15 @@ import { loadEnvConfig } from "@next/env";
 
 loadEnvConfig(process.cwd());
 
-// Year-to-date import: pnpm backfill [--account <email>] [--restart] [--batch <n>]
+// Year-to-date import: pnpm backfill [--account <email>] [--restart] [--batch <n>] [--rate <units/s>]
 // Resumable: stop any time and run again. Run alongside `pnpm sync`; live mail keeps priority.
+// --rate is Gmail quota units per second for this process. The default, 60, is about a quarter of
+// the 15,000 per user per minute; live sync spends up to 100, so together they stay under the limit.
 
 const MAX_CONSECUTIVE_ERRORS = 5;
 const ERROR_PAUSE_MS = 30_000;
 const RATE_LIMIT_PAUSE_MS = 60_000;
+const DEFAULT_RATE = 60;
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -21,7 +24,8 @@ async function main() {
   const { db } = await import("@/lib/db");
   const { accounts } = await import("@/lib/db/schema");
   const { ReauthRequiredError, getGmailLabelsAdapter } = await import("@/lib/gmail/client");
-  const { isRateLimitError } = await import("@/lib/gmail/errors");
+  const { GmailRateLimitError, isRateLimitError } = await import("@/lib/gmail/errors");
+  const { setGmailLimits } = await import("@/lib/gmail/quota");
   const { withLock } = await import("@/lib/sync");
   const { BACKFILL_BATCH, backfillStep, knownThreadIds, loadBackfill, saveBackfill } = await import(
     "@/lib/sync/backfill"
@@ -35,6 +39,10 @@ async function main() {
   const only = arg("account")?.toLowerCase();
   const restart = process.argv.includes("--restart");
   const batch = Number(arg("batch")) || BACKFILL_BATCH;
+  const rate = Number(arg("rate")) || DEFAULT_RATE;
+  // Two calls in flight and a few seconds of burst: slow and steady, leaving live sync room.
+  setGmailLimits({ unitsPerSecond: rate, burst: rate * 5, concurrency: 2 });
+  console.log(`backfill pacing Gmail at ${rate} quota units/s per account`);
 
   const rows = await db
     .select()
@@ -89,8 +97,9 @@ async function main() {
           if (error instanceof ReauthRequiredError) throw error;
           // Progress is saved per batch; wait out the quota minute without counting it as a failure.
           if (isRateLimitError(error)) {
-            console.log(`${account.email} rate limited by Gmail, pausing`);
-            await sleep(RATE_LIMIT_PAUSE_MS);
+            const pause = Math.max(RATE_LIMIT_PAUSE_MS, error instanceof GmailRateLimitError ? error.retryAfterMs : 0);
+            console.log(`${account.email} rate limited by Gmail, pausing ${Math.round(pause / 1000)}s then resuming`);
+            await sleep(pause);
             continue;
           }
           errors++;

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { GmailRateLimitError, isRateLimitError, retryAfterMs } from "@/lib/gmail/errors";
-import { GmailLimiter, type Clock } from "@/lib/gmail/quota";
+import { DEFAULT_LIMITS, GmailLimiter, gmailLimiter, setGmailLimits, type Clock } from "@/lib/gmail/quota";
 
 import { createGmailSyncAdapter, type GmailSyncClient } from "./gmail";
 
@@ -154,6 +154,24 @@ describe("GmailLimiter", () => {
     });
     await expect(limiter.run("messages.get", call)).rejects.toBe(boom);
     expect(call).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("process limits", () => {
+  it("a slower budget set for the process applies to every account's limiter", async () => {
+    const { clock, now } = fakeClock();
+    setGmailLimits({ unitsPerSecond: 60, burst: 60, clock });
+    try {
+      const limiter = gmailLimiter("a1");
+      expect(gmailLimiter("a1")).toBe(limiter);
+      // 60 units of burst, then 10-unit calls every 1/6 s: 12 calls take about a second.
+      for (let i = 0; i < 12; i++) await limiter.run("threads.get", async () => "ok");
+      expect(now()).toBeGreaterThanOrEqual(1_000);
+      expect(now()).toBeLessThan(1_010);
+    } finally {
+      setGmailLimits({});
+    }
+    expect(DEFAULT_LIMITS.unitsPerSecond).toBe(100);
   });
 });
 

@@ -84,7 +84,7 @@ Every Gmail call goes through a per-account limiter in `lib/gmail/quota.ts`: at 
 
 `scripts/sync.ts` loops all accounts every 5 minutes. `app/api/sync/route.ts` runs one pass, protected by a bearer secret, so a Vercel cron can hit it later. The refresh button calls the same route.
 
-Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the current year forward, per account, in batches, enqueuing classify for each thread but with a lower priority so live mail is never behind history.
+Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the current year forward, per account, in batches, enqueuing classify for each thread but with a lower priority so live mail is never behind history. It paces Gmail through the same limiter on a smaller budget (`--rate`, default 60 units a second, about a quarter of the per-user quota) and waits out rate limits instead of failing.
 
 ## Classification pipeline
 
