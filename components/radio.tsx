@@ -398,8 +398,9 @@ export function Radio() {
           aria-expanded={open}
           title={status === "error" ? label : `${on ? "pause" : "play"} ${station.label}`}
           className={cn(
-            // Centred in the status line: the bar's full height, a 24px square inside it on desktop.
-            "my-1 flex h-6 w-touch items-center justify-center rounded-sm border text-text-muted transition-colors duration-80 ease-snap outline-none hover:text-text focus-visible:border-accent md:w-6",
+            // Centred in the status line, 24px tall. Stopped or paused it carries its name; playing it is a 24px square.
+            "my-1 flex h-6 items-center justify-center gap-2 rounded-sm border text-text-muted transition-colors duration-80 ease-snap outline-none hover:text-text focus-visible:border-accent",
+            on ? "w-touch md:w-6" : "px-2 text-11",
             // While it plays the border is the drifting accent; paused or stopped it is the hairline at once.
             playing ? "radio-live" : "border-border bg-surface-raised",
             on && "text-text",
@@ -411,6 +412,7 @@ export function Radio() {
             className={cn("size-3", (status === "loading" || status === "buffering") && "animate-pulse text-text-dim")}
             strokeWidth={1.5}
           />
+          {on ? null : <span>flow state</span>}
         </button>
       </div>
       {/* Clipped to 1px rather than display:none, which stops playback. Inert keeps the iframe out of tab order. */}
