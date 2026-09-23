@@ -30,9 +30,8 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
     case "unread":
       return { seenAt: null };
     case "move":
-      return t.bucket === action.bucket
-        ? null
-        : { bucket: action.bucket, bucketSource: "user", bucketConfidence: 1, bucketSuggested: false };
+      // Moving to the bucket it is already in confirms an AI placement as the user's own (nothing else changes).
+      return { bucket: action.bucket, bucketSource: "user", bucketConfidence: 1, bucketSuggested: false };
     case "snooze": {
       const until = new Date(action.until);
       if (Number.isNaN(until.getTime()) || until <= now) return null;
