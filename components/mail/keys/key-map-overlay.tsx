@@ -1,0 +1,50 @@
+"use client";
+
+import { useKeyMap, useKeyMapEntries, useKeys } from "./keymap";
+
+export function KeyMapOverlay() {
+  const { open } = useKeyMap();
+  if (!open) return null;
+  return <KeyMapDialog />;
+}
+
+function KeyMapDialog() {
+  const { setOpen } = useKeyMap();
+  const groups = useKeyMapEntries();
+
+  useKeys([{ keys: ["escape", "?"], run: () => setOpen(false) }], { exclusive: true });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-4 pt-[15vh]"
+      onClick={() => setOpen(false)}
+    >
+      <div
+        role="dialog"
+        aria-label="keyboard map"
+        className="w-full max-w-palette rounded-md border border-border bg-surface-top p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between text-11 text-text-muted">
+          <span>keys</span>
+          <span>esc close</span>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {groups.map(([group, entries]) => (
+            <section key={group}>
+              <h2 className="mb-2 text-11 text-text-dim">{group}</h2>
+              <ul className="flex flex-col gap-1">
+                {entries.map((e) => (
+                  <li key={e.label} className="flex items-center justify-between gap-4">
+                    <span>{e.label}</span>
+                    <kbd className="rounded-sm bg-surface-raised px-1 text-11 text-text-muted">{e.keys}</kbd>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
