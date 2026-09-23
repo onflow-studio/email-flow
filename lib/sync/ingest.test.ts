@@ -134,6 +134,7 @@ describe("deriveThreadFields", () => {
       senderId: "s-ana",
       participantsSummary: "Ana, bob, me",
       hasInbound: true,
+      hasOutbound: true,
     });
   });
 
@@ -142,6 +143,22 @@ describe("deriveThreadFields", () => {
       { date: at(9), fromName: null, fromEmail: "me@x.com", subject: "hi", isInbound: false, senderId: null },
     ]);
     expect(fields).toMatchObject({ senderId: null, hasInbound: false, participantsSummary: "me" });
+  });
+
+  it("a forwarded newsletter keeps its first sender and marks that the user wrote in it", () => {
+    const fields = deriveThreadFields([
+      { date: at(9), fromName: "Nora", fromEmail: "nora@news.example", subject: "news", isInbound: true, senderId: "s-nora" },
+      { date: at(10), fromName: null, fromEmail: "me@x.com", subject: "Fwd: news", isInbound: false, senderId: null },
+      { date: at(11), fromName: "Teo", fromEmail: "teo@co.example", subject: "Re: Fwd: news", isInbound: true, senderId: "s-teo" },
+    ]);
+    expect(fields).toMatchObject({ senderId: "s-nora", hasInbound: true, hasOutbound: true });
+  });
+
+  it("a thread only others wrote in has no outbound message", () => {
+    const fields = deriveThreadFields([
+      { date: at(9), fromName: "Ana", fromEmail: "ana@y.com", subject: "hi", isInbound: true, senderId: "s-ana" },
+    ]);
+    expect(fields.hasOutbound).toBe(false);
   });
 
   it("caps participants at three", () => {

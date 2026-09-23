@@ -8,6 +8,7 @@ import { classifications, senders, threads, type Job } from "@/lib/db/schema";
 import { enqueueSummary, enqueueWriteback, type JobContext } from "@/lib/sync/jobs";
 
 import { loadContext } from "./context";
+import { applyParticipation } from "./participation";
 import {
   answerSchema,
   buildClassifierRequest,
@@ -137,6 +138,9 @@ export async function classifyThread(
     if (thread.bucketSource === null || thread.bucket !== decision.bucket) {
       await enqueueWriteback(tx, thread);
     }
+
+    // The user may have written in the thread while the model ran; that beats a triage call.
+    if (decision.bucket === "triage") await applyParticipation(tx, threadId);
   });
 
   return decision;

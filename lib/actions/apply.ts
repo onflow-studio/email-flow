@@ -104,7 +104,9 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
   const found = await loadThreadSenders(tx, threadId);
   if (!found) return null;
   const targets =
-    action.type === "undoAiAllow" ? aiAllowedSenders(found.ids, found.states) : judgedSenders(found.ids, found.states, found.threadSenderId);
+    action.type === "undoAiAllow" || action.type === "confirmAiAllow"
+      ? aiAllowedSenders(found.ids, found.states)
+      : judgedSenders(found.ids, found.states, found.threadSenderId);
   if (!targets.length) return null;
 
   const prior = await tx
@@ -128,7 +130,7 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
   const screenerDb = tx as unknown as Db;
   const moves: ThreadMove[] = [];
   for (const senderId of targets) {
-    if (action.type === "letIn") moves.push(...(await decideSender(screenerDb, senderId, "allowed")));
+    if (action.type === "letIn" || action.type === "confirmAiAllow") moves.push(...(await decideSender(screenerDb, senderId, "allowed")));
     else if (action.type === "keepOut") moves.push(...(await decideSender(screenerDb, senderId, action.spam ? "out_spam" : "out_not_now")));
     else moves.push(...(await undoAiAllow(screenerDb, senderId)));
   }

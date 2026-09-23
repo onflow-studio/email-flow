@@ -44,7 +44,7 @@ function threadAction(a: unknown): ThreadAction {
 
 function senderAction(a: unknown): SenderAction {
   const action = a as SenderAction;
-  if (action?.type === "letIn" || action?.type === "undoAiAllow") return { type: action.type };
+  if (action?.type === "letIn" || action?.type === "confirmAiAllow" || action?.type === "undoAiAllow") return { type: action.type };
   if (action?.type === "keepOut") return { type: "keepOut", spam: !!action.spam };
   throw new Error("invalid action");
 }

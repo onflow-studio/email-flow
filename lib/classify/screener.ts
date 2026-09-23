@@ -162,6 +162,8 @@ export function aiAllowedSenders(ids: string[], states: Map<string, SenderState>
 
 export type ThreadSenders = {
   threadSenderId: string | null;
+  // Oldest first.
+  messages: { isInbound: boolean; senderId: string | null }[];
   // Inbound senders in message order.
   ids: string[];
   states: Map<string, SenderState>;
@@ -192,6 +194,7 @@ export async function loadThreadSenders(tx: Pick<Db, "select">, threadId: string
     : [];
   return {
     threadSenderId: thread.senderId,
+    messages: rows,
     ids,
     states: new Map(found.map((s) => [s.id, { decision: s.decision, decidedBy: s.decidedBy }])),
     names: new Map(found.map((s) => [s.id, { name: s.name, email: s.email }])),

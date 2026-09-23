@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql
 import type { View, ViewSlug } from "@/components/mail/views";
 import { VIEWS } from "@/components/mail/views";
 import { db } from "@/lib/db";
-import { inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
+import { aiAllowedSenders, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
 import { accounts, attachments, messages, threads } from "@/lib/db/schema";
 
 const live = () => and(eq(threads.archived, false), eq(threads.trashed, false), eq(threads.spam, false));
@@ -182,11 +182,15 @@ export async function getThread(id: string) {
       const s = people.get(id)!;
       return { id, name: s.displayName, email: s.email };
     }),
-    // "new sender, let in by AI. undo?" applies while the AI's decision stands.
+    // "new sender, let in by AI. undo?" applies while the AI's decision on the thread's sender stands.
     aiLetIn:
       thread.sender?.screenerDecision === "allowed" &&
       thread.sender.decidedBy === "ai" &&
       thread.bucketSource === "ai",
+    // Every sender of the thread the AI let in; ok and undo act on all of them.
+    aiAllowed: aiAllowedSenders(ids, states).length,
+    // The user wrote in the thread, the reason participation let its senders in.
+    wroteIn: thread.messages.some((m) => !m.isInbound),
     snoozedUntil: thread.snoozedUntil?.toISOString() ?? null,
     needsReply: thread.needsReply,
     deadlineAt: thread.deadlineAt?.toISOString() ?? null,

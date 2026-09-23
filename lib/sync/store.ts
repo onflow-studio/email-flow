@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 
+import { applyParticipation } from "@/lib/classify/participation";
 import { wantsSummary } from "@/lib/classify/summary";
 import type { Db } from "@/lib/db";
 import {
@@ -55,6 +56,8 @@ export function deriveThreadFields(rows: ThreadMessage[]) {
     participantsSummary:
       names.slice(0, MAX_PARTICIPANTS).join(", ") + (names.length > MAX_PARTICIPANTS ? ` +${names.length - MAX_PARTICIPANTS}` : ""),
     hasInbound: Boolean(firstInbound),
+    // The user wrote in it (a reply, a forward): participation beats the screener.
+    hasOutbound: sorted.some((m) => !m.isInbound),
   };
 }
 
@@ -273,6 +276,8 @@ export async function ingestThread(
         ...mirrored,
       })
       .where(eq(threads.id, threadId));
+
+    if (derived.hasOutbound && derived.hasInbound) await applyParticipation(tx, threadId);
 
     const classify = created && derived.hasInbound && !mirror.trashed && !mirror.spam;
     if (classify) await enqueueClassify(tx, { id: threadId, accountId: account.id }, classifyPriority);

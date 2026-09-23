@@ -21,12 +21,13 @@ export type ThreadAction =
 export type SenderAction =
   | { type: "letIn" }
   | { type: "keepOut"; spam?: boolean }
+  | { type: "confirmAiAllow" }
   | { type: "undoAiAllow" };
 
 export type Action = ThreadAction | SenderAction;
 export type ActionType = Action["type"];
 
-export const SENDER_ACTIONS = new Set<ActionType>(["letIn", "keepOut", "undoAiAllow"]);
+export const SENDER_ACTIONS = new Set<ActionType>(["letIn", "keepOut", "confirmAiAllow", "undoAiAllow"]);
 
 export function isSenderAction(action: Action): action is SenderAction {
   return SENDER_ACTIONS.has(action.type);

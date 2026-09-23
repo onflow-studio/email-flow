@@ -84,6 +84,8 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
       return `${n}unpinned`;
     case "letIn":
       return count ? `let in${who}, ${count} out of triage` : `let in${who}`;
+    case "confirmAiAllow":
+      return `let in${who}`;
     case "keepOut":
       return `kept out${who}`;
     case "undoAiAllow":
