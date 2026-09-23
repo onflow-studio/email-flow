@@ -4,7 +4,7 @@ import { z } from "zod";
 import { claude } from "./index";
 
 // Structured hints for one natural-language rule. Stored in rules.structured next to the text;
-// classify hands both to Jev, so a wrong parse degrades to the plain text, never overrides it.
+// classify hands both to the classifier, so a wrong parse degrades to the plain text, never overrides it.
 export const ruleStructureSchema = z.object({
   // Checked literally by lib/classify. Every non-empty list must match for the rule to apply.
   match: z.object({

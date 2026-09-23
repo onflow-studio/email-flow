@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { runClassifier, type Evaluator } from "./classify";
 import { context, sender } from "./fixtures";
-import type { JevAnswer } from "./prompt";
+import type { ClassifierAnswer } from "./prompt";
 import { evaluateRules, matchesConditions, readRule, type RuleConditions } from "./rules";
 import type { RuleInput, ThreadInput } from "./types";
 
@@ -33,17 +33,18 @@ const paymentsAnywhere = rule({ semantic: "failed payments", bucket: "inbox" });
 const thread: ThreadInput = context().thread;
 const none: RuleConditions = { senders: [], domains: [], accounts: [], subjectKeywords: [] };
 
-function answers(bucket: string, urgencyScore = 0.2): Record<string, JevAnswer> {
+function answer(bucket: "inbox" | "news" | "paper_trail", urgency = 1): ClassifierAnswer {
   return {
-    bucket: { type: "choice", choice: bucket, probabilities: { inbox: 0.1, news: 0.1, paper_trail: 0.1, [bucket]: 0.9 } },
-    urgency: { type: "score", score: urgencyScore },
-    humanWritten: { type: "noul", noul: 0.05 },
-    legitNewSender: { type: "noul", noul: 0.9 },
+    reason: "test",
+    bucket: { inbox: 0.05, news: 0.05, paper_trail: 0.05, [bucket]: 0.9 },
+    urgency,
+    humanWritten: 0.05,
+    legitNewSender: 0.9,
   };
 }
 
-function mockJev(a: Record<string, JevAnswer>) {
-  return vi.fn<Evaluator>(async () => ({ answers: a, response: { modelId: "jev-1.13.0" } }));
+function mockModel(output: ClassifierAnswer) {
+  return vi.fn<Evaluator>(async () => ({ output, modelId: "claude-haiku-4-5-20251001", raw: { output } }));
 }
 
 describe("readRule", () => {
@@ -140,10 +141,10 @@ describe("evaluateRules", () => {
 });
 
 describe("runClassifier with rules", () => {
-  it("literal rule: applied with source rule, Jev not called", async () => {
-    const jev = mockJev(answers("paper_trail"));
-    const run = await runClassifier(context({ rules: [vercelLiteral] }), jev);
-    expect(jev).not.toHaveBeenCalled();
+  it("literal rule: applied with source rule, model not called", async () => {
+    const model = mockModel(answer("paper_trail"));
+    const run = await runClassifier(context({ rules: [vercelLiteral] }), model);
+    expect(model).not.toHaveBeenCalled();
     expect(run.model).toBeNull();
     expect(run.decision).toEqual({
       bucket: "news",
@@ -157,49 +158,49 @@ describe("runClassifier with rules", () => {
 
   it("literal keep-out rule sends the thread out", async () => {
     const keepOut = rule({ match: { domains: ["vercel.com"] }, keepOut: true });
-    const run = await runClassifier(context({ rules: [keepOut] }), mockJev(answers("news")));
+    const run = await runClassifier(context({ rules: [keepOut] }), mockModel(answer("news")));
     expect(run.decision).toMatchObject({ bucket: "out", source: "rule" });
   });
 
   it("literal rule lets an unscreened sender it names in", async () => {
     const run = await runClassifier(
       context({ rules: [vercelLiteral], sender: sender({ decision: "none" }) }),
-      mockJev(answers("news")),
+      mockModel(answer("news")),
     );
     expect(run.decision).toMatchObject({ bucket: "news", source: "rule", screener: "allow" });
   });
 
-  it("mixed rule: Jev's top bucket agrees, rule applies", async () => {
-    const run = await runClassifier(context({ rules: [vercelPayments] }), mockJev(answers("inbox")));
+  it("mixed rule: the model's top bucket agrees, rule applies", async () => {
+    const run = await runClassifier(context({ rules: [vercelPayments] }), mockModel(answer("inbox")));
     expect(run.decision).toMatchObject({ bucket: "inbox", source: "rule" });
     expect(run.model?.result.bucket).toBe("inbox");
   });
 
-  it("mixed rule: Jev disagrees but urgency is 4 or more, rule applies", async () => {
-    const run = await runClassifier(context({ rules: [vercelPayments] }), mockJev(answers("news", 2.6)));
+  it("mixed rule: the model disagrees but urgency is 4 or more, rule applies", async () => {
+    const run = await runClassifier(context({ rules: [vercelPayments] }), mockModel(answer("news", 4)));
     expect(run.decision).toMatchObject({ bucket: "inbox", source: "rule" });
   });
 
-  it("mixed rule: Jev disagrees and it is not urgent, normal decision stands", async () => {
-    const run = await runClassifier(context({ rules: [vercelPayments] }), mockJev(answers("paper_trail")));
+  it("mixed rule: the model disagrees and it is not urgent, normal decision stands", async () => {
+    const run = await runClassifier(context({ rules: [vercelPayments] }), mockModel(answer("paper_trail")));
     expect(run.decision).toMatchObject({ bucket: "paper_trail", source: "ai" });
   });
 
-  it("Jev only sees rules that could apply", async () => {
+  it("the model only sees rules that could apply", async () => {
     const stripe = rule({ match: { domains: ["stripe.com"] }, semantic: "refunds", bucket: "inbox" });
-    const jev = mockJev(answers("paper_trail"));
-    await runClassifier(context({ rules: [stripe, paymentsAnywhere] }), jev);
-    const state = jev.mock.calls[0][0] as { rules: { text: string }[] };
-    expect(state.rules).toEqual([{ text: paymentsAnywhere.text, structured: paymentsAnywhere.structured }]);
+    const model = mockModel(answer("paper_trail"));
+    await runClassifier(context({ rules: [stripe, paymentsAnywhere] }), model);
+    const { rules } = JSON.parse(model.mock.calls[0][0].prompt) as { rules: { text: string }[] };
+    expect(rules).toEqual([{ text: paymentsAnywhere.text, structured: paymentsAnywhere.structured }]);
   });
 
-  it("a later correction for the sender makes Jev decide instead of the rule", async () => {
-    const jev = mockJev(answers("paper_trail"));
+  it("a later correction for the sender makes the model decide instead of the rule", async () => {
+    const model = mockModel(answer("paper_trail"));
     const run = await runClassifier(
       context({ rules: [vercelLiteral], senderCorrectedAt: new Date(saved.getTime() + 1000) }),
-      jev,
+      model,
     );
-    expect(jev).toHaveBeenCalledTimes(1);
+    expect(model).toHaveBeenCalledTimes(1);
     expect(run.decision).toMatchObject({ bucket: "paper_trail", source: "ai" });
   });
 });

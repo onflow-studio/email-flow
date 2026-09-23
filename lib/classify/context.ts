@@ -54,7 +54,7 @@ async function loadExemplarCandidates(db: Db, email: string, domain: string) {
   return [...related, ...recent] satisfies Exemplar[];
 }
 
-// Everything one Jev call needs about a thread. Null when there is nothing inbound to judge.
+// Everything one classifier call needs about a thread. Null when there is nothing inbound to judge.
 export async function loadContext(db: Db, threadId: string): Promise<LoadedContext | null> {
   const [thread] = await db
     .select({
