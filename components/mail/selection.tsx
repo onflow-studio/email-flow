@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { mailHref, type ViewSlug } from "./views";
 
@@ -44,6 +44,13 @@ type FocusStore = {
   setOrder: (key: string, ids: string[]) => void;
   pane: Pane | null;
   setPane: (pane: Pane) => void;
+  /** Records the view shown; true when it differs from the last one (a view switch, not a return to the list). */
+  switchedTo: (view: string) => boolean;
+  /** A thread opened for you on entering a view: it stays unread a little longer. */
+  setAutoOpened: (id: string) => void;
+  isAutoOpened: (id: string) => boolean;
+  /** Once read, or another thread is open, an auto-opened thread is just a thread. */
+  clearAutoOpened: () => void;
 };
 
 const FocusStoreContext = createContext<FocusStore | null>(null);
@@ -70,6 +77,20 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
   const [picked, setPicked] = useState<Record<string, Picked>>({});
   const [order, setOrderState] = useState<{ key: string; ids: string[] } | null>(null);
   const [pane, setPane] = useState<Pane | null>(null);
+  const lastViewRef = useRef<string | null>(null);
+  const autoOpenedRef = useRef<string | null>(null);
+  const switchedTo = useCallback((view: string) => {
+    const switched = lastViewRef.current !== view;
+    lastViewRef.current = view;
+    return switched;
+  }, []);
+  const setAutoOpened = useCallback((id: string) => {
+    autoOpenedRef.current = id;
+  }, []);
+  const isAutoOpened = useCallback((id: string) => autoOpenedRef.current === id, []);
+  const clearAutoOpened = useCallback(() => {
+    autoOpenedRef.current = null;
+  }, []);
   const set = useCallback((key: string, p: Picked) => setPicked((prev) => ({ ...prev, [key]: p })), []);
   const setOrder = useCallback(
     (key: string, ids: string[]) =>
@@ -84,10 +105,20 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       setOrder,
       pane,
       setPane,
+      switchedTo,
+      setAutoOpened,
+      isAutoOpened,
+      clearAutoOpened,
     }),
-    [picked, order, set, setOrder, pane],
+    [picked, order, set, setOrder, pane, switchedTo, setAutoOpened, isAutoOpened, clearAutoOpened],
   );
   return <FocusStoreContext.Provider value={value}>{children}</FocusStoreContext.Provider>;
+}
+
+export function useAutoOpened() {
+  const store = useContext(FocusStoreContext);
+  if (!store) throw new Error("useAutoOpened must be used inside <FocusStoreProvider>");
+  return { isAutoOpened: store.isAutoOpened, clearAutoOpened: store.clearAutoOpened };
 }
 
 export function useMailSelection() {
@@ -149,7 +180,18 @@ export function SelectionProvider({
     [threadIds, setPicked],
   );
 
-  const { setPane } = store;
+  const { setPane, switchedTo, setAutoOpened } = store;
+
+  // Switching view on desktop opens its top thread, without taking the keyboard to it.
+  useEffect(() => {
+    if (!switchedTo(view)) return;
+    const top = threadIds[0];
+    if (openId || !top || !window.matchMedia("(min-width: 768px)").matches) return;
+    setAutoOpened(top);
+    setPane("list");
+    router.replace(mailHref(view, { threadId: top }), { scroll: false });
+  }, [view, openId, threadIds, switchedTo, setAutoOpened, setPane, router]);
+
   // First load: a thread opened by URL is being read.
   const pane: Pane = store.pane === "reading" && !openId ? "list" : (store.pane ?? (openId ? "reading" : "list"));
 

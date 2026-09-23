@@ -5,6 +5,7 @@ import { ActionsProvider } from "@/components/mail/actions/actions";
 import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
 import { FocusPane } from "@/components/mail/focus-pane";
 import { NavKeys } from "@/components/mail/keys/nav-keys";
+import { MarkSeen } from "@/components/mail/mark-seen";
 import { AccountTogglesProvider } from "@/components/mail/account-toggles";
 import { Header } from "@/components/mail/header";
 import { PaletteProvider } from "@/components/mail/palette/palette";
@@ -125,7 +126,10 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                 className={cn("pane-depth min-w-0 flex-1 md:min-w-reading overflow-y-auto", !detail && "hidden md:block")}
               >
                 {detail ? (
-                  <ReadingPane key={detail.id} thread={detail} />
+                  <>
+                    <MarkSeen key={detail.id} threadId={detail.id} />
+                    <ReadingPane key={detail.id} thread={detail} />
+                  </>
                 ) : (
                   <p className="p-3 text-text-dim">no thread open</p>
                 )}

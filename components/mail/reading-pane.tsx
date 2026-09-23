@@ -1,10 +1,9 @@
 "use client";
 
 import { ArrowLeft, Paperclip } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
-import { markSeen } from "@/app/(mail)/thread-actions";
 import type { Address } from "@/lib/db/schema";
 import { attachmentUrl, opensInline } from "@/lib/mail/remote";
 import { cn } from "@/lib/utils";
@@ -75,11 +74,6 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
       run: () => toggle(thread.messages[cursor].id),
     },
   ]);
-
-  // Opening marks seen and mirrors read state to Gmail.
-  useEffect(() => {
-    markSeen(thread.id).catch(() => {});
-  }, [thread.id]);
 
   return (
     <article ref={articleRef} className="flex w-full flex-col gap-4 px-3 pt-8 pb-8 md:px-6">
