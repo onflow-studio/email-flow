@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { alwaysLoadImages } from "@/app/(mail)/thread-actions";
 import { hasBlockedImages, restoreRemoteImages } from "@/lib/mail/remote";
 
 /** Declares a dark scheme via meta, CSS `color-scheme`, or a dark media query. */
@@ -60,7 +61,15 @@ img,picture,video,svg,[style*="background-image"],[background]{filter:invert(1) 
 </head><body>${(allowImages ? restoreRemoteImages(html) : html).replace(META_REFRESH, "")}</body></html>`;
 }
 
-export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowed: boolean }) {
+export function EmailFrame({
+  html,
+  imagesAllowed,
+  senderId,
+}: {
+  html: string;
+  imagesAllowed: boolean;
+  senderId: string | null;
+}) {
   const [loadImages, setLoadImages] = useState(false);
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
@@ -133,6 +142,18 @@ export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowe
           >
             load images
           </button>
+          {senderId ? (
+            <button
+              type="button"
+              onClick={() => {
+                setLoadImages(true);
+                void alwaysLoadImages(senderId);
+              }}
+              className="text-text-muted underline decoration-text-dim underline-offset-2 transition-colors duration-80 ease-snap hover:text-text"
+            >
+              always load from this sender
+            </button>
+          ) : null}
         </p>
       ) : null}
       <iframe

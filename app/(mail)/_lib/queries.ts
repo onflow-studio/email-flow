@@ -137,7 +137,7 @@ export async function getThread(id: string) {
           isInbound: true,
         },
         with: {
-          sender: { columns: { imagesAllowed: true } },
+          sender: { columns: { id: true, imagesAllowed: true } },
           attachments: {
             columns: { id: true, filename: true, mimeType: true, size: true },
             orderBy: asc(attachments.filename),
@@ -170,6 +170,7 @@ export async function getThread(id: string) {
       ...m,
       date: m.date.toISOString(),
       imagesAllowed: m.sender?.imagesAllowed ?? thread.sender?.imagesAllowed ?? false,
+      senderId: m.sender?.id ?? null,
     })),
   };
 }
