@@ -82,15 +82,20 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
             </span>
           ) : null}
           {single ? null : <span>{thread.messages.length} messages</span>}
-          {thread.snoozedUntil ? (
-            <span>
-              snoozed until <Time iso={thread.snoozedUntil} format="full" />
-            </span>
-          ) : null}
-          {thread.needsReply ? <span className="text-text">needs reply</span> : null}
-          {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
           {thread.pinned ? <span>pinned</span> : null}
           {thread.trashed ? <span className="text-danger">in trash</span> : null}
+          {thread.snoozedUntil || thread.needsReply || thread.deadlineAt ? (
+            // Snooze state sits apart at the right, in the snooze colour.
+            <span className="ml-auto flex items-center gap-2">
+              {thread.snoozedUntil ? (
+                <span className="text-warning">
+                  snoozed until <Time iso={thread.snoozedUntil} format="full" />
+                </span>
+              ) : null}
+              {thread.needsReply ? <span className="text-text">needs reply</span> : null}
+              {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
+            </span>
+          ) : null}
         </div>
       </header>
 
