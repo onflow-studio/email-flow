@@ -19,9 +19,9 @@ describe("thresholds", () => {
   });
 
   it("uses a per-bucket threshold", () => {
-    const probs = { inbox: 0.82, news: 0.18, paper_trail: 0 };
+    const probs = { inbox: 0.87, news: 0.13, paper_trail: 0 };
     expect(decide(result({ bucket: "inbox", bucketProbabilities: probs }), sender()).suggested).toBe(false);
-    const newsProbs = { inbox: 0.18, news: 0.82, paper_trail: 0 };
+    const newsProbs = { inbox: 0.13, news: 0.87, paper_trail: 0 };
     expect(decide(result({ bucket: "news", bucketProbabilities: newsProbs }), sender()).suggested).toBe(true);
   });
 

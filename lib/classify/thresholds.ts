@@ -1,14 +1,16 @@
 import type { Decision, ModelBucket, ModelResult, SenderFacts } from "./types";
 
 // Starting points. Above: applied. Below: applied but shown as a suggestion.
+// Set a notch higher than for a calibrated classifier: Claude's self-reported probabilities run
+// overconfident. Tune against corrections once there is enough history.
 export const BUCKET_THRESHOLDS: Record<ModelBucket, number> = {
-  inbox: 0.8,
-  news: 0.85,
-  paper_trail: 0.85,
+  inbox: 0.85,
+  news: 0.9,
+  paper_trail: 0.9,
 };
 
 // Unknown senders below this go to triage.
-export const LEGIT_SENDER_THRESHOLD = 0.75;
+export const LEGIT_SENDER_THRESHOLD = 0.8;
 
 // Urgency 1-5. At or above this, paper trail goes to inbox (failed payments, security alerts).
 export const PROMOTE_URGENCY = 4;
