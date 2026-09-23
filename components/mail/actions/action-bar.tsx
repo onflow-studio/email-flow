@@ -22,9 +22,41 @@ type BarAction = {
   keys?: string;
   run: () => void;
   tone?: "delete";
+  /** Senders the action decides on, shown after the label (let in, keep out). */
+  who?: Who;
   /** Opens a menu of these instead of running. */
   menu?: BarAction[];
 };
+
+type Who = { names: string[]; more: number; title: string };
+
+/** Up to two names, the rest counted. */
+function whoOf(judged: ThreadDetail["judged"]): Who | undefined {
+  if (!judged.length) return undefined;
+  return {
+    names: judged.slice(0, 2).map((s) => s.name || s.email),
+    more: Math.max(0, judged.length - 2),
+    title: judged.map((s) => (s.name ? `${s.name} <${s.email}>` : s.email)).join(", "),
+  };
+}
+
+/** `let in Nora Quint, Teo Marsh +1`: each name truncates, the count stays. */
+function Label({ action }: { action: BarAction }) {
+  if (!action.who) return action.label;
+  const { names, more } = action.who;
+  return (
+    <span className="flex min-w-0 whitespace-pre">
+      {`${action.label} `}
+      {names.map((name, i) => (
+        <span key={i} className="flex min-w-0">
+          <span className="max-w-judged truncate">{name}</span>
+          {i < names.length - 1 ? ", " : null}
+        </span>
+      ))}
+      {more ? ` +${more}` : null}
+    </span>
+  );
+}
 
 type Layout = { large: BarAction[]; small: BarAction[]; more: BarAction[] };
 
@@ -76,8 +108,9 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
     : null;
   const unread: BarAction = { id: "unread", label: "mark unread", keys: key("unread"), run: () => void run({ type: "unread" }, ids) };
   const spam: BarAction = { id: "spam", label: "mark spam", keys: key("spam"), run: () => void run({ type: "spam" }, ids) };
-  const letIn: BarAction = { id: "let-in", label: "let in", keys: key("let-in"), run: () => void runSender({ type: "letIn" }, thread.id) };
-  const keepOut: BarAction = { id: "keep-out", label: "keep out", keys: key("keep-out"), run: () => void runSender({ type: "keepOut" }, thread.id) };
+  const who = whoOf(thread.judged);
+  const letIn: BarAction = { id: "let-in", label: "let in", who, keys: key("let-in"), run: () => void runSender({ type: "letIn" }, thread.id) };
+  const keepOut: BarAction = { id: "keep-out", label: "keep out", who, keys: key("keep-out"), run: () => void runSender({ type: "keepOut" }, thread.id) };
   const moveTo: BarAction = {
     id: "move",
     label: "move to",
@@ -183,8 +216,8 @@ function BarButton({
 }) {
   if (action.menu) return <MenuButton label={action.label} items={action.menu} small={small} />;
   return (
-    <Button variant={variant} size={small ? "sm" : "default"} shortcut={action.keys} onClick={action.run}>
-      {action.label}
+    <Button variant={variant} size={small ? "sm" : "default"} shortcut={action.keys} title={action.who?.title} onClick={action.run}>
+      <Label action={action} />
     </Button>
   );
 }
@@ -288,7 +321,9 @@ function MenuButton({
             item.tone === "delete" && "focus:text-danger",
           )}
         >
-          <span className="flex-1">{item.label}</span>
+          <span className="flex-1" title={item.who?.title}>
+            <Label action={item} />
+          </span>
           {item.keys ? <Kbd keys={item.keys} /> : null}
         </button>
       ))}

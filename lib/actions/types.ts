@@ -58,6 +58,8 @@ export type ActionResult = {
   token: string | null;
   /** Threads changed. */
   count: number;
+  /** Sender actions: the names of the senders decided, in thread order. */
+  senders?: string[];
 };
 
 export type PreviewThread = {

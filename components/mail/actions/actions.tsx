@@ -47,9 +47,16 @@ const BUCKET_NAMES: Record<Bucket, string> = {
   out: "out",
 };
 
+/** Up to two sender names, then `+N` for the rest: `Nora Quint, Teo Marsh +1`. */
+export function senderList(names: string[]) {
+  const shown = names.slice(0, 2).join(", ");
+  return names.length > 2 ? `${shown} +${names.length - 2}` : shown;
+}
+
 /** `kept` marks a move to the bucket the threads were already in: a confirmation, not a move. */
-export function describeAction(action: ThreadAction | SenderAction, count: number, kept = false) {
+export function describeAction(action: ThreadAction | SenderAction, count: number, kept = false, senders: string[] = []) {
   const n = count > 1 ? `${count} ` : "";
+  const who = senders.length ? ` ${senderList(senders)}` : "";
   switch (action.type) {
     case "archive":
       return `${n}archived`;
@@ -76,9 +83,9 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
     case "unpin":
       return `${n}unpinned`;
     case "letIn":
-      return count ? `let in, ${count} out of triage` : "let in";
+      return count ? `let in${who}, ${count} out of triage` : `let in${who}`;
     case "keepOut":
-      return "kept out";
+      return `kept out${who}`;
     case "undoAiAllow":
       return count ? `back to triage, ${count} moved` : "back to triage";
   }
@@ -169,7 +176,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       }
       try {
         const result = await runSenderAction(threadId, action);
-        report(describeAction(action, result.count), result.token);
+        report(describeAction(action, result.count, false, result.senders), result.token);
         afterAction(action, [threadId]);
         return result;
       } catch {

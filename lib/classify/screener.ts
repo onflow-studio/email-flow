@@ -1,8 +1,9 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
 import {
   classifications,
+  messages,
   senders,
   threads,
   type Bucket,
@@ -129,4 +130,70 @@ export async function undoAiAllow(db: Db, senderId: string): Promise<ThreadMove[
       .where(and(eq(threads.senderId, senderId), eq(threads.bucketSource, "ai")));
     return moveThreads(tx, senderId, placed, () => "triage");
   });
+}
+
+export type SenderState = { decision: ScreenerDecision; decidedBy: "ai" | "user" | null };
+
+// Inbound senders of a thread, once each, in message order: the first is the thread's sender.
+export function inboundSenderIds(rows: { isInbound: boolean; senderId: string | null }[]): string[] {
+  const ids: string[] = [];
+  for (const r of rows) if (r.isInbound && r.senderId && !ids.includes(r.senderId)) ids.push(r.senderId);
+  return ids;
+}
+
+/**
+ * Who let in and keep out decide on: every undecided inbound sender of the thread, so a newsletter
+ * forwarded to a colleague who answered is judged as a whole. With none undecided, the thread's
+ * own sender, as before.
+ */
+export function judgedSenders(ids: string[], states: Map<string, SenderState>, threadSenderId: string | null): string[] {
+  const undecided = ids.filter((id) => (states.get(id)?.decision ?? "none") === "none");
+  if (undecided.length) return undecided;
+  return threadSenderId ? [threadSenderId] : [];
+}
+
+// Senders of the thread the AI let in and the user has not confirmed yet.
+export function aiAllowedSenders(ids: string[], states: Map<string, SenderState>): string[] {
+  return ids.filter((id) => {
+    const s = states.get(id);
+    return s?.decision === "allowed" && s.decidedBy === "ai";
+  });
+}
+
+export type ThreadSenders = {
+  threadSenderId: string | null;
+  // Inbound senders in message order.
+  ids: string[];
+  states: Map<string, SenderState>;
+  names: Map<string, { name: string | null; email: string }>;
+};
+
+export async function loadThreadSenders(tx: Pick<Db, "select">, threadId: string): Promise<ThreadSenders | null> {
+  const [thread] = await tx.select({ senderId: threads.senderId }).from(threads).where(eq(threads.id, threadId));
+  if (!thread) return null;
+  const rows = await tx
+    .select({ isInbound: messages.isInbound, senderId: messages.senderId })
+    .from(messages)
+    .where(eq(messages.threadId, threadId))
+    .orderBy(asc(messages.date));
+  const ids = inboundSenderIds(rows);
+  if (thread.senderId && !ids.includes(thread.senderId)) ids.unshift(thread.senderId);
+  const found = ids.length
+    ? await tx
+        .select({
+          id: senders.id,
+          email: senders.email,
+          name: senders.displayName,
+          decision: senders.screenerDecision,
+          decidedBy: senders.decidedBy,
+        })
+        .from(senders)
+        .where(inArray(senders.id, ids))
+    : [];
+  return {
+    threadSenderId: thread.senderId,
+    ids,
+    states: new Map(found.map((s) => [s.id, { decision: s.decision, decidedBy: s.decidedBy }])),
+    names: new Map(found.map((s) => [s.id, { name: s.name, email: s.email }])),
+  };
 }

@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql
 import type { View, ViewSlug } from "@/components/mail/views";
 import { VIEWS } from "@/components/mail/views";
 import { db } from "@/lib/db";
+import { inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
 import { accounts, attachments, messages, threads } from "@/lib/db/schema";
 
 const live = () => and(eq(threads.archived, false), eq(threads.trashed, false), eq(threads.spam, false));
@@ -133,7 +134,7 @@ export async function getThread(id: string) {
     where: eq(threads.id, id),
     with: {
       account: { columns: { id: true, email: true, label: true, color: true } },
-      sender: { columns: { imagesAllowed: true, screenerDecision: true, decidedBy: true } },
+      sender: { columns: { id: true, email: true, displayName: true, imagesAllowed: true, screenerDecision: true, decidedBy: true } },
       messages: {
         orderBy: asc(messages.date),
         columns: {
@@ -150,7 +151,7 @@ export async function getThread(id: string) {
           headers: true,
         },
         with: {
-          sender: { columns: { id: true, imagesAllowed: true } },
+          sender: { columns: { id: true, email: true, displayName: true, imagesAllowed: true, screenerDecision: true, decidedBy: true } },
           attachments: {
             columns: { id: true, filename: true, mimeType: true, size: true },
             orderBy: asc(attachments.filename),
@@ -161,6 +162,12 @@ export async function getThread(id: string) {
   });
   if (!thread) return null;
   const latestInbound = thread.messages.findLast((m) => m.isInbound);
+  const people = new Map(
+    [thread.sender, ...thread.messages.map((m) => m.sender)].flatMap((s) => (s ? [[s.id, s] as const] : [])),
+  );
+  const ids = inboundSenderIds(thread.messages.map((m) => ({ isInbound: m.isInbound, senderId: m.sender?.id ?? null })));
+  if (thread.senderId && !ids.includes(thread.senderId)) ids.unshift(thread.senderId);
+  const states = new Map([...people].map(([id, s]) => [id, { decision: s.screenerDecision, decidedBy: s.decidedBy }]));
   return {
     id: thread.id,
     gmailThreadId: thread.gmailThreadId,
@@ -170,6 +177,11 @@ export async function getThread(id: string) {
     bucketSuggested: thread.bucketSuggested,
     bucketConfidence: thread.bucketConfidence,
     senderId: thread.senderId,
+    // Who let in and keep out decide on, in thread order.
+    judged: judgedSenders(ids, states, thread.senderId).map((id) => {
+      const s = people.get(id)!;
+      return { id, name: s.displayName, email: s.email };
+    }),
     // "new sender, let in by AI. undo?" applies while the AI's decision stands.
     aiLetIn:
       thread.sender?.screenerDecision === "allowed" &&

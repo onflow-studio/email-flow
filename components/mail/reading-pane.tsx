@@ -64,6 +64,20 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
             {thread.account.label}
           </span>
           <BucketBadge thread={thread} />
+          {thread.bucket === "triage" && thread.judged.length ? (
+            // Who let in and keep out decide on.
+            <span className="flex min-w-0 flex-wrap items-center gap-x-2">
+              <span aria-hidden className="text-text-dim">
+                ·
+              </span>
+              {thread.judged.map((s, i) => (
+                <span key={s.id} className="flex min-w-0 whitespace-pre">
+                  {s.name ? <span className="max-w-judged truncate text-text">{s.name}</span> : null}
+                  <span className="truncate">{`${s.name ? "\u00a0" : ""}<${s.email}>${i < thread.judged.length - 1 ? "," : ""}`}</span>
+                </span>
+              ))}
+            </span>
+          ) : null}
           {single ? null : <span>{thread.messages.length} messages</span>}
           {thread.snoozedUntil ? (
             <span>

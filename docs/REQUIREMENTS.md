@@ -45,6 +45,7 @@ AI-gated:
 - Uncertain: Triage.
 - Decision outcomes per sender: Inbox, News, Paper Trail, or out. "Out" distinguishes clear spam from "not interested now" and is reviewable.
 - Corrections in either direction feed the learning loop.
+- Let in and keep out decide on every undecided inbound sender of the thread at once (a newsletter forwarded to a colleague who answered is two senders), named on the buttons, the toast and the reading pane. Senders who already have a decision keep it. With nobody undecided, they decide on the thread's first sender. One undo reverses all of them.
 
 ## Actions
 

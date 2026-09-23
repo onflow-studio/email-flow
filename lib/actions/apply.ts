@@ -3,7 +3,14 @@ import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 
 import { recordCorrection } from "@/lib/classify/corrections";
-import { decideSender, undoAiAllow, type ThreadMove } from "@/lib/classify/screener";
+import {
+  aiAllowedSenders,
+  decideSender,
+  judgedSenders,
+  loadThreadSenders,
+  undoAiAllow,
+  type ThreadMove,
+} from "@/lib/classify/screener";
 import type { Db } from "@/lib/db";
 import { actionsLog, senders, threads, type Bucket } from "@/lib/db/schema";
 import { enqueueWriteback } from "@/lib/sync/jobs";
@@ -80,25 +87,27 @@ export async function threadActionIn(tx: Tx, batchId: string, threadIds: string[
 }
 
 /**
- * Let in or keep out the sender of a thread through the screener. Logs the
- * sender's prior decision and every thread the screener moved, so one undo
- * reverses all of it.
+ * Let in or keep out the senders of a thread through the screener: every undecided inbound
+ * sender at once (see judgedSenders). Logs each sender's prior decision and every thread the
+ * screener moved, so one undo reverses all of it.
  */
 export async function applySenderAction(db: Db, threadId: string, action: SenderAction): Promise<ActionResult> {
   return db.transaction(async (tx) => {
     const batchId = randomUUID();
-    const count = await senderActionIn(tx, batchId, threadId, action);
-    return count === null ? { token: null, count: 0 } : { token: batchId, count };
+    const done = await senderActionIn(tx, batchId, threadId, action);
+    return done === null ? { token: null, count: 0 } : { token: batchId, count: done.count, senders: done.senders };
   });
 }
 
-/** The sender action inside a caller's transaction. Returns threads moved, or null without a sender. */
+/** The sender action inside a caller's transaction. Returns threads moved and who was decided, or null without a sender. */
 export async function senderActionIn(tx: Tx, batchId: string, threadId: string, action: SenderAction) {
-  const [thread] = await tx.select({ senderId: threads.senderId }).from(threads).where(eq(threads.id, threadId));
-  const senderId = thread?.senderId;
-  if (!senderId) return null;
+  const found = await loadThreadSenders(tx, threadId);
+  if (!found) return null;
+  const targets =
+    action.type === "undoAiAllow" ? aiAllowedSenders(found.ids, found.states) : judgedSenders(found.ids, found.states, found.threadSenderId);
+  if (!targets.length) return null;
 
-  const [sender] = await tx
+  const prior = await tx
     .select({
       id: senders.id,
       screenerDecision: senders.screenerDecision,
@@ -107,27 +116,30 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
       decidedAt: senders.decidedAt,
     })
     .from(senders)
-    .where(eq(senders.id, senderId));
-  if (!sender) return null;
+    .where(inArray(senders.id, targets));
 
   const senderThreads = await tx
     .select({ id: threads.id, ...stateColumns })
     .from(threads)
-    .where(eq(threads.senderId, senderId));
-  const prior = new Map(senderThreads.map((t) => [t.id, t]));
+    .where(inArray(threads.senderId, targets));
+  const before = new Map(senderThreads.map((t) => [t.id, t]));
 
   // decideSender opens a nested transaction (a savepoint), so everything commits together.
   const screenerDb = tx as unknown as Db;
-  let moves: ThreadMove[];
-  if (action.type === "letIn") moves = await decideSender(screenerDb, senderId, "allowed");
-  else if (action.type === "keepOut") moves = await decideSender(screenerDb, senderId, action.spam ? "out_spam" : "out_not_now");
-  else moves = await undoAiAllow(screenerDb, senderId);
+  const moves: ThreadMove[] = [];
+  for (const senderId of targets) {
+    if (action.type === "letIn") moves.push(...(await decideSender(screenerDb, senderId, "allowed")));
+    else if (action.type === "keepOut") moves.push(...(await decideSender(screenerDb, senderId, action.spam ? "out_spam" : "out_not_now")));
+    else moves.push(...(await undoAiAllow(screenerDb, senderId)));
+  }
 
-  const senderPayload: LogPayload["sender"] = { ...sender, decidedAt: sender.decidedAt?.toISOString() ?? null };
-  await tx.insert(actionsLog).values({ threadId: null, batchId, action: action.type, payload: { sender: senderPayload } });
+  for (const sender of prior) {
+    const payload: LogPayload = { sender: { ...sender, decidedAt: sender.decidedAt?.toISOString() ?? null } };
+    await tx.insert(actionsLog).values({ threadId: null, batchId, action: action.type, payload });
+  }
 
   for (const m of moves) {
-    const t = prior.get(m.threadId);
+    const t = before.get(m.threadId);
     if (!t) continue;
     const payload: LogPayload = {
       before: {
@@ -140,5 +152,9 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
     };
     await tx.insert(actionsLog).values({ threadId: m.threadId, batchId, action: action.type, payload });
   }
-  return moves.length;
+  const senderNames = targets.map((id) => {
+    const n = found.names.get(id);
+    return n?.name || n?.email || "unknown";
+  });
+  return { count: moves.length, senders: senderNames };
 }
