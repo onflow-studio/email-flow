@@ -42,3 +42,11 @@ export async function previewThreadAction(db: Db, threadIds: string[], action: T
     }));
   return { action, threads: list, count: list.length };
 }
+
+/** How many of the threads each action would change, from one state read. */
+export async function countThreadActions(db: Db, threadIds: string[], actions: ThreadAction[]): Promise<number[]> {
+  if (!threadIds.length) return actions.map(() => 0);
+  const now = new Date();
+  const states = await loadStates(db, threadIds);
+  return actions.map((action) => states.filter((t) => patchFor(action, t, now)).length);
+}
