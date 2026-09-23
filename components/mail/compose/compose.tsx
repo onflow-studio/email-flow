@@ -32,7 +32,7 @@ export function useCompose() {
 
 export function ComposeProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const { report } = useUndo();
+  const { notify } = useUndo();
   const dirty = useRef(false);
 
   const open = useCallback(
@@ -55,7 +55,7 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
     <ComposeContext.Provider value={value}>
       {children}
       {session ? (
-        <ComposePanel key={session.key} session={session} dirtyRef={dirty} onClose={close} onSent={report} />
+        <ComposePanel key={session.key} session={session} dirtyRef={dirty} onClose={close} onSent={(notice) => notify(notice, "success")} />
       ) : null}
     </ComposeContext.Provider>
   );

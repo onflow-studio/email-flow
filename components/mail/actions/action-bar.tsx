@@ -14,7 +14,6 @@ import { useKeys } from "../keys/keymap";
 import { useMailSelection } from "../selection";
 import type { ViewSlug } from "../views";
 import { useThreadActions } from "./actions";
-import { useUndo } from "./undo";
 
 type BarAction = {
   id: string;
@@ -118,7 +117,6 @@ export function ActionBar({ thread }: { thread: ThreadDetail }) {
   const wide = useWide();
   const { large, small, more } = useLayout(thread, sel.view);
   const barRef = useRef<HTMLDivElement>(null);
-  const { setAnchor } = useUndo();
 
   // Secondary actions that do not fit move into `more`, right to left: small first, then large. The primary stays.
   const demotable = [...small].reverse().concat([...large.slice(1)].reverse());
@@ -147,37 +145,27 @@ export function ActionBar({ thread }: { thread: ThreadDetail }) {
   }, [wide, room, demoted, demotable.length]);
 
   return (
-    <>
-      {/* The undo toast shows here, centered 8px above the bar, instead of the corner the bar may reach. */}
-      <div
-        ref={(el) => {
-          setAnchor(el);
-          return () => setAnchor(null);
-        }}
-        className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center"
-      />
-      <div
-        ref={barRef}
-        role="toolbar"
-        aria-label="thread actions"
-        className={cn(
-          "pointer-events-auto flex items-center gap-1 bg-surface-top",
-          "box-content w-full border-t border-border px-3 pb-safe",
-          "md:w-auto md:rounded-md md:border md:p-1",
-        )}
-      >
-        {shownLarge.map((a, i) => (
-          <BarButton key={a.id} action={a} variant={i === 0 && a === large[0] ? "primary" : "secondary"} />
-        ))}
-        {shownSmall.length || menu.length ? <span aria-hidden className="mx-1 hidden h-4 w-px bg-border md:block" /> : null}
-        {shownSmall.map((a) => (
-          <BarButton key={a.id} action={a} small variant={a.tone === "delete" ? "delete-ghost" : "ghost"} />
-        ))}
-        {menu.length ? (
-          <MenuButton label="…" ariaLabel="more actions" items={menu} small sheet={!wide} className="ml-auto md:ml-0" />
-        ) : null}
-      </div>
-    </>
+    <div
+      ref={barRef}
+      role="toolbar"
+      aria-label="thread actions"
+      className={cn(
+        "pointer-events-auto flex items-center gap-1 bg-surface-top",
+        "box-content w-full border-t border-border px-3 pb-safe",
+        "md:w-auto md:rounded-md md:border md:p-1",
+      )}
+    >
+      {shownLarge.map((a, i) => (
+        <BarButton key={a.id} action={a} variant={i === 0 && a === large[0] ? "primary" : "secondary"} />
+      ))}
+      {shownSmall.length || menu.length ? <span aria-hidden className="mx-1 hidden h-4 w-px bg-border md:block" /> : null}
+      {shownSmall.map((a) => (
+        <BarButton key={a.id} action={a} small variant={a.tone === "delete" ? "delete-ghost" : "ghost"} />
+      ))}
+      {menu.length ? (
+        <MenuButton label="…" ariaLabel="more actions" items={menu} small sheet={!wide} className="ml-auto md:ml-0" />
+      ) : null}
+    </div>
   );
 }
 

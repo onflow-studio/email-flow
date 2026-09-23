@@ -78,7 +78,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   const sel = useMailSelection();
   const compose = useCompose();
   const router = useRouter();
-  const { report } = useUndo();
+  const { report, notify } = useUndo();
   const inputRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState<{ input: string; result: PaletteSearch } | null>(null);
@@ -123,7 +123,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     previewSearchAction(query, key)
       .then((preview) => setMode((m) => (m.kind === "preview" && m.key === key ? { ...m, preview } : m)))
       .catch(() => {
-        report(`${label} preview failed, retry`);
+        notify(`${label} preview failed, retry`, "error");
         setMode({ kind: "search" });
       });
   };
@@ -139,7 +139,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
       report(describeAction(preview.action, result.count), result.token);
       onClose();
     } catch {
-      report(`${preview.action.type} failed, retry`);
+      notify(`${preview.action.type} failed, retry`, "error");
       setBusy(false);
     }
   };

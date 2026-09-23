@@ -42,6 +42,11 @@
   --list-max: 640px;
   --reading-min: 320px;
 
+  /* Toast stack: card width, and the bottom edge 8px above the radio (72 up, 32 tall; 44 on touch). */
+  --toast-w: 360px;
+  --toast-bottom: calc(112px + env(safe-area-inset-bottom));
+  --toast-bottom-touch: calc(124px + env(safe-area-inset-bottom));
+
   --duration-fast: 80ms;
   --duration-base: 150ms;
   /* Radio live border, one turn. The only looping animation. */
@@ -117,7 +122,7 @@
   --spacing-list: clamp(var(--list-min), var(--list-w), var(--list-max));
   --spacing-list-min: var(--list-min);
   --spacing-reading: var(--reading-min);
-  /* Radio: clears the status line (24), the undo toast (32 at 32 up) and an 8px gap. */
+  /* Radio: 72px up, clear of the status line and the phone action bar; the toast stack sits 8px above it. */
   --spacing-radio: calc(72px + env(safe-area-inset-bottom));
 
   --color-bg: var(--bg);
@@ -219,6 +224,48 @@
 /* Clears the home indicator when installed on a phone. Pair with box-content so fixed heights hold. */
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Toast stack (sonner). Its own sheet ships 400ms motion, system fonts and a 600px phone breakpoint;
+   the extra attribute selectors outrank it so DESIGN.md wins. Cards are ours (components/ui/toast.tsx). */
+[data-sonner-toaster][data-sonner-theme][data-y-position] {
+  z-index: 40;
+  font-family: inherit;
+  width: var(--toast-w);
+  right: 16px;
+  left: auto;
+  bottom: var(--toast-bottom);
+  transition: transform var(--duration-base) var(--ease-snap);
+}
+
+[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-y-position] {
+  width: 100%;
+  left: auto;
+  right: 0;
+}
+
+[data-sonner-toaster][data-sonner-theme] [data-sonner-toast],
+[data-sonner-toaster][data-sonner-theme] [data-sonner-toast] > * {
+  transition-duration: var(--duration-base) !important;
+  transition-timing-function: var(--ease-snap) !important;
+}
+
+[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-swipe-out="true"] {
+  animation-duration: var(--duration-base) !important;
+}
+
+/* Phone: full width with 8px side gaps, still above the radio. */
+@media (width < 768px) {
+  [data-sonner-toaster][data-sonner-theme][data-y-position] {
+    width: auto;
+    left: 8px;
+    right: 8px;
+    bottom: var(--toast-bottom-touch);
+  }
+
+  [data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-y-position] {
+    left: 0;
+  }
 }
 
 @layer base {

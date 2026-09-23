@@ -119,7 +119,7 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
 export function ActionsProvider({ targets, children }: { targets: ActionTarget[]; children: React.ReactNode }) {
   const sel = useMailSelection();
   const router = useRouter();
-  const { report, undoLast } = useUndo();
+  const { report, notify, undoLast } = useUndo();
   const [snoozeIds, setSnoozeIds] = useState<string[] | null>(null);
 
   const byId = useMemo(() => new Map(targets.map((t) => [t.id, t])), [targets]);
@@ -149,11 +149,11 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         }
         return result;
       } catch {
-        report(`${action.type} failed, retry`);
+        notify(`${action.type} failed, retry`, "error");
         return null;
       }
     },
-    [sel.target, report, afterAction],
+    [sel.target, report, notify, afterAction],
   );
 
   const runSender = useCallback(
@@ -161,7 +161,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       const threadId = id ?? sel.target;
       if (!threadId) return null;
       if (!byId.get(threadId)?.senderId) {
-        report("no sender to decide on");
+        notify("no sender to decide on", "warning");
         return null;
       }
       try {
@@ -170,11 +170,11 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         afterAction(action, [threadId]);
         return result;
       } catch {
-        report("screener failed, retry");
+        notify("screener failed, retry", "error");
         return null;
       }
     },
-    [sel.target, byId, report, afterAction],
+    [sel.target, byId, report, notify, afterAction],
   );
 
   const unsubscribe = useCallback(
@@ -190,13 +190,13 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
           const url = new URL(result.url);
           if (url.protocol === "https:") window.open(url.href, "_blank", "noopener,noreferrer");
           report("unsubscribe page opened");
-        } else if (result.kind === "none") report("no unsubscribe link");
-        else report("unsubscribe failed, retry");
+        } else if (result.kind === "none") notify("no unsubscribe link", "warning");
+        else notify("unsubscribe failed, retry", "error");
       } catch {
-        report("unsubscribe failed, retry");
+        notify("unsubscribe failed, retry", "error");
       }
     },
-    [sel.target, report, afterAction],
+    [sel.target, report, notify, afterAction],
   );
 
   const openSnooze = useCallback(() => {
