@@ -3,6 +3,8 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+import { Kbd } from "./kbd"
+
 const buttonVariants = cva(
   "inline-flex h-touch shrink-0 items-center justify-center gap-2 rounded-sm border border-transparent px-3 text-13 whitespace-nowrap transition-colors duration-80 ease-snap outline-none select-none focus-visible:border-accent disabled:pointer-events-none disabled:text-text-dim md:h-row",
   {
@@ -36,9 +38,7 @@ function Button({
       {...props}
     >
       {children}
-      {shortcut ? (
-        <kbd className="hidden font-mono text-11 opacity-60 md:inline">{shortcut}</kbd>
-      ) : null}
+      {shortcut ? <Kbd keys={shortcut} onAccent={variant === "primary"} /> : null}
     </ButtonPrimitive>
   )
 }
