@@ -42,9 +42,9 @@
   --list-max: 640px;
   --reading-min: 320px;
 
-  /* Toast stack: card width, and the bottom edge 8px above the radio (72 up, 32 tall; 44 on touch). */
+  /* Toast stack: card width; desktop sits 16px above the status line (24), phone 8px above the radio (72 up, 44 tall). */
   --toast-w: 360px;
-  --toast-bottom: calc(112px + env(safe-area-inset-bottom));
+  --toast-bottom: calc(40px + env(safe-area-inset-bottom));
   --toast-bottom-touch: calc(124px + env(safe-area-inset-bottom));
 
   --duration-fast: 80ms;
@@ -122,7 +122,7 @@
   --spacing-list: clamp(var(--list-min), var(--list-w), var(--list-max));
   --spacing-list-min: var(--list-min);
   --spacing-reading: var(--reading-min);
-  /* Radio: 72px up, clear of the status line and the phone action bar; the toast stack sits 8px above it. */
+  /* Radio: 72px up, clear of the status line and the phone action bar; on phone the toast stack sits 8px above it. */
   --spacing-radio: calc(72px + env(safe-area-inset-bottom));
 
   --color-bg: var(--bg);
@@ -232,16 +232,16 @@
   z-index: 40;
   font-family: inherit;
   width: var(--toast-w);
-  right: 16px;
-  left: auto;
+  left: 16px;
+  right: auto;
   bottom: var(--toast-bottom);
   transition: transform var(--duration-base) var(--ease-snap);
 }
 
 [data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-y-position] {
   width: 100%;
-  left: auto;
-  right: 0;
+  left: 0;
+  right: auto;
 }
 
 [data-sonner-toaster][data-sonner-theme] [data-sonner-toast],

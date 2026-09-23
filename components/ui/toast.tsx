@@ -11,11 +11,11 @@ const GAP = 8;
 const VISIBLE = 3;
 
 /**
- * DESIGN.md toast stack: bottom-right above the radio, a deck that expands into a list on hover.
+ * DESIGN.md toast stack: bottom-left above the status line, a deck that expands into a list on hover.
  * Position, width and motion live in globals.css; each toast renders its own card.
  */
 export function Toaster() {
-  return <SonnerToaster theme="dark" position="bottom-right" gap={GAP} visibleToasts={VISIBLE} containerAriaLabel="notifications" />;
+  return <SonnerToaster theme="dark" position="bottom-left" gap={GAP} visibleToasts={VISIBLE} containerAriaLabel="notifications" />;
 }
 
 const ICONS = {
