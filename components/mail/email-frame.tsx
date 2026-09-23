@@ -68,10 +68,15 @@ export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowe
   const blocked = !allowImages && hasRemoteImages(html);
 
   const observer = useRef<ResizeObserver | null>(null);
+  // The document already observed, so a late onLoad after the mount check does not double-wire keys.
+  const wired = useRef<Document | null>(null);
 
   const measure = useCallback(() => {
     const doc = ref.current?.contentDocument;
-    if (doc?.documentElement) setHeight(doc.documentElement.scrollHeight);
+    if (!doc?.documentElement) return;
+    const content = Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight ?? 0);
+    // The frame is border-box with a 1px border on each side.
+    setHeight(content + 2);
   }, []);
 
   // Same-origin sandbox (no scripts) lets the parent size the frame to its
@@ -80,6 +85,8 @@ export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowe
     const doc = ref.current?.contentDocument;
     if (!doc?.body) return;
     measure();
+    if (wired.current === doc) return;
+    wired.current = doc;
     observer.current?.disconnect();
     observer.current = new ResizeObserver(measure);
     observer.current.observe(doc.body);
@@ -98,6 +105,11 @@ export function EmailFrame({ html, imagesAllowed }: { html: string; imagesAllowe
       if (forwarded.defaultPrevented) e.preventDefault();
     });
   }, [measure]);
+
+  // A server-rendered srcDoc can finish loading before React attaches onLoad.
+  useEffect(() => {
+    if (ref.current?.contentDocument?.readyState === "complete") onLoad();
+  }, [onLoad]);
 
   useEffect(() => () => observer.current?.disconnect(), []);
 
