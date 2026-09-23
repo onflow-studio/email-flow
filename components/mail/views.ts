@@ -9,15 +9,18 @@ export type View = {
   bucket?: Bucket;
   /** Second key after `g`. */
   goKey?: string;
+  /** Rail group: act on now, later, or the dim bottom of the rail. */
+  group: "act" | "later" | "bottom";
 };
 
+/** In rail order. */
 export const VIEWS: View[] = [
-  { slug: "inbox", label: "inbox", bucket: "inbox", goKey: "i" },
-  { slug: "news", label: "news", bucket: "news", goKey: "n" },
-  { slug: "paper-trail", label: "paper trail", bucket: "paper_trail", goKey: "p" },
-  { slug: "triage", label: "triage", bucket: "triage", goKey: "t" },
-  { slug: "snoozed", label: "snoozed" },
-  { slug: "trash", label: "trash" },
+  { slug: "inbox", label: "inbox", bucket: "inbox", goKey: "i", group: "act" },
+  { slug: "triage", label: "triage", bucket: "triage", goKey: "t", group: "act" },
+  { slug: "news", label: "news", bucket: "news", goKey: "n", group: "later" },
+  { slug: "paper-trail", label: "paper trail", bucket: "paper_trail", goKey: "p", group: "later" },
+  { slug: "snoozed", label: "snoozed", group: "later" },
+  { slug: "trash", label: "trash", goKey: "d", group: "bottom" },
 ];
 
 export function findView(slug: string): View | undefined {

@@ -90,7 +90,7 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
                       )}
                     >
                       {v.label}
-                      {counts[v.slug] ? <span className="ml-2 text-11 text-text-muted">{counts[v.slug]}</span> : null}
+                      {counts[v.slug] && v.group !== "bottom" ? <span className="ml-2 text-11 text-text-muted">{counts[v.slug]}</span> : null}
                     </Link>
                   ))}
                 </nav>

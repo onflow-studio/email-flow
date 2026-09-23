@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Inbox, Newspaper, Receipt, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
+import { Clock, Inbox, Newspaper, Receipt, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 import { useKeys } from "./keys/keymap";
 import { useMailSelection } from "./selection";
-import { mailHref, VIEWS, type ViewSlug } from "./views";
+import { mailHref, VIEWS, type View, type ViewSlug } from "./views";
 
 const ICONS: Record<ViewSlug, LucideIcon> = {
   inbox: Inbox,
@@ -21,6 +21,8 @@ const ICONS: Record<ViewSlug, LucideIcon> = {
 };
 
 type RailAccount = { id: string; label: string; color: string };
+
+type RailItem = { key: string; label: string; href: string; icon: LucideIcon; count?: number; bucket?: boolean };
 
 export function Rail({
   view,
@@ -37,21 +39,41 @@ export function Rail({
   const router = useRouter();
   const focused = sel.pane === "rail";
 
-  // Keyboard items: views, then accounts while the rail is wide enough to list them.
-  const accountHrefs = [null, ...accounts.map((a) => a.id)].map((id) => mailHref(view, { account: id }));
-  const hrefs = () => [
-    ...VIEWS.map((v) => mailHref(v.slug, { account })),
-    ...(accounts.length > 1 && window.matchMedia("(min-width: 1100px)").matches ? accountHrefs : []),
+  const item = (v: View): RailItem => ({
+    key: v.slug,
+    label: v.label,
+    href: mailHref(v.slug, { account }),
+    icon: ICONS[v.slug],
+    // Trash carries no count.
+    count: v.group === "bottom" ? undefined : counts[v.slug],
+    bucket: !!v.bucket,
+  });
+  const act = VIEWS.filter((v) => v.group === "act").map(item);
+  const later = VIEWS.filter((v) => v.group === "later").map(item);
+  const bottom = [
+    ...VIEWS.filter((v) => v.group === "bottom").map(item),
+    { key: "settings", label: "settings", href: "/settings", icon: Settings },
   ];
-  const current = VIEWS.findIndex((v) => v.slug === view);
+
+  // Keyboard items in screen order: views, accounts while the rail is wide enough to list them, then the bottom.
+  const accountHrefs = [null, ...accounts.map((a) => a.id)].map((id) => mailHref(view, { account: id }));
+  const withAccounts = () => accounts.length > 1 && window.matchMedia("(min-width: 1100px)").matches;
+  const hrefs = () => [
+    ...[...act, ...later].map((i) => i.href),
+    ...(withAccounts() ? accountHrefs : []),
+    ...bottom.map((i) => i.href),
+  ];
   const [cursor, setCursor] = useState<number | null>(null);
-  const at = cursor ?? current;
+  const currentHref = mailHref(view, { account });
+  const current = () => hrefs().indexOf(currentHref);
+  // Only read while the rail has focus, which never happens on the server.
+  const at = cursor ?? (focused ? current() : -1);
   // Entering the rail starts from the open view.
   if (!focused && cursor !== null) setCursor(null);
 
   const activate = () => {
     const href = hrefs()[at];
-    if (href && at !== current) router.push(href);
+    if (href && at !== current()) router.push(href);
   };
   const inRail = () => sel.pane === "rail";
   useKeys([
@@ -69,6 +91,37 @@ export function Rail({
   ]);
 
   const cursorClass = (i: number) => focused && i === at && "border-accent glow-focus bg-surface-raised text-text";
+  const accountsShown = accounts.length > 1;
+  const bottomStart = focused ? hrefs().length - bottom.length : -1;
+
+  const row = (it: RailItem, i: number, dim = false) => {
+    const Icon = it.icon;
+    const active = it.href === currentHref;
+    return (
+      <li key={it.key}>
+        <Link
+          href={it.href}
+          title={it.label}
+          aria-current={active ? "page" : undefined}
+          className={cn(
+            "flex h-row items-center justify-center gap-2 border-l-2 border-transparent transition-colors duration-80 ease-snap rail:justify-between rail:rounded-sm rail:px-2",
+            active
+              ? "border-accent-dim bg-surface-raised font-medium text-text"
+              : dim
+                ? "text-text-dim hover:bg-surface-raised hover:text-text-muted"
+                : "text-text-muted hover:bg-surface-raised hover:text-text",
+            cursorClass(i),
+          )}
+        >
+          <Icon aria-hidden className="size-4 rail:hidden" strokeWidth={1.5} />
+          <span className="hidden rail:inline">{it.label}</span>
+          {it.count ? (
+            <span className={cn("hidden text-11 rail:inline", it.bucket ? "text-text" : "text-text-dim")}>{it.count}</span>
+          ) : null}
+        </Link>
+      </li>
+    );
+  };
 
   return (
     <nav
@@ -78,41 +131,14 @@ export function Rail({
         focused && "md:pane-focus",
       )}
     >
-      <ul className="flex flex-col gap-1">
-        {VIEWS.map((v, i) => {
-          const Icon = ICONS[v.slug];
-          const active = v.slug === view;
-          const n = counts[v.slug];
-          return (
-            <li key={v.slug} className={cn(i === 4 && "mt-3")}>
-              <Link
-                href={mailHref(v.slug, { account })}
-                title={v.label}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex h-row items-center justify-center gap-2 border-l-2 border-transparent transition-colors duration-80 ease-snap rail:justify-between rail:rounded-sm rail:px-2",
-                  active
-                    ? "border-accent-dim bg-surface-raised font-medium text-text"
-                    : "text-text-muted hover:bg-surface-raised hover:text-text",
-                  cursorClass(i),
-                )}
-              >
-                <Icon aria-hidden className="size-4 rail:hidden" strokeWidth={1.5} />
-                <span className="hidden rail:inline">{v.label}</span>
-                {n > 0 ? (
-                  <span className={cn("hidden text-11 rail:inline", v.bucket ? "text-text" : "text-text-dim")}>{n}</span>
-                ) : null}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <ul className="flex flex-col gap-1">{act.map((it, i) => row(it, i))}</ul>
+      <ul className="flex flex-col gap-1">{later.map((it, i) => row(it, act.length + i))}</ul>
 
-      {accounts.length > 1 ? (
+      {accountsShown ? (
         <section className="hidden rail:block">
           <h2 className="mb-1 px-2 text-11 text-text-dim">accounts</h2>
           <ul className="flex flex-col gap-1">
-            <AccountLink view={view} active={!account} label="all" className={cursorClass(VIEWS.length)} />
+            <AccountLink view={view} active={!account} label="all" className={cursorClass(act.length + later.length)} />
             {accounts.map((a, i) => (
               <AccountLink
                 key={a.id}
@@ -121,12 +147,14 @@ export function Rail({
                 active={account === a.id}
                 label={a.label}
                 color={a.color}
-                className={cursorClass(VIEWS.length + 1 + i)}
+                className={cursorClass(act.length + later.length + 1 + i)}
               />
             ))}
           </ul>
         </section>
       ) : null}
+
+      <ul className="mt-auto flex flex-col gap-1">{bottom.map((it, i) => row(it, bottomStart + i, true))}</ul>
     </nav>
   );
 }

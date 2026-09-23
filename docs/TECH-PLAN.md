@@ -134,7 +134,7 @@ i             let in (from triage)
 u             unsubscribe (one-click, else mailto, else opens the page)
 #             delete (to trash)
 z / cmd+z     undo last
-g then i/n/p/t  go to bucket
+g then i/t/n/p  go to bucket, g d trash
 cmd+k         palette
 /             search
 c             compose
