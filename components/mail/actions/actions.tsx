@@ -46,7 +46,7 @@ const BUCKET_NAMES: Record<Bucket, string> = {
   out: "out",
 };
 
-function describe(action: ThreadAction | SenderAction, count: number) {
+export function describeAction(action: ThreadAction | SenderAction, count: number) {
   const n = count > 1 ? `${count} ` : "";
   switch (action.type) {
     case "archive":
@@ -138,7 +138,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       try {
         const result = await runThreadAction(targetIds, action);
         if (result.count) {
-          report(describe(action, result.count), result.token);
+          report(describeAction(action, result.count), result.token);
           afterAction(action, targetIds);
         }
         return result;
@@ -160,7 +160,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       }
       try {
         const result = await runSenderAction(threadId, action);
-        report(describe(action, result.count), result.token);
+        report(describeAction(action, result.count), result.token);
         afterAction(action, [threadId]);
         return result;
       } catch {

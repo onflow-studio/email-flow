@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ActionsProvider } from "@/components/mail/actions/actions";
+import { Palette } from "@/components/mail/palette/palette";
 import { NavKeys } from "@/components/mail/keys/nav-keys";
 import { Rail } from "@/components/mail/rail";
 import { ReadingPane } from "@/components/mail/reading-pane";
@@ -118,6 +119,7 @@ export default async function MailPage({ params, searchParams }: PageProps<"/[vi
             }))}
           />
         </div>
+        <Palette accounts={accounts.map((a) => ({ id: a.id, label: a.label, color: a.color }))} />
       </ActionsProvider>
     </SelectionProvider>
   );
