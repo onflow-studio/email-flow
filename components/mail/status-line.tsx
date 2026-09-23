@@ -113,7 +113,7 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
     );
 
   return (
-    <footer className="status-rule box-content flex h-status shrink-0 items-center gap-4 bg-surface px-3 pb-safe text-11 text-text-muted">
+    <footer className="status-rule box-content flex h-status shrink-0 items-center gap-4 bg-status px-3 pb-safe text-11 text-text-muted">
       <button
         type="button"
         onClick={refresh}

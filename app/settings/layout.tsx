@@ -25,7 +25,7 @@ export default async function SettingsLayout({ children }: LayoutProps<"/setting
         <div className="mx-auto flex max-w-palette flex-col gap-4">{children}</div>
       </main>
 
-      <footer className="status-rule box-content flex h-status shrink-0 items-center justify-between gap-3 bg-surface px-3 pb-safe text-11 text-text-muted">
+      <footer className="status-rule box-content flex h-status shrink-0 items-center justify-between gap-3 bg-status px-3 pb-safe text-11 text-text-muted">
         <Suspense fallback={<span>{n} of 3 accounts</span>}>
           <SettingsStatus accountCount={n} />
         </Suspense>

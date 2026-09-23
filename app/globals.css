@@ -11,6 +11,7 @@
 
   --bg: #0a0e12;
   --surface: #10161c;
+  --status: #000000;
   --surface-raised: #161e26;
   --surface-top: #1c2630;
   /* The header bar: deep desaturated blue that frames the app without competing with --accent. */
@@ -42,10 +43,10 @@
   --list-max: 640px;
   --reading-min: 320px;
 
-  /* Toast stack: card width; desktop sits 16px above the status line (24), phone 8px above the radio (72 up, 44 tall). */
+  /* Toast stack: card width; 16px above the status line (32), phone also clears the docked action bar (44 + 8). */
   --toast-w: 360px;
-  --toast-bottom: calc(40px + env(safe-area-inset-bottom));
-  --toast-bottom-touch: calc(124px + env(safe-area-inset-bottom));
+  --toast-bottom: calc(48px + env(safe-area-inset-bottom));
+  --toast-bottom-touch: calc(84px + env(safe-area-inset-bottom));
 
   --duration-fast: 80ms;
   --duration-base: 150ms;
@@ -94,7 +95,7 @@
 
   --spacing-row: 32px;
   --spacing-touch: 44px;
-  --spacing-status: 24px;
+  --spacing-status: 32px;
   --spacing-key: 16px;
   --container-palette: 640px;
   --spacing-compose: 640px;
@@ -122,11 +123,10 @@
   --spacing-list: clamp(var(--list-min), var(--list-w), var(--list-max));
   --spacing-list-min: var(--list-min);
   --spacing-reading: var(--reading-min);
-  /* Radio: 72px up, clear of the status line and the phone action bar; on phone the toast stack sits 8px above it. */
-  --spacing-radio: calc(72px + env(safe-area-inset-bottom));
 
   --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-status: var(--status);
   --color-surface-raised: var(--surface-raised);
   --color-surface-top: var(--surface-top);
   --color-header: var(--header);
@@ -224,6 +224,10 @@
 /* Clears the home indicator when installed on a phone. Pair with box-content so fixed heights hold. */
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility bottom-safe {
+  bottom: env(safe-area-inset-bottom);
 }
 
 /* Toast stack (sonner). Its own sheet ships 400ms motion, system fonts and a 600px phone breakpoint;

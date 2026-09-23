@@ -323,7 +323,7 @@ export function Radio() {
     <>
       <div
         ref={rootRef}
-        className="fixed right-4 bottom-radio z-30 flex flex-col items-end"
+        className="fixed bottom-safe left-1/2 z-30 flex -translate-x-1/2 flex-col items-center"
         onPointerEnter={(e) => {
           if (e.pointerType !== "mouse") return;
           hovered.current = true;
@@ -398,7 +398,8 @@ export function Radio() {
           aria-expanded={open}
           title={status === "error" ? label : `${on ? "pause" : "play"} ${station.label}`}
           className={cn(
-            "flex size-touch items-center justify-center rounded-sm border text-text-muted transition-colors duration-80 ease-snap outline-none hover:text-text focus-visible:border-accent md:size-row",
+            // Centred in the status line: the bar's full height, a 24px square inside it on desktop.
+            "my-1 flex h-6 w-touch items-center justify-center rounded-sm border text-text-muted transition-colors duration-80 ease-snap outline-none hover:text-text focus-visible:border-accent md:w-6",
             // While it plays the border is the drifting accent; paused or stopped it is the hairline at once.
             playing ? "radio-live" : "border-border bg-surface-raised",
             on && "text-text",
