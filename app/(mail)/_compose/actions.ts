@@ -9,12 +9,11 @@ import { ReauthRequiredError } from "@/lib/gmail/client";
 import {
   fetchAttachment,
   fetchReplyHeaders,
-  formatAddressList,
-  parseRecipients,
   sendMessage,
   type OutgoingAttachment,
   type ReplyHeaders,
 } from "@/lib/gmail/send";
+import { formatAddressList, parseRecipients } from "@/lib/mail/address";
 
 import {
   composeSubject,

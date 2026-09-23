@@ -26,51 +26,6 @@ export type OutgoingMessage = {
   attachments?: OutgoingAttachment[];
 };
 
-const EMAIL = /^[^\s@<>()",;:\\[\]]+@[^\s@<>()",;:\\[\]]+\.[^\s@<>()",;:\\[\]]+$/;
-
-export function isValidEmail(email: string): boolean {
-  return EMAIL.test(email);
-}
-
-/** Splits on commas and semicolons outside quotes and angle brackets. */
-function splitRecipients(value: string): string[] {
-  const out: string[] = [];
-  let current = "";
-  let quoted = false;
-  let angle = false;
-  for (const ch of value) {
-    if (ch === '"') quoted = !quoted;
-    else if (!quoted && ch === "<") angle = true;
-    else if (!quoted && ch === ">") angle = false;
-    if ((ch === "," || ch === ";") && !quoted && !angle) {
-      out.push(current);
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  out.push(current);
-  return out.map((s) => s.trim()).filter(Boolean);
-}
-
-/** Parses typed recipients: `ana@x.com, "Ana B" <ana@y.com>`. Returns the parts that are not addresses as `invalid`. */
-export function parseRecipients(value: string): { addresses: Address[]; invalid: string[] } {
-  const addresses: Address[] = [];
-  const invalid: string[] = [];
-  for (const part of splitRecipients(value)) {
-    const angle = part.match(/^([\s\S]*)<([^<>]+)>$/);
-    const email = (angle ? angle[2] : part).trim().toLowerCase();
-    const name = angle ? angle[1].trim().replace(/^"([\s\S]*)"$/, "$1").trim() || null : null;
-    if (isValidEmail(email)) addresses.push({ name, email });
-    else invalid.push(part);
-  }
-  return { addresses, invalid };
-}
-
-export function formatAddressList(list: Address[]): string {
-  return list.map((a) => (a.name ? `${a.name} <${a.email}>` : a.email)).join(", ");
-}
-
 // Header values never carry line breaks, so user input cannot inject headers.
 const oneLine = (value: string) => value.replace(/[\r\n]+/g, " ").trim();
 

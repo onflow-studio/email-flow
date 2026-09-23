@@ -22,7 +22,7 @@ export function decodeEncodedWords(value: string): string {
     });
 }
 
-// Splits on commas outside quotes, angle brackets and comments.
+// Splits on commas (and semicolons, as people type them) outside quotes, angle brackets and comments.
 function splitList(value: string): string[] {
   const out: string[] = [];
   let current = "";
@@ -40,7 +40,7 @@ function splitList(value: string): string[] {
     else if (!quoted && ch === ">") angle = Math.max(0, angle - 1);
     else if (!quoted && ch === "(") paren++;
     else if (!quoted && ch === ")") paren = Math.max(0, paren - 1);
-    if (ch === "," && !quoted && angle === 0 && paren === 0) {
+    if ((ch === "," || ch === ";") && !quoted && angle === 0 && paren === 0) {
       out.push(current);
       current = "";
     } else {
@@ -77,4 +77,26 @@ export function parseAddressList(raw: string | null | undefined): Address[] {
     const address = parseAddress(part);
     return address ? [address] : [];
   });
+}
+
+const EMAIL = /^[^\s@<>()",;:\\[\]]+@[^\s@<>()",;:\\[\]]+\.[^\s@<>()",;:\\[\]]+$/;
+
+export function isValidEmail(email: string): boolean {
+  return EMAIL.test(email);
+}
+
+/** Typed recipients, e.g. `ana@x.com, "Ana B" <ana@y.com>`. Parts that are not addresses come back as `invalid`. */
+export function parseRecipients(value: string): { addresses: Address[]; invalid: string[] } {
+  const addresses: Address[] = [];
+  const invalid: string[] = [];
+  for (const part of splitList(value)) {
+    const address = parseAddress(part);
+    if (address && isValidEmail(address.email)) addresses.push(address);
+    else invalid.push(part);
+  }
+  return { addresses, invalid };
+}
+
+export function formatAddressList(list: Address[]): string {
+  return list.map((a) => (a.name ? `${a.name} <${a.email}>` : a.email)).join(", ");
 }
