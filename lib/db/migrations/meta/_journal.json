@@ -57,6 +57,13 @@
       "when": 1790190979345,
       "tag": "0007_keybindings",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790201782924,
+      "tag": "0008_threads_group",
+      "breakpoints": true
     }
   ]
 }

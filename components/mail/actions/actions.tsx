@@ -135,6 +135,13 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   const byId = useMemo(() => new Map(targets.map((t) => [t.id, t])), [targets]);
   const target = sel.target ? (byId.get(sel.target) ?? null) : null;
 
+  // The picker shows a snooze still ahead, so rescheduling never looks like nothing was set.
+  const [openedAt, setOpenedAt] = useState(0);
+  const snoozedUntil = (ids: string[]) => {
+    const until = ids.length === 1 ? byId.get(ids[0])?.snoozedUntil : null;
+    return until && new Date(until).getTime() > openedAt ? until : null;
+  };
+
   // With the acted-on thread open and leaving the view, step to its neighbour.
   const afterAction = useCallback(
     (action: ThreadAction | SenderAction, ids: string[]) => {
@@ -212,7 +219,9 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   );
 
   const openSnooze = useCallback(() => {
-    if (sel.target) setSnoozeIds([sel.target]);
+    if (!sel.target) return;
+    setOpenedAt(Date.now());
+    setSnoozeIds([sel.target]);
   }, [sel.target]);
 
   const move = (bucket: MovableBucket): KeyBinding => ({
@@ -248,6 +257,11 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       {children}
       {snoozeIds ? (
         <SnoozePicker
+          snoozedUntil={snoozedUntil(snoozeIds)}
+          onUnsnooze={() => {
+            setSnoozeIds(null);
+            void run({ type: "unsnooze" }, snoozeIds);
+          }}
           onClose={() => setSnoozeIds(null)}
           onPick={(snooze) => {
             setSnoozeIds(null);

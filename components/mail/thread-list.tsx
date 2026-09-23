@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ThreadListItem } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
 
+import { AccountSquare } from "./account-square";
 import { useMailSelection } from "./selection";
 import { Time } from "./time";
 import { mailHref } from "./views";
@@ -50,7 +51,7 @@ export function ThreadList({
           {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
           <ThreadRow
             thread={t}
-            accountColor={accountColors[t.accountId]}
+            accountColors={t.accountIds.map((id) => accountColors[id])}
             focused={t.id === sel.focusedId}
             open={t.id === sel.openId}
             href={mailHref(sel.view, { threadId: t.id })}
@@ -69,7 +70,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 
 function ThreadRow({
   thread: t,
-  accountColor,
+  accountColors,
   focused,
   open,
   href,
@@ -77,7 +78,8 @@ function ThreadRow({
   showSnooze,
 }: {
   thread: ThreadListItem;
-  accountColor?: string;
+  /** One per account the conversation reached: twins show every square. */
+  accountColors: (string | undefined)[];
   focused: boolean;
   open: boolean;
   href: string;
@@ -102,7 +104,11 @@ function ThreadRow({
           : "border-transparent hover:bg-surface-raised",
       )}
     >
-      <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: accountColor ?? "var(--text-dim)" }} />
+      <span aria-hidden className="flex shrink-0 gap-1">
+        {accountColors.map((color, i) => (
+          <AccountSquare key={i} color={color} />
+        ))}
+      </span>
       <span
         className={cn(
           "w-sender shrink-0 truncate",

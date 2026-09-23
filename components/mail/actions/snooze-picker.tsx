@@ -38,7 +38,18 @@ const pad = (n: number) => n.toString().padStart(2, "0");
 const localInput = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => void; onClose: () => void }) {
+/** `snoozedUntil` is set when the thread is already snoozed: the picker says so and offers unsnooze. */
+export function SnoozePicker({
+  snoozedUntil = null,
+  onPick,
+  onUnsnooze,
+  onClose,
+}: {
+  snoozedUntil?: string | null;
+  onPick: (snooze: Snooze) => void;
+  onUnsnooze: () => void;
+  onClose: () => void;
+}) {
   const [presets] = useState(() => snoozePresets());
   const [needsReply, setNeedsReply] = useState(false);
   const [custom, setCustom] = useState(() => localInput(at(new Date(), 1, 8)));
@@ -54,6 +65,7 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
     [
       ...presets.map((p) => ({ keys: p.key, run: () => pick(p.until) })),
       { keys: "r", run: () => setNeedsReply((v) => !v) },
+      ...(snoozedUntil ? [{ keys: "u", run: onUnsnooze }] : []),
       { keys: "escape", allowInInput: true, run: onClose },
     ],
     { exclusive: true },
@@ -68,11 +80,31 @@ export function SnoozePicker({ onPick, onClose }: { onPick: (snooze: Snooze) => 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between text-11 text-text-muted">
-          <span>snooze</span>
+          {snoozedUntil ? (
+            <span>
+              snoozed until{" "}
+              <span className="text-text" suppressHydrationWarning>
+                {fullTime(snoozedUntil)}
+              </span>
+            </span>
+          ) : (
+            <span>snooze</span>
+          )}
           <KeyHints hints={[["escape", "close"]]} />
         </div>
 
-        <ul className="flex flex-col">
+        {snoozedUntil ? (
+          <button
+            type="button"
+            onClick={onUnsnooze}
+            className="flex h-touch w-full items-center justify-between gap-4 rounded-sm px-2 transition-colors duration-80 ease-snap hover:bg-surface-raised md:h-row"
+          >
+            <span>unsnooze</span>
+            <Kbd keys="u" />
+          </button>
+        ) : null}
+
+        <ul className={cn("flex flex-col", snoozedUntil && "border-t border-border pt-3")}>
           {presets.map((p) => (
             <li key={p.key}>
               <button

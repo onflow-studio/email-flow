@@ -20,6 +20,7 @@ import { rewriteCidImages } from "@/lib/mail/remote";
 import type { GmailSyncPort } from "./gmail";
 import { PRIORITY_LIVE, enqueueClassify, enqueueSummary } from "./jobs";
 import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt } from "./mirror";
+import { linkTwins, reconcileGroup } from "./twins";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -279,7 +280,14 @@ export async function ingestThread(
 
     if (derived.hasOutbound && derived.hasInbound) await applyParticipation(tx, threadId);
 
-    const classify = created && derived.hasInbound && !mirror.trashed && !mirror.spam;
+    // A copy of a conversation another account already holds joins it, and a new copy takes the
+    // state the user gave the others instead of being classified again.
+    const link = inserted > 0 ? await linkTwins(tx, threadId) : null;
+    const reconciled =
+      link?.linked && link.groupId ? await reconcileGroup(tx, link.groupId, { joining: created ? [threadId] : [], now }) : null;
+    const joined = created && !!reconciled && reconciled.source !== threadId;
+
+    const classify = created && !joined && derived.hasInbound && !mirror.trashed && !mirror.spam;
     if (classify) await enqueueClassify(tx, { id: threadId, accountId: account.id }, classifyPriority);
     // A new message in a known thread makes its summary stale.
     else if (existing && inserted > 0 && derived.hasInbound && wantsSummary(existing.bucket) && !mirror.spam) {

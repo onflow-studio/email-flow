@@ -14,6 +14,7 @@ import {
 import type { Db } from "@/lib/db";
 import { actionsLog, senders, threads, type Bucket } from "@/lib/db/schema";
 import { enqueueWriteback } from "@/lib/sync/jobs";
+import { withTwins } from "@/lib/sync/twins";
 
 import { before, patchFor, touchesMirror } from "./patch";
 import { STATE_COLUMNS, type ActionResult, type SenderAction, type ThreadAction, type ThreadState } from "./types";
@@ -42,7 +43,7 @@ const stateColumns = Object.fromEntries(STATE_COLUMNS.map((c) => [c, threads[c]]
 
 export function loadStates(tx: Pick<Db, "select">, threadIds: string[]) {
   return tx
-    .select({ id: threads.id, accountId: threads.accountId, senderId: threads.senderId, ...stateColumns })
+    .select({ id: threads.id, accountId: threads.accountId, senderId: threads.senderId, groupId: threads.groupId, ...stateColumns })
     .from(threads)
     .where(inArray(threads.id, threadIds));
 }
@@ -63,15 +64,18 @@ export async function applyThreadAction(db: Db, threadIds: string[], action: Thr
   });
 }
 
-/** The thread action inside a caller's transaction, logged under its batch id. Returns threads changed. */
+/**
+ * The thread action inside a caller's transaction, logged under its batch id. Twins (copies of the
+ * thread in other accounts) take the action too, in the same batch. Returns conversations changed.
+ */
 export async function threadActionIn(tx: Tx, batchId: string, threadIds: string[], action: ThreadAction) {
   const now = new Date();
-  let count = 0;
+  const changed = new Set<string>();
 
-  for (const t of await loadStates(tx, threadIds)) {
+  for (const t of await loadStates(tx, await withTwins(tx, threadIds))) {
     const patch = patchFor(action, t, now);
     if (!patch) continue;
-    count++;
+    changed.add(t.groupId ?? t.id);
 
     await tx.update(threads).set(patch).where(eq(threads.id, t.id));
 
@@ -83,7 +87,7 @@ export async function threadActionIn(tx: Tx, batchId: string, threadIds: string[
     await tx.insert(actionsLog).values({ threadId: t.id, batchId, action: action.type, payload });
     if (touchesMirror(patch)) await enqueueWriteback(tx, t);
   }
-  return count;
+  return changed.size;
 }
 
 /**
@@ -121,7 +125,7 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
     .where(inArray(senders.id, targets));
 
   const senderThreads = await tx
-    .select({ id: threads.id, ...stateColumns })
+    .select({ id: threads.id, groupId: threads.groupId, ...stateColumns })
     .from(threads)
     .where(inArray(threads.senderId, targets));
   const before = new Map(senderThreads.map((t) => [t.id, t]));
@@ -158,5 +162,7 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
     const n = found.names.get(id);
     return n?.name || n?.email || "unknown";
   });
-  return { count: moves.length, senders: senderNames };
+  // Twins move together (they share the sender); they count once.
+  const moved = new Set(moves.map((m) => before.get(m.threadId)?.groupId ?? m.threadId));
+  return { count: moved.size, senders: senderNames };
 }

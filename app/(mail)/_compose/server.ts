@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts, attachments, messages, threads, type Address } from "@/lib/db/schema";
 import { htmlToPlainText } from "@/lib/gmail/send";
+import { mergeTimeline, replyCopy } from "@/lib/sync/twins";
 
 import type { ComposeAccount, ComposeMode } from "./types";
 
@@ -23,10 +24,33 @@ export async function listComposeAccounts(): Promise<ComposeAccount[]> {
   }));
 }
 
+/**
+ * Twins: a reply leaves from the copy in the account the latest inbound message was addressed to,
+ * so it answers from the address the sender wrote to. Without twins, the thread itself.
+ */
+async function composeCopy(threadId: string): Promise<string> {
+  const [opened] = await db.select({ groupId: threads.groupId }).from(threads).where(eq(threads.id, threadId));
+  if (!opened?.groupId) return threadId;
+  const copies = await db.query.threads.findMany({
+    where: eq(threads.groupId, opened.groupId),
+    columns: { id: true },
+    with: {
+      account: { columns: { email: true } },
+      messages: { columns: { id: true, date: true, to: true, cc: true, isInbound: true, headers: true } },
+    },
+  });
+  const timeline = mergeTimeline(copies.map((c) => c.messages.map((m) => ({ ...m, messageId: m.headers.messageId }))));
+  return replyCopy(
+    copies.map((c) => ({ id: c.id, accountEmail: c.account.email })),
+    timeline.findLast((m) => m.isInbound),
+    threadId,
+  );
+}
+
 /** The thread's account and the message a reply or forward answers: the latest non-draft one. */
 export async function loadComposeThread(threadId: string) {
   const thread = await db.query.threads.findFirst({
-    where: eq(threads.id, threadId),
+    where: eq(threads.id, await composeCopy(threadId)),
     columns: { id: true, gmailThreadId: true, subject: true },
     with: {
       account: {

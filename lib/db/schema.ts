@@ -173,11 +173,15 @@ export const threads = pgTable(
     // One-line AI summary, in the mail's own language. Stale when summaryMessageAt < lastMessageAt.
     summary: text(),
     summaryMessageAt: timestamp({ withTimezone: true }),
+    // Copies of one conversation in different accounts (twins: they share a Message-ID) share a
+    // group id and act as one thread. Null for a thread with no twin. See lib/sync/twins.ts.
+    groupId: uuid(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     uniqueIndex().on(t.accountId, t.gmailThreadId),
+    index().on(t.groupId),
     index().on(t.bucket, t.lastMessageAt),
     index().on(t.accountId, t.lastMessageAt),
     index().on(t.senderId),
@@ -220,6 +224,7 @@ export const messages = pgTable(
     uniqueIndex().on(t.accountId, t.gmailMessageId),
     index().on(t.threadId, t.date),
     index().on(t.senderId),
+    index("messages_message_id_idx").on(sql`(${t.headers}->>'messageId')`),
     index("messages_search_idx").using("gin", t.search),
   ],
 );

@@ -3,6 +3,8 @@ import { and, desc, eq, gte, ilike, inArray, lt, or, sql, type SQL } from "drizz
 import type { Db } from "@/lib/db";
 import { accounts, messages, threads, type Bucket } from "@/lib/db/schema";
 
+import { groupKey, showOrder } from "@/lib/sync/twins";
+
 import { isEmptyQuery, MATCH_END, MATCH_START, parseQuery, type ParsedQuery } from "./query";
 
 export type SearchHit = {
@@ -10,6 +12,8 @@ export type SearchHit = {
   subject: string;
   sender: string;
   accountId: string;
+  /** Every account the conversation reached: twins match as one hit. */
+  accountIds: string[];
   bucket: Bucket;
   archived: boolean;
   lastMessageAt: string;
@@ -41,10 +45,11 @@ function where(q: ParsedQuery, tsq: SQL | null, scope: SearchScope): SQL | undef
 
 const tsqueryOf = (q: ParsedQuery) => (q.tsquery ? sql`to_tsquery('simple', ${q.tsquery})` : null);
 
+// Twins match as one conversation, shown by the copy lists show.
 function matches(db: Pick<Db, "select">, q: ParsedQuery, tsq: SQL | null, scope: SearchScope) {
   return db
     .select({
-      id: threads.id,
+      id: sql<string>`(array_agg(${threads.id} order by ${showOrder("threads")}))[1]`.as("id"),
       rank: tsq ? sql<number>`max(ts_rank(${messages.search}, ${tsq}))`.as("rank") : sql<number>`0`.as("rank"),
       total: sql<number>`count(*) over ()`.mapWith(Number).as("total"),
     })
@@ -52,7 +57,7 @@ function matches(db: Pick<Db, "select">, q: ParsedQuery, tsq: SQL | null, scope:
     .innerJoin(threads, eq(threads.id, messages.threadId))
     .innerJoin(accounts, eq(accounts.id, threads.accountId))
     .where(where(q, tsq, scope))
-    .groupBy(threads.id);
+    .groupBy(groupKey);
 }
 
 /**
@@ -71,6 +76,7 @@ export async function searchThreads(db: Db, input: string, scope: SearchScope = 
       subject: threads.subject,
       participants: threads.participantsSummary,
       accountId: threads.accountId,
+      accountIds: sql<string[]>`array(select a.id from ${accounts} a where a.id in (select t.account_id from ${threads} t where t.id = ${threads.id} or t.group_id = ${threads.groupId}) order by a.created_at)`,
       bucket: threads.bucket,
       archived: threads.archived,
       lastMessageAt: threads.lastMessageAt,
@@ -104,6 +110,7 @@ export async function searchThreads(db: Db, input: string, scope: SearchScope = 
       subject: r.subject || "(no subject)",
       sender: r.participants || "unknown",
       accountId: r.accountId,
+      accountIds: r.accountIds,
       bucket: r.bucket,
       archived: r.archived,
       lastMessageAt: r.lastMessageAt.toISOString(),

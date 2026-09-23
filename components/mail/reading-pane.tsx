@@ -9,6 +9,7 @@ import { useThreadActions } from "./actions/actions";
 import { AiNote } from "./actions/ai-note";
 import { ActionBar } from "./actions/action-bar";
 import { BucketBadge } from "./actions/bucket-badge";
+import { AccountSquare } from "./account-square";
 import { rememberAccount } from "./compose/last-account";
 import { useKeys } from "./keys/keymap";
 import { MessageContent } from "./message";
@@ -59,10 +60,12 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
         <AiNote thread={thread} />
         <h1 className="text-20 font-semibold text-text">{thread.subject}</h1>
         <div className="flex flex-wrap items-center gap-2 text-11 text-text-muted">
-          <span className="flex items-center gap-2">
-            <span aria-hidden className="size-2" style={{ backgroundColor: thread.account.color }} />
-            {thread.account.label}
-          </span>
+          {thread.accounts.map((a) => (
+            <span key={a.id} className="flex items-center gap-2">
+              <AccountSquare color={a.color} />
+              {a.label}
+            </span>
+          ))}
           <BucketBadge thread={thread} />
           {thread.bucket === "triage" && thread.judged.length ? (
             // Who let in and keep out decide on.

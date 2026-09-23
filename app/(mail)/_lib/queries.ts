@@ -5,6 +5,7 @@ import { VIEWS } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import { aiAllowedSenders, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
 import { accounts, attachments, messages, threads } from "@/lib/db/schema";
+import { mergeTimeline, shownCopy } from "@/lib/sync/twins";
 
 const live = () => and(eq(threads.archived, false), eq(threads.trashed, false), eq(threads.spam, false));
 
@@ -20,8 +21,14 @@ function viewFilter(view: View): SQL | undefined {
   return and(live(), view.bucket === "inbox" ? or(inBucket, isNotNull(threads.pinnedAt), resurfaced()) : inBucket);
 }
 
-/** `on` is the accounts toggled on in the header, null for all. */
-const accountFilter = (on: string[] | null) => (on ? inArray(threads.accountId, on) : undefined);
+/**
+ * `on` is the accounts toggled on in the header, null for all. Twins show as one row: the copy
+ * `shownCopy` picks among the accounts that are on.
+ */
+const accountFilter = (on: string[] | null) => and(on ? inArray(threads.accountId, on) : undefined, shownCopy(on));
+
+// Every copy of the row's conversation: the thread itself, and its twins.
+const copies = sql`(select t.id from ${threads} t where t.id = ${threads.id} or t.group_id = ${threads.groupId})`;
 
 export async function listAccounts() {
   return db
@@ -88,7 +95,9 @@ export async function listThreads(view: View, on: string[] | null) {
       snippet: last.snippet,
       summary: threads.summary,
       summaryMessageAt: threads.summaryMessageAt,
-      messageCount: sql<number>`(select count(*)::int from ${messages} where ${messages.threadId} = ${threads.id})`,
+      // Distinct messages across copies: the same Message-ID in two accounts counts once.
+      messageCount: sql<number>`(select count(distinct coalesce(${messages.headers}->>'messageId', ${messages.id}::text))::int from ${messages} where ${messages.threadId} in ${copies})`,
+      accountIds: sql<string[]>`array(select a.id from ${accounts} a where a.id in (select t.account_id from ${threads} t where t.id in ${copies}) order by a.created_at)`,
     })
     .from(threads)
     .leftJoinLateral(last, sql`true`)
@@ -110,6 +119,8 @@ export async function listThreads(view: View, on: string[] | null) {
   return rows.map((r) => ({
     id: r.id,
     accountId: r.accountId,
+    // Every account the conversation reached, in account order.
+    accountIds: r.accountIds,
     senderId: r.senderId,
     bucket: r.bucket,
     subject: r.subject || "(no subject)",
@@ -129,38 +140,53 @@ export async function listThreads(view: View, on: string[] | null) {
 
 export type ThreadListItem = Awaited<ReturnType<typeof listThreads>>[number];
 
-export async function getThread(id: string) {
-  const thread = await db.query.threads.findFirst({
-    where: eq(threads.id, id),
+const threadWith = {
+  account: { columns: { id: true, email: true, label: true, color: true } },
+  sender: { columns: { id: true, email: true, displayName: true, imagesAllowed: true, screenerDecision: true, decidedBy: true } },
+  messages: {
+    orderBy: asc(messages.date),
+    columns: {
+      id: true,
+      fromEmail: true,
+      fromName: true,
+      to: true,
+      cc: true,
+      date: true,
+      snippet: true,
+      htmlSanitized: true,
+      text: true,
+      isInbound: true,
+      headers: true,
+    },
     with: {
-      account: { columns: { id: true, email: true, label: true, color: true } },
       sender: { columns: { id: true, email: true, displayName: true, imagesAllowed: true, screenerDecision: true, decidedBy: true } },
-      messages: {
-        orderBy: asc(messages.date),
-        columns: {
-          id: true,
-          fromEmail: true,
-          fromName: true,
-          to: true,
-          cc: true,
-          date: true,
-          snippet: true,
-          htmlSanitized: true,
-          text: true,
-          isInbound: true,
-          headers: true,
-        },
-        with: {
-          sender: { columns: { id: true, email: true, displayName: true, imagesAllowed: true, screenerDecision: true, decidedBy: true } },
-          attachments: {
-            columns: { id: true, filename: true, mimeType: true, size: true },
-            orderBy: asc(attachments.filename),
-          },
-        },
+      attachments: {
+        columns: { id: true, filename: true, mimeType: true, size: true },
+        orderBy: asc(attachments.filename),
       },
     },
-  });
-  if (!thread) return null;
+  },
+} as const;
+
+/**
+ * A thread for the reading pane. Twins merge into one timeline: every distinct message of every
+ * copy (by Message-ID), oldest first; state comes from the opened copy.
+ */
+export async function getThread(id: string) {
+  const opened = await db.query.threads.findFirst({ where: eq(threads.id, id), with: threadWith });
+  if (!opened) return null;
+  const twins = opened.groupId
+    ? (await db.query.threads.findMany({ where: eq(threads.groupId, opened.groupId), with: threadWith })).filter((t) => t.id !== opened.id)
+    : [];
+  const all = [opened, ...twins];
+  const thread = {
+    ...opened,
+    messages: mergeTimeline(all.map((t) => t.messages.map((m) => ({ ...m, messageId: m.headers.messageId })))),
+  };
+  const accountOrder = new Map((await listAccounts()).map((a, i) => [a.id, i]));
+  const reached = [...new Map(all.map((t) => [t.account.id, t.account])).values()].sort(
+    (a, b) => (accountOrder.get(a.id) ?? 0) - (accountOrder.get(b.id) ?? 0),
+  );
   const latestInbound = thread.messages.findLast((m) => m.isInbound);
   const people = new Map(
     [thread.sender, ...thread.messages.map((m) => m.sender)].flatMap((s) => (s ? [[s.id, s] as const] : [])),
@@ -198,10 +224,13 @@ export async function getThread(id: string) {
     trashed: thread.trashed,
     canUnsubscribe: !!latestInbound?.headers.listUnsubscribe,
     account: thread.account,
+    // Every account the conversation reached, twins included, in account order.
+    accounts: reached,
     // Headers stay on the server; the client only needs canUnsubscribe.
     messages: thread.messages.map((m) => {
-      const { headers, ...rest } = m;
+      const { headers, messageId, ...rest } = m;
       void headers;
+      void messageId;
       return {
         ...rest,
         date: m.date.toISOString(),

@@ -232,7 +232,11 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                       value={`thread:${hit.id}`}
                       onSelect={() => go(mailHref(BUCKET_VIEW[hit.bucket], { threadId: hit.id }))}
                     >
-                      <AccountSquare color={colorOf.get(hit.accountId)} />
+                      <span className="flex shrink-0 gap-1">
+                        {hit.accountIds.map((id) => (
+                          <AccountSquare key={id} color={colorOf.get(id)} />
+                        ))}
+                      </span>
                       <span className="w-sender shrink-0 truncate text-text-muted">
                         <Highlight text={hit.sender} words={words} />
                       </span>

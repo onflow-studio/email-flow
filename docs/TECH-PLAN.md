@@ -58,7 +58,7 @@ superfer/
 Core tables, Drizzle in `lib/db/schema.ts`.
 
 - `accounts`: id, email, label, color, oauth tokens (encrypted at rest with a key from env), gmail history cursor, last sync at, signature html.
-- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, pinned at, archived, participants summary, list summary and the last message time it covers.
+- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, pinned at, archived, participants summary, list summary and the last message time it covers. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
 - `messages`: id, thread id, gmail message id, from, to, cc, date, snippet, html sanitized, text, is inbound, gmail labels, headers subset (list-unsubscribe, precedence, in-reply-to).
 - `attachments`: id, message id, filename, mime, size, gmail attachment id. Metadata only.
 - `senders`: id, email, domain, display name, first seen, screener decision (allowed, out_spam, out_not_now, none), decided at, decided by (ai, user), images allowed, notes. Shared across accounts, with a per-account seen count in a join table.
@@ -107,6 +107,10 @@ User moves write a correction row and set bucket source user. Rules are entered 
 - On bucket change: set the matching label, remove the others. For news, paper_trail, and triage: also remove INBOX so Gmail's inbox mirrors our Inbox bucket.
 - Read, archive, trash, spam: mirror both ways. Gmail changes come in via history, ours go out via modify.
 - Snooze, pin, screener decisions, deadlines: never written to Gmail.
+
+## Twins
+
+The same mail sent to two of the user's accounts is two Gmail threads. `lib/sync/twins.ts` links them on ingest into one group (`threads.group_id`, smallest key wins when groups merge), and `pnpm twins [--dry-run]` linked mail synced before. A group is one thread everywhere: lists and counts show one copy (live, then unsnoozed, pinned, unseen, newest; chosen among the accounts toggled on) with every account's square, the reading pane merges all copies' messages by Message-ID, and every thread action applies to all copies under one batch, writing back per copy on its own account. Replies leave from the copy in the account the latest inbound message was addressed to. A new copy joining a group takes the state the user gave it instead of being classified again; when copies disagree, the copy with the most recent user action in `actions_log` wins, logged as `reconcile`.
 
 ## Actions and undo
 
