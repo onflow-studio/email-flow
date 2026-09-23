@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { JEV_MAX_BODY_BYTES, JEV_URL, JevError, evaluateWithJev } from "@/lib/ai";
 
 import { runClassifier, type Evaluator } from "./classify";
 import { context, sender } from "./fixtures";
@@ -163,5 +165,76 @@ describe("runClassifier with Jev mocked", () => {
     const run = await runClassifier(context({ sender: sender({ decision: "out_spam" }) }), jev);
     expect(jev).not.toHaveBeenCalled();
     expect(run).toEqual({ decision: expect.objectContaining({ bucket: "out" }), model: null });
+  });
+});
+
+describe("evaluateWithJev over HTTP", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  function fakeFetch(status: number, body: unknown) {
+    return vi.fn<typeof fetch>(async () =>
+      new Response(typeof body === "string" ? body : JSON.stringify(body), { status }),
+    );
+  }
+
+  it("posts model, state and questions with the bearer key and unwraps the answers", async () => {
+    vi.stubEnv("JEV_API_KEY", "test-key");
+    const a = answers();
+    const f = fakeFetch(200, { code: 0, message: "ok", data: { answers: a } });
+    const { state, questions } = buildJevRequest(context());
+    const res = await evaluateWithJev(state, questions, { fetch: f });
+
+    expect(res).toEqual({ answers: a, response: { modelId: "typesafe-ai/jev" } });
+    const [url, init] = f.mock.calls[0];
+    expect(url).toBe(JEV_URL);
+    expect(init?.headers).toMatchObject({ Authorization: "Bearer test-key" });
+    expect(JSON.parse(init?.body as string)).toEqual({ model: "typesafe-ai/jev", state, questions });
+  });
+
+  it("surfaces a non-zero envelope code with its message", async () => {
+    vi.stubEnv("JEV_API_KEY", "test-key");
+    const f = fakeFetch(400, { code: 40001, message: "invalid question" });
+    const { state, questions } = buildJevRequest(context());
+    const err = await evaluateWithJev(state, questions, { fetch: f }).catch((e) => e);
+    expect(err).toBeInstanceOf(JevError);
+    expect(err).toMatchObject({ code: 40001, status: 400, message: "Jev error 40001: invalid question" });
+  });
+
+  it("surfaces a non-JSON response with the HTTP status", async () => {
+    vi.stubEnv("JEV_API_KEY", "test-key");
+    const { state, questions } = buildJevRequest(context());
+    await expect(evaluateWithJev(state, questions, { fetch: fakeFetch(502, "Bad gateway") })).rejects.toThrow(
+      "Jev returned HTTP 502: Bad gateway",
+    );
+  });
+
+  it("reports a timeout", async () => {
+    vi.stubEnv("JEV_API_KEY", "test-key");
+    const hang = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal?.reason))),
+    );
+    const { state, questions } = buildJevRequest(context());
+    await expect(evaluateWithJev(state, questions, { fetch: hang, timeoutMs: 10 })).rejects.toThrow(
+      "Jev request failed: timed out",
+    );
+  });
+
+  it("trims the longest text to keep the body under the cap", async () => {
+    vi.stubEnv("JEV_API_KEY", "test-key");
+    const f = fakeFetch(200, { code: 0, message: "ok", data: { answers: answers() } });
+    const huge = "é".repeat(40_000);
+    const { state, questions } = buildJevRequest(
+      context({ rules: [{ text: huge, structured: null }, { text: "Substack goes to News", structured: null }] }),
+    );
+    await evaluateWithJev(state, questions, { fetch: f });
+
+    const body = f.mock.calls[0][1]?.body as string;
+    expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(JEV_MAX_BODY_BYTES);
+    const sent = JSON.parse(body).state;
+    expect(sent.rules[0].text.length).toBeLessThan(huge.length);
+    expect(sent.rules[1].text).toBe("Substack goes to News");
+    expect(sent.email).toEqual(state.email);
+    expect((state.rules as { text: string }[])[0].text).toBe(huge);
   });
 });
