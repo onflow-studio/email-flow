@@ -5,8 +5,8 @@ import { Suspense } from "react";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 
-import { PhoneHeader, SettingsBack } from "./back";
-import { SettingsMenu } from "./menu";
+import { SettingsBack } from "./back";
+import { SettingsTabs } from "./tabs";
 import { SettingsStatus } from "./status";
 
 export default async function SettingsLayout({ children }: LayoutProps<"/settings">) {
@@ -16,19 +16,13 @@ export default async function SettingsLayout({ children }: LayoutProps<"/setting
 
   return (
     <div className="flex h-dvh flex-col bg-bg">
-      <PhoneHeader />
-      <div className="flex min-h-0 flex-1">
-        <nav
-          aria-label="settings"
-          className="hidden w-rail shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface p-3 md:flex"
-        >
-          <SettingsBack className="-ml-1" />
-          <SettingsMenu variant="rail" />
-        </nav>
-        <main id="settings-section" className="min-h-0 flex-1 overflow-y-auto p-3 md:p-8">
-          <div className="mx-auto flex max-w-palette flex-col gap-4">{children}</div>
-        </main>
-      </div>
+      <nav className="flex h-touch shrink-0 items-center gap-3 overflow-x-auto border-b border-border bg-surface px-3">
+        <SettingsBack className="self-center" />
+        <SettingsTabs />
+      </nav>
+      <main id="settings-section" className="min-h-0 flex-1 overflow-y-auto p-3 md:p-8">
+        <div className="mx-auto flex max-w-palette flex-col gap-4">{children}</div>
+      </main>
 
       <footer className="status-rule box-content flex h-status shrink-0 items-center justify-between gap-3 bg-surface px-3 pb-safe text-11 text-text-muted">
         <Suspense fallback={<span>{n} of 3 accounts</span>}>

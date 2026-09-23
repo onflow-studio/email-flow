@@ -14,37 +14,35 @@ const isField = (el: Element | null) =>
 const section = () => document.getElementById("settings-section");
 
 /**
- * The settings side menu, styled like the mail rail. On desktop it owns the
- * arrow keys while focus is outside the section: up and down switch section,
- * right moves into it. Left from the section comes back. On phone it is the
- * list screen at `/settings`.
+ * The settings tabs. While focus is outside the section they own the arrow
+ * keys: left and right switch tab, down moves into the section. Up from the
+ * section's first stop comes back to the tabs.
  */
-export function SettingsMenu({ variant }: { variant: "rail" | "list" }) {
+export function SettingsTabs() {
   const pathname = usePathname();
   const router = useRouter();
   const current = currentSection(pathname);
-  const [menuFocused, setMenuFocused] = useState(true);
+  const [tabsFocused, setTabsFocused] = useState(true);
 
   useEffect(() => {
-    if (variant !== "rail") return;
-    const onFocus = () => setMenuFocused(!section()?.contains(document.activeElement));
+    const onFocus = () => setTabsFocused(!section()?.contains(document.activeElement));
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
       const active = document.activeElement;
       const inSection = !!section()?.contains(active);
       if (isField(active)) return;
-      if (!inSection && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      if (!inSection && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
         e.preventDefault();
         const i = SECTIONS.findIndex((s) => s.slug === current.slug);
-        const next = SECTIONS[i + (e.key === "ArrowDown" ? 1 : -1)];
+        const next = SECTIONS[i + (e.key === "ArrowRight" ? 1 : -1)];
         if (next) router.push(`/settings/${next.slug}`);
-      } else if (!inSection && e.key === "ArrowRight") {
+      } else if (!inSection && e.key === "ArrowDown") {
         e.preventDefault();
         section()?.querySelector<HTMLElement>("a[href], button:not(:disabled), input, textarea, select")?.focus();
-      } else if (inSection && e.key === "ArrowLeft") {
+      } else if (inSection && e.key === "ArrowUp" && active === firstStop()) {
         e.preventDefault();
         (active as HTMLElement).blur();
-        setMenuFocused(true);
+        setTabsFocused(true);
       }
     };
     document.addEventListener("focusin", onFocus);
@@ -55,37 +53,25 @@ export function SettingsMenu({ variant }: { variant: "rail" | "list" }) {
       document.removeEventListener("focusout", onFocus);
       window.removeEventListener("keydown", onKey);
     };
-  }, [variant, current.slug, router]);
-
-  if (variant === "list")
-    return (
-      <ul className="flex flex-col border-t border-border">
-        {SECTIONS.map((s) => (
-          <li key={s.slug}>
-            <Link href={`/settings/${s.slug}`} className="flex h-touch items-center border-b border-border px-3 text-text">
-              {s.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    );
+  }, [current.slug, router]);
 
   return (
-    <ul className="flex flex-col gap-1">
+    <ul role="tablist" aria-label="settings" className="flex items-stretch self-stretch">
       {SECTIONS.map((s) => {
         const active = s.slug === current.slug;
         return (
-          <li key={s.slug}>
+          <li key={s.slug} className="flex">
             <Link
               href={`/settings/${s.slug}`}
-              aria-current={active ? "page" : undefined}
+              role="tab"
+              aria-selected={active}
               className={cn(
-                "flex h-row items-center rounded-sm border-l-2 border-transparent px-2 transition-colors duration-80 ease-snap outline-none",
+                "flex items-center border-b-2 border-transparent px-3 transition-colors duration-80 ease-snap outline-none",
                 active
-                  ? menuFocused
-                    ? "glow-focus border-accent bg-surface-raised text-text"
-                    : "border-accent-dim bg-surface-raised font-medium text-text"
-                  : "text-text-muted hover:bg-surface-raised hover:text-text focus-visible:glow-focus focus-visible:border-accent focus-visible:bg-surface-raised focus-visible:text-text",
+                  ? tabsFocused
+                    ? "border-accent text-text"
+                    : "border-accent-dim font-medium text-text"
+                  : "text-text-muted hover:text-text focus-visible:border-accent focus-visible:text-text",
               )}
             >
               {s.label}
@@ -95,4 +81,8 @@ export function SettingsMenu({ variant }: { variant: "rail" | "list" }) {
       })}
     </ul>
   );
+}
+
+function firstStop() {
+  return section()?.querySelector<HTMLElement>("a[href], button:not(:disabled), input, textarea, select") ?? null;
 }
