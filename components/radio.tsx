@@ -1,6 +1,6 @@
 "use client";
 
-import { Pause, Play, RotateCw } from "lucide-react";
+import { RotateCw } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { cn } from "@/lib/utils";
@@ -317,7 +317,6 @@ export function Radio() {
   const playing = status === "playing" || status === "buffering";
   // The accessible name stays put; aria-pressed carries play vs pause.
   const label = status === "error" ? "radio failed, retry" : "radio";
-  const Icon = status === "error" ? RotateCw : on ? Pause : Play;
 
   return (
     <>
@@ -430,15 +429,11 @@ export function Radio() {
             status === "error" && "text-danger hover:text-danger",
           )}
         >
-          {playing ? (
-            // Playing, the equalizer stands in for the pause icon; a click still pauses.
-            <Equalizer live={status === "playing"} />
+          {status === "error" ? (
+            <RotateCw aria-hidden className="size-3" strokeWidth={1.5} />
           ) : (
-            <Icon
-              aria-hidden
-              className={cn("size-3", status === "loading" && "animate-pulse text-text-dim")}
-              strokeWidth={1.5}
-            />
+            // The same equalizer in every state: still when stopped, paused or loading, bouncing while it plays.
+            <Equalizer live={status === "playing"} />
           )}
           <span className={cn(status !== "error" && "radio-text", playing && "radio-live")}>
             {status === "error" ? "retry" : on ? "Flow Ongoing" : "Get in Flow"}
