@@ -24,7 +24,10 @@ export function Highlight({ text, words }: { text: string; words: string[] }) {
 
 /** Renders a ts_headline fragment, its marked matches in `--accent`. */
 export function Snippet({ text }: { text: string }) {
-  const parts = text.split(new RegExp(`${MATCH_START}|${MATCH_END}`));
+  const matchAt = text.indexOf(MATCH_START);
+  const start = Math.max(0, matchAt - 32);
+  const excerpt = start > 0 ? `…${text.slice(start)}` : text;
+  const parts = excerpt.split(new RegExp(`${MATCH_START}|${MATCH_END}`));
   return (
     <>
       {parts.map((part, i) =>

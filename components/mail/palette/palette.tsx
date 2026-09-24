@@ -27,8 +27,6 @@ import { mailHref, VIEWS, type ViewSlug } from "../views";
 import { Highlight, Snippet } from "./highlight";
 
 const SEARCH_DELAY_MS = 120;
-// Enough to pick from; bulk actions below cover the rest of the matches.
-const VISIBLE_HITS = 10;
 
 const BUCKET_VIEW: Record<Bucket, ViewSlug> = {
   inbox: "inbox",
@@ -195,7 +193,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     logout: matches("log out", query),
   };
   const appCount = Number(app.settings) + Number(app.logout);
-  const hits = current?.hits.slice(0, VISIBLE_HITS) ?? [];
+  const hits = current?.hits ?? [];
 
   // The first row is focused on open and after every keystroke or new result.
   const threadValues = [
@@ -282,7 +280,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
             <Command.List className={cn(
               "palette-lists flex min-h-0 flex-col overflow-hidden [&>[cmdk-list-sizer]]:min-h-0 [&>[cmdk-list-sizer]]:overflow-hidden",
               query
-                ? "[&>[cmdk-list-sizer]]:grid [&>[cmdk-list-sizer]]:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:[&>[cmdk-list-sizer]]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] md:[&>[cmdk-list-sizer]]:grid-rows-1"
+                ? "[&>[cmdk-list-sizer]]:grid [&>[cmdk-list-sizer]]:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:[&>[cmdk-list-sizer]]:grid-cols-[minmax(0,3fr)_minmax(240px,1fr)] md:[&>[cmdk-list-sizer]]:grid-rows-1"
                 : "[&>[cmdk-list-sizer]]:flex [&>[cmdk-list-sizer]]:flex-col",
             )} data-split={Boolean(query)}>
               {query ? (
@@ -312,28 +310,31 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                   {hits.map((hit) => (
                     <Item
                       key={hit.id}
+                      className="palette-thread-row"
                       value={`thread:${hit.id}`}
                       onSelect={() => go(mailHref(BUCKET_VIEW[hit.bucket], { threadId: hit.id }))}
                     >
-                      <span className="flex shrink-0 gap-1">
-                        {hit.accountIds.map((id) => (
-                          <AccountSquare key={id} color={colorOf.get(id)} />
-                        ))}
+                      <span className="flex w-full min-w-0 items-baseline gap-2">
+                        <span className="flex shrink-0 gap-1">
+                          {hit.accountIds.map((id) => (
+                            <AccountSquare key={id} color={colorOf.get(id)} />
+                          ))}
+                        </span>
+                        <span className="min-w-0 flex-1 break-words font-medium" title={hit.sender}>
+                          <Highlight text={hit.sender} words={words} />
+                        </span>
+                        {hit.archived ? <span className="shrink-0 text-11 text-text-dim">archived</span> : null}
+                        <Time iso={hit.lastMessageAt} className="shrink-0 text-11 text-text-muted" />
                       </span>
-                      <span className="w-sender shrink-0 truncate text-text-muted">
-                        <Highlight text={hit.sender} words={words} />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">
+                      <span className="line-clamp-2 w-full break-words" title={hit.subject}>
                         <Highlight text={hit.subject} words={words} />
-                        {hit.snippet ? (
-                          <span className="text-text-muted">
-                            {" "}
-                            <Snippet text={hit.snippet} />
-                          </span>
-                        ) : null}
                       </span>
-                      {hit.archived ? <span className="shrink-0 text-11 text-text-dim">archived</span> : null}
-                      <Time iso={hit.lastMessageAt} className="shrink-0 text-11 text-text-muted" />
+                      {hit.snippet ? (
+                        <span className="flex w-full min-w-0 items-baseline gap-2 text-12 text-text-muted">
+                          <span className="shrink-0 text-11">message</span>
+                          <span className="line-clamp-2 min-w-0 break-words"><Snippet text={hit.snippet} /></span>
+                        </span>
+                      ) : null}
                     </Item>
                   ))}
                 </Command.Group>

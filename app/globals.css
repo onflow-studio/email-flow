@@ -105,7 +105,7 @@
   --spacing-radio-panel: 280px;
   --spacing-key: 16px;
   --container-palette: 640px;
-  --container-palette-wide: 960px;
+  --container-palette-wide: 1280px;
   --spacing-compose: 640px;
   --spacing-compose-h: 70vh;
   --spacing-palette-top: 15vh;
@@ -334,6 +334,15 @@
 
 .palette-row[data-selected="true"]:not([data-disabled="true"]) .text-accent {
   color: var(--info);
+}
+
+.palette-row.palette-thread-row {
+  height: auto;
+  min-height: var(--spacing-touch);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding-block: 8px;
 }
 
 .palette-footer {
