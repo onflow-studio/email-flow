@@ -49,8 +49,17 @@ export function PaneHandle({ pane, label, className }: { pane: Pane; label: stri
   useEffect(() => {
     const update = () => setBounds(measure(ref.current, pane));
     update();
+    const shell = ref.current?.parentElement;
+    const observer = new ResizeObserver(update);
+    if (shell) {
+      observer.observe(shell);
+      if (shell.firstElementChild) observer.observe(shell.firstElementChild);
+    }
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
   }, [pane]);
 
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {

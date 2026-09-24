@@ -1,9 +1,10 @@
 export type Pane = "rail" | "list";
 
 export const PANES_KEY = "superfer.panes";
+export const PANE_LIMITS = { rail: [160, 320], list: [240, 960] } as const;
 
 // Runs in <head> before first paint so stored widths never flash the defaults.
-export const RESTORE_PANES = `try{var p=JSON.parse(localStorage.getItem(${JSON.stringify(PANES_KEY)})||"{}"),s=document.documentElement.style;["rail","list"].forEach(function(k){if(typeof p[k]==="number")s.setProperty("--"+k+"-w",p[k]+"px")})}catch(e){}`;
+export const RESTORE_PANES = `try{var p=JSON.parse(localStorage.getItem(${JSON.stringify(PANES_KEY)})||"{}"),s=document.documentElement.style,l=${JSON.stringify(PANE_LIMITS)};["rail","list"].forEach(function(k){if(typeof p[k]==="number"&&Number.isFinite(p[k]))s.setProperty("--"+k+"-w",Math.min(l[k][1],Math.max(l[k][0],p[k]))+"px")})}catch(e){}`;
 
 export function readPanes(): Partial<Record<Pane, number>> {
   try {

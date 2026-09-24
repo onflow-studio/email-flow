@@ -73,6 +73,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
     });
   }
   const accountColors = Object.fromEntries(accounts.map((a) => [a.id, a.color]));
+  const accountNames = Object.fromEntries(accounts.map((a) => [a.id, a.label]));
   const unseen = threads.filter((t) => t.unseen).length;
 
   return (
@@ -137,6 +138,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                       <ThreadList
                         threads={threads}
                         accountColors={accountColors}
+                        accountNames={accountNames}
                         emptyLabel={view.bucket || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
                       />
                     </div>

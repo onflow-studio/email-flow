@@ -46,9 +46,10 @@
   --rail-max: 320px;
   --list-w: 360px;
   --triage-queue-w: 224px;
-  --list-min: 280px;
-  --list-max: 640px;
-  --reading-min: 320px;
+  --list-min: 240px;
+  --list-max: 960px;
+  --reading-min: 360px;
+  --mail-row-h: 56px;
 
   /* Toast stack: card width; 16px above the status line (32), phone also clears the docked action bar (44 + 8). */
   --toast-w: 360px;
@@ -135,6 +136,7 @@
   --spacing-triage-queue: var(--triage-queue-w);
   --spacing-list-min: var(--list-min);
   --spacing-reading: var(--reading-min);
+  --spacing-mail-row: var(--mail-row-h);
 
   --color-bg: var(--bg);
   --color-surface: var(--surface);

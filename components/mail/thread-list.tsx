@@ -8,17 +8,19 @@ import { cn } from "@/lib/utils";
 
 import { AccountSquare } from "./account-square";
 import { useMailSelection } from "./selection";
-import { Time } from "./time";
+import { fullTime, Time } from "./time";
 import { UnreadDot } from "./unread-dot";
 import { mailHref } from "./views";
 
 export function ThreadList({
   threads,
   accountColors,
+  accountNames,
   emptyLabel,
 }: {
   threads: ThreadListItem[];
   accountColors: Record<string, string>;
+  accountNames: Record<string, string>;
   emptyLabel: string;
 }) {
   const sel = useMailSelection();
@@ -46,14 +48,15 @@ export function ThreadList({
   const firstSeen = grouped ? ordered.findIndex((t) => !t.unseen) : -1;
 
   return (
-    <ul ref={listRef} role="listbox" aria-label="threads" className="flex flex-col py-1">
+    <ul ref={listRef} aria-label="threads" className="flex flex-col py-1">
       {ordered.map((t, i) => (
-        <li key={t.id} role="presentation">
+        <li key={t.id}>
           {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
           {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
           <ThreadRow
             thread={t}
             accountColors={t.accountIds.map((id) => accountColors[id])}
+            accountNames={t.accountIds.map((id) => accountNames[id] ?? "unknown account")}
             focused={t.id === sel.focusedId}
             open={t.id === sel.openId}
             href={mailHref(sel.view, { threadId: t.id })}
@@ -74,6 +77,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 function ThreadRow({
   thread: t,
   accountColors,
+  accountNames,
   focused,
   open,
   href,
@@ -84,6 +88,7 @@ function ThreadRow({
   thread: ThreadListItem;
   /** One per account the conversation reached: twins show every square. */
   accountColors: (string | undefined)[];
+  accountNames: string[];
   focused: boolean;
   open: boolean;
   href: string;
@@ -94,65 +99,42 @@ function ThreadRow({
 }) {
   const [now] = useState(() => Date.now());
   const overdue = !!t.deadlineAt && new Date(t.deadlineAt).getTime() < now;
+  const status = [t.resurfaced && "back", t.needsReply && "needs reply", overdue && "overdue", work && t.deadlineAt && !overdue && `due ${fullTime(t.deadlineAt)}`].filter(Boolean);
   return (
     <Link
       href={href}
       scroll={false}
-      role="option"
-      aria-selected={focused}
-      aria-current={open ? "true" : undefined}
+      aria-current={open ? "page" : undefined}
       data-thread-id={t.id}
       onClick={onSelect}
       className={cn(
-        "flex h-touch items-center gap-2 border-l-2 pr-3 pl-2 transition-colors duration-80 ease-snap md:h-row",
+        "flex min-h-mail-row min-w-0 flex-col justify-center gap-1 border-l-2 pr-3 pl-2 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
         focused
           ? "glow-focus border-accent bg-surface-raised"
           : "border-transparent hover:bg-surface-raised",
       )}
     >
-      <span aria-hidden className="flex shrink-0 gap-1">
-        {accountColors.map((color, i) => (
-          <AccountSquare key={i} color={color} />
-        ))}
+      <span className="sr-only">{accountNames.join(", ")}; {t.unseen ? "unseen" : "seen"}{status.length ? `; ${status.join(", ")}` : ""}; </span>
+      <span className="flex w-full min-w-0 items-center gap-2">
+        <span aria-hidden className="flex shrink-0 gap-1">
+          {accountColors.map((color, i) => <AccountSquare key={i} color={color} />)}
+        </span>
+        {t.unseen ? <UnreadDot /> : null}
+        <span className={cn("min-w-0 flex-1 truncate", t.unseen ? "font-medium text-text" : "text-text-muted")}>{t.sender}</span>
+        {t.messageCount > 1 ? <span className="shrink-0 text-11 text-text-dim">{t.messageCount}</span> : null}
+        {t.resurfaced ? <span aria-hidden><Badge>back</Badge></span> : null}
+        <Time iso={showSnooze && t.snoozedUntil ? t.snoozedUntil : t.lastMessageAt} className="shrink-0 text-11 tabular-nums text-text-muted" />
       </span>
-      <span
-        className={cn(
-          "w-sender shrink-0 truncate",
-          t.unseen ? "font-medium text-text" : "text-text-muted",
-        )}
-      >
-        {t.sender}
-      </span>
-      {t.messageCount > 1 ? <span className="shrink-0 text-11 text-text-dim">{t.messageCount}</span> : null}
-      <span className="min-w-0 flex-1 truncate">
-        <span className={t.unseen ? "font-medium text-text" : "text-text-dim"}>{t.subject}</span>
-        {t.summary || t.snippet ? (
-          <span className={t.unseen ? "text-text-muted" : "text-text-dim"}> {t.summary ?? t.snippet}</span>
-        ) : null}
-      </span>
-      {t.resurfaced ? <Badge>back</Badge> : null}
-      {work ? (
-        <>
+      <span className="flex w-full min-w-0 items-center gap-2">
+        <span className="min-w-0 flex-1 truncate">
+          <span className={t.unseen ? "font-medium text-text" : "text-text-muted"}>{t.subject}</span>
+          {t.summary || t.snippet ? <span className="text-text-muted"> · {t.summary ?? t.snippet}</span> : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-1" aria-hidden>
           {t.needsReply ? <Badge>reply</Badge> : null}
-          {overdue ? (
-            <Badge className="text-warning">overdue</Badge>
-          ) : t.deadlineAt ? (
-            <Badge>
-              due <Time iso={t.deadlineAt} />
-            </Badge>
-          ) : null}
-          {t.unseen ? <UnreadDot /> : null}
-        </>
-      ) : overdue ? (
-        <Badge className="text-warning">overdue</Badge>
-      ) : t.needsReply ? (
-        <Badge>reply</Badge>
-      ) : null}
-      {showSnooze && t.snoozedUntil ? (
-        <Time iso={t.snoozedUntil} className="shrink-0 text-11 text-text-muted" />
-      ) : (
-        <Time iso={t.lastMessageAt} className="shrink-0 text-11 text-text-muted" />
-      )}
+          {overdue ? <Badge className="text-warning">overdue</Badge> : work && t.deadlineAt ? <Badge>due <Time iso={t.deadlineAt} /></Badge> : null}
+        </span>
+      </span>
     </Link>
   );
 }
