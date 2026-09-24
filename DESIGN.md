@@ -71,7 +71,7 @@ Account identity uses hue, not a full palette: one hue per account, chosen at se
 
 - Triage queue token: `--triage-queue-w` / `w-triage-queue` is 224px. It stays narrow at desktop widths so the judged message dominates; the other folders continue to use the stored `--list-w`.
 
-- Desktop: a 44px header across the top, then three panes. Left rail 200px with buckets and counts. Thread list 360px. Reading pane takes the rest. Rail collapses to icons below 1100px. The status line runs across the bottom.
+- Desktop: a 44px header across the top, then three panes. Left rail 200px with buckets and counts. Thread list 360px. Reading pane takes the rest. Rail collapses to icons below 1100px. The status line runs across the bottom. Mail locks document scrolling; the list, rail, and reading pane scroll independently so the fixed radio stays aligned with the status line.
 - Triage desktop: keep the rail, but use a fixed 224px queue strip instead of the resizable thread list. Its position (`3 of 12`) and adjacent sender/subject rows show progress; the reading pane gets the remaining width. A decision removes a resolved item and opens the next one at the same position, or the previous final item. Seen state never changes queue membership or the denominator. The queue respects account filters and grouped twins.
 - The queue header keeps Compose as a secondary control next to its position indicator.
 - Header: see Components. It spans the full window width above the panes, so the panes start 44px down.

@@ -85,7 +85,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
           accounts={accounts.map((a) => ({ id: a.id, label: a.label, email: a.email, color: a.color, on: isOn(a.id) }))}
         >
         <PaletteProvider counts={counts.n}>
-          <div className="flex h-dvh flex-col bg-bg">
+          <div className="mail-shell flex h-dvh flex-col bg-bg">
             <Header className={cn(detail && "hidden md:flex")} />
             <div className="flex min-h-0 flex-1">
               <Rail view={view.slug} counts={counts} />

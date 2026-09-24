@@ -460,6 +460,11 @@
     @apply bg-bg font-mono text-text;
   }
 
+  /* Mail panes own their scrolling; keep the document and fixed radio aligned. */
+  html:has(.mail-shell) {
+    overflow: hidden;
+  }
+
   body {
     @apply text-13 leading-list;
     font-variant-numeric: tabular-nums;
