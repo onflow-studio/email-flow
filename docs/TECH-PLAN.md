@@ -170,14 +170,24 @@ GOOGLE_REDIRECT_URI
 TOKEN_ENCRYPTION_KEY
 ANTHROPIC_API_KEY
 SYNC_SECRET
+ALLOWED_EMAILS        comma-separated Google accounts allowed to log in
+SESSION_SECRET        signs the session cookie, 32+ characters
+LOGIN_REDIRECT_URI    optional, defaults to /api/auth/login/callback on GOOGLE_REDIRECT_URI's origin
+AUTH_DISABLED         dev only, 1 skips the login gate, ignored in production
 ```
+
+## Login gate
+
+`proxy.ts` sits in front of every page, route handler and server action. Without a valid session, pages redirect to `/login` and everything else (API routes, server action posts) gets 401. Exempt: `/login`, `/api/auth/login/*`, `/api/sync` (bearer `SYNC_SECRET`) and static assets, manifest and icons. Connecting a Gmail account needs a session like any other page.
+
+Login is Google sign-in on the same OAuth client with `openid email profile` only, its own callback at `/api/auth/login/callback`. The verified email must be in `ALLOWED_EMAILS`. The session is an HMAC-signed cookie (`email.issuedAt.mac`), httpOnly, secure on https, SameSite lax, 90 days, renewed when older than 45 days. Removing an email from the allowlist ends its sessions. No user table. Logout is in the palette.
 
 ## Hosting later
 
 1. Neon from Vercel marketplace, `DATABASE_URL` set automatically.
 2. `pnpm drizzle-kit migrate` against Neon.
 3. Cron in `vercel.ts` hitting `/api/sync` every 5 minutes with the secret.
-4. Update `GOOGLE_REDIRECT_URI` in Google Cloud and env.
+4. Update `GOOGLE_REDIRECT_URI` in Google Cloud and env, and add the login callback (`https://<host>/api/auth/login/callback`) as an authorized redirect URI. Set `ALLOWED_EMAILS` and `SESSION_SECRET`; leave `AUTH_DISABLED` unset.
 5. Optionally swap providers in `lib/ai` for AI Gateway model strings.
 
 ## Build order

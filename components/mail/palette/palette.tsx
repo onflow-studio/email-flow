@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 import { BULK_ACTIONS } from "@/app/(mail)/_lib/bulk";
 import { paletteSearch, previewSearchAction, type PaletteSearch } from "@/app/(mail)/palette-actions";
+import { logout } from "@/app/(mail)/logout-action";
 import { runThreadAction } from "@/app/(mail)/thread-actions";
 import type { ActionPreview } from "@/lib/actions/types";
 import { Kbd, KeyHints } from "@/components/ui/kbd";
@@ -175,7 +176,11 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     },
   ].filter((a) => matches(a.label, query));
   const accountRows = accounts.length > 1 ? accounts.filter((a) => matches(`${a.label} ${a.email}`, query)) : [];
-  const app = matches("settings", query);
+  const app = {
+    settings: matches("settings", query),
+    logout: matches("log out", query),
+  };
+  const appCount = Number(app.settings) + Number(app.logout);
   const hits = current?.hits.slice(0, VISIBLE_HITS) ?? [];
 
   // The first row is focused on open and after every keystroke or new result.
@@ -185,7 +190,8 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     ...views.map((v) => `view:${v.slug}`),
     ...actions.map((a) => `action:${a.key}`),
     ...accountRows.map((a) => `account:${a.id}`),
-    ...(app ? ["app:settings"] : []),
+    ...(app.settings ? ["app:settings"] : []),
+    ...(app.logout ? ["app:logout"] : []),
   ];
   const listKey = `${query}|${current ? "results" : ""}`;
   const [picked, setPicked] = useState<{ key: string; value: string } | null>(null);
@@ -326,14 +332,29 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                 </Command.Group>
               ) : null}
 
-              {app ? (
-                <Command.Group heading={heading("app", 1)}>
-                  <Item value="app:settings" onSelect={() => go("/settings")}>
-                    <span className="flex-1">
-                      <Highlight text="settings" words={query ? [query] : []} />
-                    </span>
-                    <CommandKbd id="go.settings" />
-                  </Item>
+              {appCount ? (
+                <Command.Group heading={heading("app", appCount)}>
+                  {app.settings ? (
+                    <Item value="app:settings" onSelect={() => go("/settings")}>
+                      <span className="flex-1">
+                        <Highlight text="settings" words={query ? [query] : []} />
+                      </span>
+                      <CommandKbd id="go.settings" />
+                    </Item>
+                  ) : null}
+                  {app.logout ? (
+                    <Item
+                      value="app:logout"
+                      onSelect={() => {
+                        onClose();
+                        void logout();
+                      }}
+                    >
+                      <span className="flex-1">
+                        <Highlight text="log out" words={query ? [query] : []} />
+                      </span>
+                    </Item>
+                  ) : null}
                 </Command.Group>
               ) : null}
             </Command.List>
