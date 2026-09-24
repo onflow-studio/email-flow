@@ -170,6 +170,7 @@ GOOGLE_REDIRECT_URI
 TOKEN_ENCRYPTION_KEY
 ANTHROPIC_API_KEY
 SYNC_SECRET
+CRON_SECRET           production only, identical to SYNC_SECRET for Vercel cron authentication
 ALLOWED_EMAILS        comma-separated Google accounts allowed to log in
 SESSION_SECRET        signs the session cookie, 32+ characters
 LOGIN_REDIRECT_URI    optional, defaults to /api/auth/login/callback on GOOGLE_REDIRECT_URI's origin
@@ -182,13 +183,60 @@ AUTH_DISABLED         dev only, 1 skips the login gate, ignored in production
 
 Login is Google sign-in on the same OAuth client with `openid email profile` only, its own callback at `/api/auth/login/callback`. The verified email must be in `ALLOWED_EMAILS`. The session is an HMAC-signed cookie (`email.issuedAt.mac`), httpOnly, secure on https, SameSite lax, 90 days, renewed when older than 45 days. Removing an email from the allowlist ends its sessions. No user table. Logout is in the palette.
 
-## Hosting later
+## Hosting
 
-1. Neon from Vercel marketplace, `DATABASE_URL` set automatically.
-2. `pnpm drizzle-kit migrate` against Neon.
-3. Cron in `vercel.ts` hitting `/api/sync` every 5 minutes with the secret.
-4. Update `GOOGLE_REDIRECT_URI` in Google Cloud and env, and add the login callback (`https://<host>/api/auth/login/callback`) as an authorized redirect URI. Set `ALLOWED_EMAILS` and `SESSION_SECRET`; leave `AUTH_DISABLED` unset.
-5. Optionally swap providers in `lib/ai` for AI Gateway model strings.
+Production: https://your-app.vercel.app, deployed 2026-09-24 under a Vercel team (Pro plan), linked to `f3r/superfer`. Node.js 24, functions in Frankfurt (`fra1`), alongside the Neon Marketplace database `superfer` (Free plan, Frankfurt). The app's Google login gate protects the production hostname; Vercel Standard Protection also protects preview and deployment-specific URLs.
+
+The move is configuration only: `vercel.ts`, its `@vercel/config` development dependency, and `.vercelignore` to exclude local environment files from uploads. No application changes or additional services. AI continues to use the existing Anthropic integration.
+
+### Database cutover
+
+Restored a full custom-format `pg_dump` from `superfer-postgres-1` into the empty Neon database with `pg_restore --no-owner --no-acl --exit-on-error --single-transaction`. This includes `drizzle.__drizzle_migrations`; migrations 0000–0009 were **not** rerun over the restored schema. Future migrations use `pnpm db:migrate` with the production URL explicitly supplied.
+
+All table counts matched before hosted sync started:
+
+| Table | Local and Neon rows |
+| --- | ---: |
+| drizzle.__drizzle_migrations | 10 |
+| accounts | 3 |
+| actions_log | 169 |
+| attachments | 2,112 |
+| classifications | 877 |
+| corrections | 28 |
+| jobs | 1,849 |
+| keybindings | 1 |
+| messages | 2,498 |
+| rules | 0 |
+| sender_accounts | 431 |
+| senders | 386 |
+| threads | 1,480 |
+
+Encrypted refresh tokens matched exactly, and `TOKEN_ENCRYPTION_KEY` was copied unchanged. No pending or running jobs existed at cutover. A private local backup is retained at `.vercel/pre-hosting.dump` (gitignored).
+
+**Use Neon's direct URL for production `DATABASE_URL`.** Marketplace initially supplies a pooled URL; it was overridden with `DATABASE_URL_UNPOOLED` because sync reserves a connection for session-level advisory locks. Transaction pooling cannot preserve those locks. No driver changes are needed.
+
+Local `.env` keeps `DATABASE_URL` pointed at Docker and stores the hosted direct URL separately as `PRODUCTION_DATABASE_URL`. The Mac sync loop is stopped and must stay stopped for normal use. The Docker database is now a development snapshot and diverges from production. Maintenance scripts (`backfill`, `summarize`, `participation`, `twins`) require an explicit production `DATABASE_URL` override; do not run two sync writers. The historical summarization batch has not been run as part of deployment.
+
+### Production environment and OAuth
+
+Production app variables: `DATABASE_URL`, `TOKEN_ENCRYPTION_KEY`, `SYNC_SECRET`, `CRON_SECRET`, `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `LOGIN_REDIRECT_URI`, `ALLOWED_EMAILS`, `SESSION_SECRET`. `AUTH_DISABLED` is unset. Production credentials are not assigned to preview or development environments; Neon also supplies its standard connection aliases in production.
+
+The existing Google Cloud OAuth client has these authorized production redirects (in addition to localhost):
+
+- `https://your-app.vercel.app/api/auth/google/callback`
+- `https://your-app.vercel.app/api/auth/login/callback`
+
+Google's consent app remains in Testing. Gmail refresh tokens expire after seven days; accounts connected around September 23 may require reconnecting around **September 30, 2026**. Expiry warnings, palette reconnect, and a separate Internal OAuth project for Work1 Workspace accounts remain follow-ups, not part of this deployment.
+
+### Scheduled sync
+
+`vercel.ts` schedules `GET /api/sync` with `*/5 * * * *`. Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically; setting `CRON_SECRET` equal to `SYNC_SECRET` preserves the existing route's authentication without a code change. Rotate both together. The route retains `maxDuration = 300`; the Pro plan supports the five-minute schedule.
+
+The first authenticated hosted pass on September 24 at 14:05:27 UTC returned HTTP 200 in 8.579 seconds. All three accounts returned `ok`; two new messages generated two successful classification jobs and two successful Gmail write-back jobs, with no retries or failures.
+
+Inspect runs with `vercel logs --environment production --query '/api/sync' --since 1h --scope <team>`. Check account outcomes and `last_sync_error` as well as HTTP status: reconnect, busy, and throttled outcomes are not HTTP 500 errors.
+
+Custom domain, AI Gateway migration, and the real phone/PWA install check (#15) remain optional follow-ups.
 
 ## Build order
 
