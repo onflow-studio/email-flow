@@ -206,3 +206,5 @@ Tokens live in `app/globals.css`: raw values as CSS variables on `:root` with th
 Merge classes with `cn` from `lib/utils`, which knows this scale.
 
 Search results use variable-height rows with 8px vertical padding and 4px gaps: a wrapping sender/date line, subject (up to two lines), then a separate message excerpt (up to two lines) with highlighted matches. Excerpts start no more than 32 characters before the first match so long URLs cannot hide it on mobile. All returned results remain scrollable (up to 50); the header reports the displayed count. Action rows keep their compact height.
+
+Inbox and Triage always show their unseen-thread counter in the expanded desktop rail, including a dim `0`. Other view counters retain their existing zero-hiding behavior.

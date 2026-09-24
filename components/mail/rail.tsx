@@ -99,8 +99,8 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
         >
           <Icon aria-hidden className="size-4 rail:hidden" strokeWidth={1.5} />
           <span className="hidden rail:inline">{it.label}</span>
-          {it.count ? (
-            <span className={cn("hidden items-center gap-1 text-11 rail:flex", it.strong ? "text-text" : "text-text-dim")}>
+          {it.count !== undefined && (it.count > 0 || it.key === "inbox" || it.key === "triage") ? (
+            <span className={cn("hidden items-center gap-1 text-11 rail:flex", it.strong && it.count > 0 ? "text-text" : "text-text-dim")}>
               {it.unread ? <UnreadDot /> : null}
               {it.count}
             </span>
