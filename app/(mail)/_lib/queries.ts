@@ -53,7 +53,7 @@ export async function listAccounts() {
 export type AccountSummary = Awaited<ReturnType<typeof listAccounts>>[number];
 
 export type ViewCounts = {
-  /** Unseen count for bucket views, total for work, snoozed and trash. */
+  /** Unseen count for News and Paper Trail; total visible threads for other views. */
   n: Record<ViewSlug, number>;
   /** Views where a thread has an unread reply that the count does not show: work. */
   unread: Partial<Record<ViewSlug, boolean>>;
@@ -62,7 +62,7 @@ export type ViewCounts = {
 export async function viewCounts(on: string[] | null): Promise<ViewCounts> {
   const rows = await Promise.all(
     VIEWS.map(async (view) => {
-      const unseenOnly = !!view.bucket;
+      const unseenOnly = view.slug === "news" || view.slug === "paper-trail";
       const [row] = await db
         .select({ n: count(), unseen: count(sql`case when ${unseen()} then 1 end`) })
         .from(threads)
