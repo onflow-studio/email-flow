@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import type { ThreadListItem } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
 
-import { AccountSquare } from "./account-square";
 import { useMailSelection } from "./selection";
 import { fullTime, Time } from "./time";
 import { UnreadDot } from "./unread-dot";
@@ -86,7 +85,7 @@ function ThreadRow({
   work,
 }: {
   thread: ThreadListItem;
-  /** One per account the conversation reached: twins show every square. */
+  /** One per account the conversation reached: twins show each name by the date. */
   accountColors: (string | undefined)[];
   accountNames: string[];
   focused: boolean;
@@ -108,7 +107,7 @@ function ThreadRow({
       data-thread-id={t.id}
       onClick={onSelect}
       className={cn(
-        "flex min-h-mail-row min-w-0 flex-col justify-center gap-1 border-l-2 pr-3 pl-2 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
+        "flex min-h-mail-row min-w-0 flex-col justify-center gap-1 border-l-2 pr-3 pl-6 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
         focused
           ? "glow-focus border-accent bg-surface-raised"
           : "border-transparent hover:bg-surface-raised",
@@ -116,19 +115,23 @@ function ThreadRow({
     >
       <span className="sr-only">{accountNames.join(", ")}; {t.unseen ? "unseen" : "seen"}{status.length ? `; ${status.join(", ")}` : ""}; </span>
       <span className="flex w-full min-w-0 items-center gap-2">
-        <span aria-hidden className="flex shrink-0 gap-1">
-          {accountColors.map((color, i) => <AccountSquare key={i} color={color} />)}
-        </span>
         {t.unseen ? <UnreadDot /> : null}
-        <span className={cn("min-w-0 flex-1 truncate", t.unseen ? "font-medium text-text" : "text-text-muted")}>{t.sender}</span>
+        <span className={cn("min-w-0 flex-1 truncate font-medium", t.unseen ? "text-text" : "text-text-muted")}>{t.sender}</span>
         {t.messageCount > 1 ? <span className="shrink-0 text-11 text-text-dim">{t.messageCount}</span> : null}
         {t.resurfaced ? <span aria-hidden><Badge>back</Badge></span> : null}
+        <span aria-hidden title={accountNames.join(", ")} className="flex max-w-[35%] min-w-0 shrink-0 gap-1 overflow-hidden whitespace-nowrap text-11">
+          {accountNames.map((name, i) => (
+            <span key={i} className="shrink-0" style={{ color: accountColors[i] ? `color-mix(in srgb, ${accountColors[i]} 40%, var(--text-muted))` : "var(--text-muted)" }}>
+              {name}
+            </span>
+          ))}
+        </span>
         <Time iso={showSnooze && t.snoozedUntil ? t.snoozedUntil : t.lastMessageAt} className="shrink-0 text-11 tabular-nums text-text-muted" />
       </span>
       <span className="flex w-full min-w-0 items-center gap-2">
         <span className="min-w-0 flex-1 truncate">
-          <span className={t.unseen ? "font-medium text-text" : "text-text-muted"}>{t.subject}</span>
-          {t.summary || t.snippet ? <span className="text-text-muted"> · {t.summary ?? t.snippet}</span> : null}
+          <span className={t.unseen ? "text-text" : "text-text-muted"}>{t.subject}</span>
+          {t.summary || t.snippet ? <span className={t.unseen ? "text-text-muted" : "text-text-dim"}> · {t.summary ?? t.snippet}</span> : null}
         </span>
         <span className="flex shrink-0 items-center gap-1" aria-hidden>
           {t.needsReply ? <Badge>reply</Badge> : null}
