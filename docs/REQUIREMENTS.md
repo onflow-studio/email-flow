@@ -56,6 +56,7 @@ AI-gated:
 - Work: its own view for things that need real effort after Inbox zero. `w` moves a thread to Work and out of Inbox (and every bucket view), so Inbox can reach zero. Order: overdue deadlines first, then upcoming deadlines soonest first, then the rest oldest-in-Work first. Done (`w` again, or archive) archives it and takes it out of Work; delete takes it out too. A new reply keeps it in Work, unread, and never lands in Inbox. After sending a reply on a Work thread, the sent toast offers done. Snoozing a Work thread hides it until the snooze ends, then it returns to Work.
 - Snoozed/reply-later lives as a separate view with a count badge; Work shows its total, marked when any thread has an unread reply. A digest of stale items may come later.
 - Single-message triage actions execute immediately with undo, no confirmation.
+- Moving a thread to Paper Trail marks it read in the same undoable action, including a move that confirms its existing Paper Trail placement. Other bucket moves preserve read state.
 - Bulk actions from cmd+k show a preview list before executing.
 - Phase 1: nothing requires confirmation beyond bulk preview.
 
