@@ -21,10 +21,11 @@ const NAMES: Record<ThreadDetail["bucket"], string> = {
 };
 
 /** The move targets in rail order, each keyed by its `g` go-to letter. */
-const TARGETS: { bucket: MovableBucket; key: string }[] = [
-  { bucket: "inbox", key: "i" },
-  { bucket: "news", key: "n" },
-  { bucket: "paper_trail", key: "p" },
+const TARGETS: { destination: MovableBucket | "work"; key: string }[] = [
+  { destination: "inbox", key: "i" },
+  { destination: "work", key: "w" },
+  { destination: "news", key: "n" },
+  { destination: "paper_trail", key: "p" },
 ];
 
 /**
@@ -43,7 +44,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
   const doubt = thread.bucketSuggested && thread.bucketSource === "ai";
   const pct = doubt && thread.bucketConfidence !== null ? `${Math.round(thread.bucketConfidence * 100)}%` : null;
   const current = Math.max(
-    TARGETS.findIndex((t) => t.bucket === thread.bucket),
+    TARGETS.findIndex((t) => t.destination === (thread.work ? "work" : thread.bucket)),
     0,
   );
 
@@ -57,9 +58,9 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
     (returnTo.current ?? buttonRef.current)?.focus({ preventScroll: true });
   };
   // Same bucket confirms the placement as the user's own; another moves it. Both undoable.
-  const pick = (bucket: MovableBucket) => {
+  const pick = (destination: MovableBucket | "work") => {
     close();
-    void run({ type: "move", bucket }, [thread.id]);
+    void run(destination === "work" ? { type: "work" } : { type: "move", bucket: destination }, [thread.id]);
   };
   const focusRow = (dir: 1 | -1) => {
     const n = TARGETS.length;
@@ -76,7 +77,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
           { keys: "arrowdown", run: () => focusRow(1) },
           { keys: "arrowup", run: () => focusRow(-1) },
           { keys: "escape", run: close },
-          ...TARGETS.map((t) => ({ keys: t.key, run: () => pick(t.bucket) })),
+          ...TARGETS.map((t) => ({ keys: t.key, run: () => pick(t.destination) })),
         ]
       : [],
     { exclusive: open },
@@ -126,10 +127,10 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
           className="absolute top-full left-0 z-20 mt-2 flex flex-col rounded-md border border-border bg-surface-top py-1 text-13"
         >
           {TARGETS.map((t, i) => {
-            const here = t.bucket === thread.bucket;
+            const here = t.destination === (thread.work ? "work" : thread.bucket);
             return (
               <button
-                key={t.bucket}
+                key={t.destination}
                 ref={(el) => {
                   rowRefs.current[i] = el;
                 }}
@@ -137,7 +138,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
                 role="menuitemradio"
                 aria-checked={here}
                 tabIndex={-1}
-                onClick={() => pick(t.bucket)}
+                onClick={() => pick(t.destination)}
                 onPointerMove={(e) => {
                   if (e.pointerType === "mouse") e.currentTarget.focus({ preventScroll: true });
                 }}
@@ -149,7 +150,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
                 <span className="flex size-3 items-center justify-center text-accent">
                   {here ? <Check aria-hidden className="size-3" strokeWidth={1.5} /> : null}
                 </span>
-                <span className="flex-1 pr-2">{NAMES[t.bucket]}</span>
+                <span className="flex-1 pr-2">{t.destination === "work" ? "work" : NAMES[t.destination]}</span>
                 <Kbd keys={t.key} />
               </button>
             );

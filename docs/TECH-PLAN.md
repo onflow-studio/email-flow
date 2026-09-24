@@ -134,7 +134,7 @@ e             archive
 r / a / f     reply / reply all / forward
 s             snooze (opens picker, with needs-reply toggle)
 w             work / done (done archives and leaves Work)
-m then i/n/p  move to inbox / news / paper trail (menu under the bucket badge; same bucket confirms an AI placement)
+m then i/w/n/p  move to inbox / work / news / paper trail (menu under the bucket badge; same bucket confirms an AI placement)
 x             keep out (from triage)
 i             let in (from triage)
 u             unsubscribe (one-click, else mailto, else opens the page)

@@ -59,9 +59,9 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
     }
     case "unsnooze":
       return { snoozedUntil: null };
-    // Work holds live threads: one picked from the archive comes back.
+    // Work holds live threads: restore and unsnooze a thread moved there from anywhere.
     case "work":
-      return { workAt: t.workAt ?? now, archived: false };
+      return { workAt: t.workAt ?? now, archived: false, trashed: false, spam: false, snoozedUntil: null };
   }
 }
 

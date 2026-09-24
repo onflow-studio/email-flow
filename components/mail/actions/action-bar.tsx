@@ -97,7 +97,12 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
   const unsnooze: BarAction | null = thread.snoozedUntil
     ? { id: "unsnooze", label: "unsnooze", run: () => void run({ type: "unsnooze" }, ids) }
     : null;
-  const work: BarAction = { id: "work", label: thread.work ? "done" : "work", keys: key("work"), run: () => void toggleWork(thread.id) };
+  const work: BarAction = {
+    id: "work",
+    label: view === "work" && thread.work ? "done" : "work",
+    keys: key("work"),
+    run: () => void (view === "work" && thread.work ? toggleWork(thread.id) : run({ type: "work" }, ids)),
+  };
   const needsReply: BarAction = thread.needsReply
     ? { id: "needs-reply", label: "no reply needed", run: () => void run({ type: "flag", needsReply: false }, ids) }
     : { id: "needs-reply", label: "needs reply", run: () => void run({ type: "flag", needsReply: true }, ids) };
@@ -117,12 +122,15 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
     id: "move",
     label: "move to",
     run: () => {},
-    menu: MOVES.filter((m) => m.bucket !== thread.bucket).map((m) => ({
-      id: `move-${m.bucket}`,
-      label: m.label,
-      keys: key(`move.${m.bucket}`),
-      run: () => void run({ type: "move", bucket: m.bucket }, ids),
-    })),
+    menu: [
+      ...MOVES.filter((m) => m.bucket !== thread.bucket).map((m) => ({
+        id: `move-${m.bucket}`,
+        label: m.label,
+        keys: key(`move.${m.bucket}`),
+        run: () => void run({ type: "move", bucket: m.bucket }, ids),
+      })),
+      ...(!thread.work ? [work] : []),
+    ],
   };
 
   const pick = (large: (BarAction | null)[], small: (BarAction | null)[], more: (BarAction | null)[]): Layout => ({
@@ -136,13 +144,13 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
       return pick([letIn, keepOut], [archive, unsub, del], [snooze, work, reply, replyAll, forward, unread, spam]);
     case "news":
     case "paper-trail":
-      return pick([archive], [unsub, moveTo, del], [reply, replyAll, forward, snooze, work, unread, spam]);
+      return pick([archive], [unsub, moveTo, del], [reply, replyAll, forward, snooze, unread, spam]);
     case "snoozed":
       return pick([reply, archive, snooze], [unsnooze, del], [replyAll, forward, work, unsub, unread, spam]);
     case "work":
       return pick([work, reply], [snooze, del], [replyAll, forward, needsReply, deadline, unsnooze, unsub, unread, spam]);
     case "trash":
-      return pick([del], [], [reply, forward, spam]);
+      return pick([del], [], [work, reply, forward, spam]);
     default:
       return pick([reply, archive, snooze], [work, del], [replyAll, forward, unsub, unread, spam]);
   }

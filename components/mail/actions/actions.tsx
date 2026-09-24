@@ -128,7 +128,7 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
       return view === "snoozed";
     // Work threads leave every bucket view.
     case "work":
-      return !!bucket;
+      return !!bucket || view === "snoozed" || view === "trash";
     case "move":
       return !!bucket && bucket !== action.bucket;
     // Screener moves change the bucket only; work and snoozed cut across buckets.
@@ -184,6 +184,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
           report(describeAction(action, result.count, !!kept), result.token);
           afterAction(action, targetIds);
         } else if (kept) notify(`already in ${BUCKET_NAMES[kept]}`, "warning");
+        else if (action.type === "work") notify("already in work", "warning");
         return result;
       } catch {
         notify(`${action.type} failed, retry`, "error");
@@ -250,9 +251,9 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     (id?: string) => {
       const threadId = id ?? sel.target;
       if (!threadId) return Promise.resolve(null);
-      return run({ type: byId.get(threadId)?.work ? "done" : "work" }, [threadId]);
+      return run({ type: sel.view === "work" && byId.get(threadId)?.work ? "done" : "work" }, [threadId]);
     },
-    [sel.target, byId, run],
+    [sel.target, sel.view, byId, run],
   );
 
   // The sent toast after a reply on a Work thread offers done through this.
