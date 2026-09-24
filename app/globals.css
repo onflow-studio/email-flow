@@ -30,6 +30,12 @@
   --danger: #ff5c7a;
   --success: #3d8bff;
 
+  /* Static radio-family lighting, scoped to the command palette. */
+  --palette-frame-blue: color-mix(in srgb, var(--accent) 60%, var(--border));
+  --palette-frame-teal: color-mix(in srgb, var(--info) 40%, var(--border));
+  --palette-light-blue: color-mix(in srgb, var(--accent) 12%, transparent);
+  --palette-light-teal: color-mix(in srgb, var(--info) 8%, transparent);
+
   --account-personal: #39ff9e;
   --account-work1: #ede95c;
   --account-work2: #c792ea;
@@ -99,6 +105,7 @@
   --spacing-radio-panel: 280px;
   --spacing-key: 16px;
   --container-palette: 640px;
+  --container-palette-wide: 960px;
   --spacing-compose: 640px;
   --spacing-compose-h: 70vh;
   --spacing-palette-top: 15vh;
@@ -252,6 +259,121 @@
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
+  }
+}
+
+/* Palette character: the radio's frame, held still, with light reserved for the cursor. */
+.palette-shell {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--surface-top), var(--surface-top)) padding-box,
+    linear-gradient(90deg, var(--palette-frame-blue), var(--palette-frame-teal)) border-box;
+}
+
+.palette-search-header {
+  background:
+    linear-gradient(90deg, var(--palette-light-blue), var(--palette-light-teal)),
+    var(--surface-top);
+  border-bottom-color: var(--palette-frame-blue);
+}
+
+.palette-search-header:focus-within {
+  border-bottom-color: var(--accent);
+}
+
+.palette-search-header input::placeholder {
+  color: var(--text-muted);
+}
+
+.palette-pane-threads {
+  background: var(--surface-raised);
+}
+
+.palette-pane-actions {
+  background: var(--surface);
+}
+
+.palette-lists[data-split="true"] .palette-pane-actions {
+  border-top: 1px solid var(--border);
+}
+
+.palette-pane-heading {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-top);
+}
+
+.palette-pane[data-active="true"] > .palette-pane-heading {
+  border-bottom-color: var(--palette-frame-blue);
+}
+
+.palette-pane-scroll {
+  scrollbar-color: var(--text-dim) transparent;
+}
+
+.palette-section-heading {
+  font-weight: var(--font-weight-medium);
+}
+
+.palette-section-heading .text-text-dim {
+  color: var(--text-muted);
+}
+
+.palette-row:not([data-disabled="true"]):hover {
+  background-color: var(--surface-top);
+}
+
+.palette-row[data-selected="true"]:not([data-disabled="true"]) {
+  border-left-color: var(--accent);
+  background: linear-gradient(90deg, var(--accent-dim), var(--surface-raised));
+  color: var(--text);
+}
+
+.palette-row[data-selected="true"]:not([data-disabled="true"]) :is(.text-text-muted, .text-text-dim) {
+  color: var(--text);
+}
+
+.palette-row[data-selected="true"]:not([data-disabled="true"]) .text-accent {
+  color: var(--info);
+}
+
+.palette-footer {
+  background: var(--surface);
+}
+
+.palette-footer button:hover {
+  background-color: var(--surface-raised);
+}
+
+.palette-footer button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.palette-footer button:active {
+  background-color: var(--surface-top);
+}
+
+@media (width >= 768px) {
+  .palette-lists[data-split="true"] .palette-pane-actions {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+}
+
+@media (width < 768px) {
+  .palette-footer button {
+    min-height: var(--spacing-touch);
+  }
+}
+
+@media (forced-colors: active) {
+  .palette-shell {
+    border-color: CanvasText;
+  }
+
+  .palette-row[data-selected="true"]:not([data-disabled="true"]) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 }
 

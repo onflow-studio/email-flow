@@ -1,8 +1,8 @@
 "use client";
 
-import { Command } from "cmdk";
+import { Command, useCommandState } from "cmdk";
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { BULK_ACTIONS } from "@/app/(mail)/_lib/bulk";
 import { paletteSearch, previewSearchAction, type PaletteSearch } from "@/app/(mail)/palette-actions";
@@ -67,7 +67,7 @@ type Mode = { kind: "search" } | { kind: "preview"; key: string; label: string; 
 
 const CHIPS = ["from:", "account:", "before:", "after:"];
 
-type Section = "threads" | "act on results" | "go to" | "actions" | "accounts" | "app";
+type Section = "go to" | "actions" | "accounts" | "app";
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Same word-prefix match the highlight marks. */
@@ -81,6 +81,8 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   const router = useRouter();
   const { report, notify } = useUndo();
   const inputRef = useRef<HTMLInputElement>(null);
+  const helpId = useId();
+  const [pane, setPane] = useState<{ key: string; name: "threads" | "actions" } | null>(null);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState<
     { input: string; result: PaletteSearch; error?: never } | { input: string; result: null; error: string } | null
@@ -196,9 +198,11 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   const hits = current?.hits.slice(0, VISIBLE_HITS) ?? [];
 
   // The first row is focused on open and after every keystroke or new result.
-  const values = [
+  const threadValues = [
     ...(searchError ? ["search:retry"] : []),
     ...hits.map((h) => `thread:${h.id}`),
+  ];
+  const actionValues = [
     ...(current?.total ? BULK_ACTIONS.filter((a) => current.counts[a.key]).map((a) => `act:${a.key}`) : []),
     ...views.map((v) => `view:${v.slug}`),
     ...actions.map((a) => `action:${a.key}`),
@@ -208,7 +212,16 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   ];
   const listKey = `${searchKey}|${searchError ? "error" : current ? "results" : ""}`;
   const [picked, setPicked] = useState<{ key: string; value: string } | null>(null);
-  const value = picked?.key === listKey && values.includes(picked.value) ? picked.value : (values[0] ?? "");
+  const activePane = query ? (pane?.key === searchKey ? pane.name : "threads") : "actions";
+  const activeValues = activePane === "threads" ? threadValues : actionValues;
+  const value = mode.kind === "preview"
+    ? (mode.preview?.count && !busy ? "confirm" : "")
+    : picked?.key === listKey && activeValues.includes(picked.value) ? picked.value : (activeValues[0] ?? "");
+  const selectPane = (name: "threads" | "actions") => {
+    setPane({ key: searchKey, name });
+    setPicked(null);
+    inputRef.current?.focus({ preventScroll: true });
+  };
 
   const heading = (name: Section, count: number) => <SectionHeading name={name} count={count} />;
 
@@ -219,13 +232,35 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
         shouldFilter={false}
         loop
         value={value}
-        onValueChange={(v) => setPicked({ key: listKey, value: v })}
+        onValueChange={(v) => {
+          if (activeValues.includes(v)) setPicked({ key: listKey, value: v });
+        }}
+        onKeyDownCapture={(e) => {
+          if (mode.kind !== "search" || e.nativeEvent.isComposing || e.target !== inputRef.current) return;
+          if (query && e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectPane(activePane === "threads" ? "actions" : "threads");
+          } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key) || (e.ctrlKey && ["n", "j", "p", "k"].includes(e.key))) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!activeValues.length) return;
+            const delta = ["ArrowDown", "n", "j"].includes(e.key) ? 1 : -1;
+            const index = activeValues.indexOf(value);
+            const next = e.key === "Home" ? activeValues[0]
+              : e.key === "End" ? activeValues.at(-1)
+              : activeValues[(index + delta + activeValues.length) % activeValues.length];
+            if (next) setPicked({ key: listKey, value: next });
+          }
+        }}
+        data-searching={Boolean(query) && mode.kind === "search"}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-full w-full max-w-palette flex-col overflow-hidden rounded-md border border-border bg-surface-top"
+        className={cn("palette-shell flex max-h-full w-full flex-col overflow-hidden rounded-md border border-border bg-surface-top", query && mode.kind === "search" ? "max-w-palette-wide" : "max-w-palette")}
       >
+        <SelectionSync />
         {mode.kind === "search" ? (
           <>
-            <div className="flex h-touch shrink-0 items-center gap-2 border-b border-border px-3">
+            <div className="palette-search-header flex h-touch shrink-0 items-center gap-2 border-b border-border px-3">
               <span aria-hidden className="text-accent">
                 &gt;
               </span>
@@ -234,13 +269,34 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                 autoFocus
                 value={input}
                 onValueChange={setInput}
+                aria-label="search mail and commands"
+                aria-describedby={helpId}
                 placeholder="search mail, go to, act on results"
                 className="h-full min-w-0 flex-1 bg-transparent text-text outline-none placeholder:text-text-dim"
               />
               <Kbd keys="escape" />
             </div>
-            <Command.List className="min-h-0 overflow-y-auto pb-1">
-              {query && !current && !searchError ? <Line>searching</Line> : null}
+            <p id={helpId} className="sr-only">
+              {query ? "Up and down move within a list. Tab or Shift Tab switches lists. Enter opens a thread or previews a bulk action." : "Up and down move. Enter selects a command."}
+            </p>
+            <Command.List className={cn(
+              "palette-lists flex min-h-0 flex-col overflow-hidden [&>[cmdk-list-sizer]]:min-h-0 [&>[cmdk-list-sizer]]:overflow-hidden",
+              query
+                ? "[&>[cmdk-list-sizer]]:grid [&>[cmdk-list-sizer]]:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:[&>[cmdk-list-sizer]]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] md:[&>[cmdk-list-sizer]]:grid-rows-1"
+                : "[&>[cmdk-list-sizer]]:flex [&>[cmdk-list-sizer]]:flex-col",
+            )} data-split={Boolean(query)}>
+              {query ? (
+              <div className="palette-pane palette-pane-threads flex min-h-0 min-w-0 flex-col" data-active={activePane === "threads"}
+                onPointerDownCapture={() => selectPane("threads")} onPointerMove={() => {
+                  if (activePane !== "threads") setPane({ key: searchKey, name: "threads" });
+                }}>
+                <div className="palette-pane-heading shrink-0">
+                  <SectionHeading name="thread search" count={current?.total} />
+                  <span role="status" className="block px-3 pb-2 text-11 text-text-muted">
+                    {current ? `${current.total} matched${current.total > hits.length ? ` · showing ${hits.length}` : ""}` : searchError ? "search unavailable" : "searching"}
+                  </span>
+                </div>
+                <div className="palette-pane-scroll min-h-0 overflow-y-auto overscroll-contain pb-1">
               {query && searchError ? (
                 <>
                   <div role="alert" className="px-3 py-2 text-danger">{searchError}</div>
@@ -249,10 +305,10 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                   </Item>
                 </>
               ) : null}
-              {query && current && !values.length ? <Line>no matches</Line> : null}
+              {query && current && !hits.length ? <Line>no matching threads, try another search</Line> : null}
 
               {hits.length && current ? (
-                <Command.Group heading={heading("threads", current.total)}>
+                <Command.Group heading={<span className="sr-only">thread search</span>}>
                   {hits.map((hit) => (
                     <Item
                       key={hit.id}
@@ -283,8 +339,21 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                 </Command.Group>
               ) : null}
 
+                </div>
+              </div>
+              ) : null}
+              <div className="palette-pane palette-pane-actions flex min-h-0 min-w-0 flex-col" data-active={activePane === "actions"}
+                onPointerDownCapture={() => selectPane("actions")} onPointerMove={() => {
+                  if (activePane !== "actions") setPane({ key: searchKey, name: "actions" });
+                }}>
+                {query ? <div className="palette-pane-heading shrink-0"><SectionHeading name="act on results" />
+                  <p className="px-3 pb-2 text-11 text-text-muted">bulk actions preview before running</p>
+                </div> : null}
+                <div className="palette-pane-scroll min-h-0 overflow-y-auto overscroll-contain pb-1">
+                {query && !current ? <Line>{searchError ? "retry search to preview actions" : "waiting for results"}</Line> : null}
+                {query && current && !current.total ? <Line>no threads to act on</Line> : null}
               {current?.total ? (
-                <Command.Group heading={heading("act on results", BULK_ACTIONS.length)}>
+                <Command.Group heading={<span className="sr-only">bulk previews</span>}>
                   {BULK_ACTIONS.map((a) => {
                     const n = current.counts[a.key] ?? 0;
                     return (
@@ -378,8 +447,10 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                   ) : null}
                 </Command.Group>
               ) : null}
+                </div>
+              </div>
             </Command.List>
-            <div className="flex min-h-row shrink-0 flex-wrap items-center gap-1 border-t border-border px-3 py-1 md:h-row md:flex-nowrap md:py-0">
+            <div className="palette-footer flex min-h-row shrink-0 flex-wrap items-center gap-1 border-t border-border px-3 py-1 md:h-row md:flex-nowrap md:py-0">
               {CHIPS.map((chip) => (
                 <button
                   key={chip}
@@ -392,7 +463,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                   {chip}
                 </button>
               ))}
-              <KeyHints className="ml-auto text-11 text-text-muted" hints={[["arrowup arrowdown", "move"], ["enter", "open"]]} />
+              <KeyHints className="ml-auto text-11 text-text-muted" hints={query ? [["arrowup arrowdown", "move"], ["tab", "switch list"], ["enter", activePane === "threads" ? "open" : "select"]] : [["arrowup arrowdown", "move"], ["enter", "open"]]} />
             </div>
           </>
         ) : (
@@ -403,9 +474,26 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   );
 }
 
+/** cmdk does not refresh its active descendant or scroll on externally controlled selection. */
+function SelectionSync() {
+  const marker = useRef<HTMLSpanElement>(null);
+  const value = useCommandState((state) => state.value);
+  const selectedId = useCommandState((state) => state.selectedItemId);
+  useLayoutEffect(() => {
+    const root = marker.current?.closest("[cmdk-root]");
+    const selected = root?.querySelector<HTMLElement>("[cmdk-item][aria-selected=true]");
+    for (const element of root?.querySelectorAll("[cmdk-input], [cmdk-list]") ?? []) {
+      if (selected) element.setAttribute("aria-activedescendant", selected.id);
+      else element.removeAttribute("aria-activedescendant");
+    }
+    selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [value, selectedId]);
+  return <span ref={marker} hidden />;
+}
+
 function SectionHeading({ name, count }: { name: string; count?: number }) {
   return (
-    <span className="flex items-center gap-2 px-3 pt-3 pb-1 text-11">
+    <span className="palette-section-heading flex items-center gap-2 px-3 pt-3 pb-1 text-11">
       <span className="text-text-muted uppercase">{name}</span>
       <span aria-hidden className="h-px flex-1 bg-border" />
       {count !== undefined ? <span className="text-text-dim">{count}</span> : null}
@@ -435,7 +523,7 @@ function PreviewPane({
 
   return (
     <>
-      <div className="flex h-touch shrink-0 items-center gap-2 border-b border-border px-3">
+      <div className="palette-search-header flex h-touch shrink-0 items-center gap-2 border-b border-border px-3">
         <span>{mode.label}</span>
         <span className="text-info">
           {preview ? `${preview.count} ${preview.count === 1 ? "thread" : "threads"}` : "counting"}
@@ -486,8 +574,7 @@ function Item({
   return (
     <Command.Item
       className={cn(
-        "flex h-touch cursor-default items-center gap-2 border-l-2 border-transparent pr-3 pl-2 transition-colors duration-80 ease-snap md:h-row",
-        "data-[selected=true]:glow-focus data-[selected=true]:border-accent data-[selected=true]:bg-surface-raised",
+        "palette-row flex h-touch cursor-default items-center gap-2 border-l-2 border-transparent pr-3 pl-2 transition-colors duration-80 ease-snap md:h-row",
         "data-[disabled=true]:text-text-dim",
         className,
       )}

@@ -45,11 +45,28 @@ function where(q: ParsedQuery, tsq: SQL | null, scope: SearchScope): SQL | undef
 
 const tsqueryOf = (q: ParsedQuery) => (q.tsquery ? sql`to_tsquery('simple', ${q.tsquery})` : null);
 
+/** Ranking only: keep prefix matching in WHERE so typing never loses broader hits. */
+function relevanceTier(q: ParsedQuery): SQL<number> {
+  if (!q.tsquery) return sql<number>`0`;
+  // The parser emits only words and operators. Removing prefix markers keeps
+  // quoted phrase order while requiring complete words, using the same config.
+  const exact = sql`to_tsquery('simple', ${q.tsquery.replace(/:\*/g, "")})`;
+  const phrase = sql`to_tsquery('simple', ${q.words.join(" <-> ")})`;
+  const subject = sql`to_tsvector('simple', coalesce(${threads.subject}, ''))`;
+  return sql<number>`case
+    when ${subject} @@ ${phrase} then 3
+    when ${subject} @@ ${exact} then 2
+    when ${messages.search} @@ ${exact} then 1
+    else 0
+  end`;
+}
+
 // Twins match as one conversation, shown by the copy lists show.
 function matches(db: Pick<Db, "select">, q: ParsedQuery, tsq: SQL | null, scope: SearchScope) {
   return db
     .select({
       id: sql<string>`(array_agg(${threads.id} order by ${showOrder("threads")}))[1]`.as("matched_thread_id"),
+      tier: sql<number>`max(${relevanceTier(q)})`.as("tier"),
       rank: tsq ? sql<number>`max(ts_rank(${messages.search}, ${tsq}))`.as("rank") : sql<number>`0`.as("rank"),
       total: sql<number>`count(*) over ()`.mapWith(Number).as("total"),
     })
@@ -84,7 +101,7 @@ export async function searchThreads(db: Db, input: string, scope: SearchScope = 
     })
     .from(ranked)
     .innerJoin(threads, eq(threads.id, ranked.id))
-    .orderBy(desc(ranked.rank), desc(threads.lastMessageAt))
+    .orderBy(desc(ranked.tier), desc(ranked.rank), desc(threads.lastMessageAt), threads.id)
     .limit(limit);
   if (!rows.length) return { query, hits: [], total: 0 };
 
