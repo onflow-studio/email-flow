@@ -22,7 +22,15 @@ export function TriageQueue({ threads, accountColors }: { threads: ThreadListIte
     listRef.current?.querySelector(`[data-thread-id="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
-  if (!threads.length) return <p className="p-3 text-text-muted">triage clear. new senders will appear here.</p>;
+  if (!threads.length) {
+    return (
+      <div className="p-3">
+        <p className="text-11 text-text-muted">sender decisions</p>
+        <p className="mt-1 font-medium text-text">0 to decide</p>
+        <p className="mt-4 text-text-muted">no senders waiting</p>
+      </div>
+    );
+  }
 
   const byId = new Map(threads.map((thread) => [thread.id, thread]));
   const ordered = sel.threadIds.flatMap((id) => byId.get(id) ?? []);

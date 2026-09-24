@@ -156,7 +156,11 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                     <ReadingPane key={detail.id} thread={detail} />
                   </>
                 ) : (
-                  <p className="p-3 text-text-dim">{view.slug === "triage" ? "triage clear. new senders will appear here." : "no thread open"}</p>
+                  <p className="p-3 text-text-dim">
+                    {view.slug === "triage"
+                      ? threads.length ? "choose a sender to review" : "triage clear. new senders will appear here."
+                      : "no thread open"}
+                  </p>
                 )}
               </FocusPane>
             </div>
