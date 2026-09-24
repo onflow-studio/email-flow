@@ -45,7 +45,7 @@ function Label({ action }: { action: BarAction }) {
   if (!action.who) return action.label;
   const { names, more } = action.who;
   return (
-    <span className="flex min-w-0 whitespace-pre">
+    <span className="flex min-w-0 max-w-full overflow-hidden whitespace-pre">
       {`${action.label} `}
       {names.map((name, i) => (
         <span key={i} className="flex min-w-0">
@@ -159,7 +159,7 @@ export function ActionBar({ thread }: { thread: ThreadDetail }) {
   const barRef = useRef<HTMLDivElement>(null);
 
   // Secondary actions that do not fit move into `more`, right to left: small first, then large. The primary stays.
-  const demotable = [...small].reverse().concat([...large.slice(1)].reverse());
+  const demotable = sel.view === "triage" ? [...small].reverse() : [...small].reverse().concat([...large.slice(1)].reverse());
   const [room, setRoom] = useState(Infinity);
   const [demoted, setDemoted] = useState(0);
   const moved = new Set((wide ? demotable.slice(0, demoted) : small).map((a) => a.id));
@@ -191,7 +191,7 @@ export function ActionBar({ thread }: { thread: ThreadDetail }) {
       aria-label="thread actions"
       className={cn(
         "pointer-events-auto flex items-center gap-1 bg-surface-top",
-        "box-content w-full border-t border-border px-3 pb-safe",
+        "box-border w-full border-t border-border px-3 pb-safe",
         "md:w-auto md:rounded-md md:border md:p-1",
       )}
     >
@@ -220,7 +220,14 @@ function BarButton({
 }) {
   if (action.menu) return <MenuButton label={action.label} items={action.menu} small={small} />;
   return (
-    <Button variant={variant} size={small ? "sm" : "default"} shortcut={action.keys} title={action.who?.title} onClick={action.run}>
+    <Button
+      variant={variant}
+      size={small ? "sm" : "default"}
+      className={action.who ? "min-w-0 flex-1 md:max-w-judged md:flex-none xl:max-w-[300px]" : undefined}
+      shortcut={action.keys}
+      title={action.who?.title}
+      onClick={action.run}
+    >
       <Label action={action} />
     </Button>
   );

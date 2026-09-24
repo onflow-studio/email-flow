@@ -45,6 +45,7 @@
   --rail-min: 160px;
   --rail-max: 320px;
   --list-w: 360px;
+  --triage-queue-w: 224px;
   --list-min: 280px;
   --list-max: 640px;
   --reading-min: 320px;
@@ -131,6 +132,7 @@
 
   --spacing-rail: clamp(var(--rail-min), var(--rail-w), var(--rail-max));
   --spacing-list: clamp(var(--list-min), var(--list-w), var(--list-max));
+  --spacing-triage-queue: var(--triage-queue-w);
   --spacing-list-min: var(--list-min);
   --spacing-reading: var(--reading-min);
 

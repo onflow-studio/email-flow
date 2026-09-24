@@ -15,6 +15,7 @@ import { ReadingPane } from "@/components/mail/reading-pane";
 import { SelectionProvider } from "@/components/mail/selection";
 import { StatusLine } from "@/components/mail/status-line";
 import { ThreadList } from "@/components/mail/thread-list";
+import { TriageQueue } from "@/components/mail/triage-queue";
 import { UnreadDot } from "@/components/mail/unread-dot";
 import { findView, mailHref, VIEWS, type ViewSlug } from "@/components/mail/views";
 import { cn } from "@/lib/utils";
@@ -94,7 +95,8 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                 as="section"
                 aria-label={view.label}
                 className={cn(
-                  "flex min-h-0 w-full flex-col border-r border-border bg-surface md:w-list md:min-w-list-min",
+                  "flex min-h-0 w-full flex-col border-r border-border bg-surface",
+                  view.slug === "triage" ? "md:w-triage-queue md:shrink-0" : "md:w-list md:min-w-list-min",
                   detail && "hidden md:flex",
                 )}
               >
@@ -118,24 +120,30 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                     </Link>
                   ))}
                 </nav>
-                <header className="flex h-touch shrink-0 items-center justify-between border-b border-border px-3 md:h-row">
-                  <h1 className="font-medium">{view.label}</h1>
-                  <span className="flex items-center gap-2">
-                    <span className="text-11 text-text-muted">
-                      {view.bucket ? `${unseen} unseen` : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
-                    </span>
-                    <ComposeButton />
-                  </span>
-                </header>
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  <ThreadList
-                    threads={threads}
-                    accountColors={accountColors}
-                    emptyLabel={view.bucket || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
-                  />
-                </div>
+                {view.slug === "triage" ? (
+                  <TriageQueue threads={threads} accountColors={accountColors} />
+                ) : (
+                  <>
+                    <header className="flex h-touch shrink-0 items-center justify-between border-b border-border px-3 md:h-row">
+                      <h1 className="font-medium">{view.label}</h1>
+                      <span className="flex items-center gap-2">
+                        <span className="text-11 text-text-muted">
+                          {view.bucket ? `${unseen} unseen` : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
+                        </span>
+                        <ComposeButton />
+                      </span>
+                    </header>
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                      <ThreadList
+                        threads={threads}
+                        accountColors={accountColors}
+                        emptyLabel={view.bucket || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
+                      />
+                    </div>
+                  </>
+                )}
               </FocusPane>
-              <PaneHandle pane="list" label="resize thread list" className="hidden md:block" />
+              {view.slug === "triage" ? null : <PaneHandle pane="list" label="resize thread list" className="hidden md:block" />}
 
               <FocusPane
                 pane="reading"
@@ -148,7 +156,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                     <ReadingPane key={detail.id} thread={detail} />
                   </>
                 ) : (
-                  <p className="p-3 text-text-dim">no thread open</p>
+                  <p className="p-3 text-text-dim">{view.slug === "triage" ? "triage clear. new senders will appear here." : "no thread open"}</p>
                 )}
               </FocusPane>
             </div>
