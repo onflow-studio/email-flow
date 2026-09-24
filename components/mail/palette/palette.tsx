@@ -82,27 +82,38 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   const { report, notify } = useUndo();
   const inputRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState("");
-  const [search, setSearch] = useState<{ input: string; result: PaletteSearch } | null>(null);
+  const [search, setSearch] = useState<
+    { input: string; result: PaletteSearch; error?: never } | { input: string; result: null; error: string } | null
+  >(null);
+  const [attempt, setAttempt] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: "search" });
   const [busy, setBusy] = useState(false);
-  const request = useRef(0);
 
   const query = input.trim();
   // Toggling an account from the palette searches again over the new set.
-  const searchKey = `${appliedKey}|${query}`;
+  const searchKey = `${appliedKey}|${query}|${attempt}`;
   useEffect(() => {
     if (!query) return;
-    const id = ++request.current;
+    let cancelled = false;
     const timer = setTimeout(() => {
       paletteSearch(query)
         .then((result) => {
-          if (id === request.current) setSearch({ input: searchKey, result });
+          if (!cancelled) setSearch({ input: searchKey, result });
         })
         .catch(() => {
-          if (id === request.current) setSearch({ input: searchKey, result: { hits: [], total: 0, words: [], counts: {} } });
+          if (!cancelled) {
+            setSearch({
+              input: searchKey,
+              result: null,
+              error: navigator.onLine ? "search failed, retry" : "offline, reconnect to search",
+            });
+          }
         });
     }, SEARCH_DELAY_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      cancelled = true;
+    };
   }, [query, searchKey]);
 
   const back = () => (mode.kind === "preview" ? setMode({ kind: "search" }) : onClose());
@@ -161,6 +172,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   };
 
   const current = search && search.input === searchKey ? search.result : null;
+  const searchError = search?.input === searchKey ? search.error : undefined;
   const words = current?.words ?? [];
   const colorOf = new Map(accounts.map((a) => [a.id, a.color]));
 
@@ -185,6 +197,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
 
   // The first row is focused on open and after every keystroke or new result.
   const values = [
+    ...(searchError ? ["search:retry"] : []),
     ...hits.map((h) => `thread:${h.id}`),
     ...(current?.total ? BULK_ACTIONS.filter((a) => current.counts[a.key]).map((a) => `act:${a.key}`) : []),
     ...views.map((v) => `view:${v.slug}`),
@@ -193,7 +206,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     ...(app.settings ? ["app:settings"] : []),
     ...(app.logout ? ["app:logout"] : []),
   ];
-  const listKey = `${query}|${current ? "results" : ""}`;
+  const listKey = `${searchKey}|${searchError ? "error" : current ? "results" : ""}`;
   const [picked, setPicked] = useState<{ key: string; value: string } | null>(null);
   const value = picked?.key === listKey && values.includes(picked.value) ? picked.value : (values[0] ?? "");
 
@@ -227,7 +240,15 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
               <Kbd keys="escape" />
             </div>
             <Command.List className="min-h-0 overflow-y-auto pb-1">
-              {query && !current ? <Line>searching</Line> : null}
+              {query && !current && !searchError ? <Line>searching</Line> : null}
+              {query && searchError ? (
+                <>
+                  <div role="alert" className="px-3 py-2 text-danger">{searchError}</div>
+                  <Item value="search:retry" onSelect={() => setAttempt((n) => n + 1)}>
+                    retry search
+                  </Item>
+                </>
+              ) : null}
               {query && current && !values.length ? <Line>no matches</Line> : null}
 
               {hits.length && current ? (

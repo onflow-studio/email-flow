@@ -49,7 +49,7 @@ const tsqueryOf = (q: ParsedQuery) => (q.tsquery ? sql`to_tsquery('simple', ${q.
 function matches(db: Pick<Db, "select">, q: ParsedQuery, tsq: SQL | null, scope: SearchScope) {
   return db
     .select({
-      id: sql<string>`(array_agg(${threads.id} order by ${showOrder("threads")}))[1]`.as("id"),
+      id: sql<string>`(array_agg(${threads.id} order by ${showOrder("threads")}))[1]`.as("matched_thread_id"),
       rank: tsq ? sql<number>`max(ts_rank(${messages.search}, ${tsq}))`.as("rank") : sql<number>`0`.as("rank"),
       total: sql<number>`count(*) over ()`.mapWith(Number).as("total"),
     })
