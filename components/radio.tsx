@@ -9,12 +9,13 @@ import { cn } from "@/lib/utils";
  * Background audio from YouTube, with a station list that opens on hover,
  * keyboard focus or a tap. Mounted in the root layout so it survives
  * client-side navigation. Nothing loads from YouTube until the first play,
- * which also satisfies the autoplay policy.
+ * which also satisfies the autoplay policy. Each station resumes where it was left, across reloads; live
+ * streams have nothing to resume.
  */
-type Station = { id: string; label: string } & ({ video: string } | { playlist: string });
+type Station = { id: string; label: string; live?: boolean } & ({ video: string } | { playlist: string });
 
 const STATIONS: Station[] = [
-  { id: "hacker", label: "hacker radio", video: "sjSnCKudqj0" },
+  { id: "hacker", label: "hacker radio", video: "sjSnCKudqj0", live: true },
   { id: "gamma", label: "40hz gamma", video: "tAIiXRZNh9E" },
   { id: "techno", label: "minimal techno", video: "ujrBG09lcYY" },
   { id: "deep-work", label: "deep work mix", video: "UDTmUzu05BE" },
@@ -28,13 +29,19 @@ const PLAYER_SIZE = 200;
 // DESIGN.md: long enough to cross from the button to the list without it closing.
 const CLOSE_DELAY_MS = 150;
 const STORAGE_KEY = "radio-station";
+const POSITIONS_KEY = "radio-positions";
+const SAVE_INTERVAL_MS = 5_000;
 
 // The slice of the IFrame API used here.
 type YTPlayer = {
   playVideo(): void;
   pauseVideo(): void;
-  loadVideoById(id: string): void;
+  loadVideoById(options: { videoId: string; startSeconds?: number }): void;
   loadPlaylist(options: { list: string; listType: "playlist" }): void;
+  loadPlaylist(playlist: string[], index: number, startSeconds: number): void;
+  getCurrentTime(): number;
+  getPlaylist(): string[] | null;
+  getPlaylistIndex(): number;
   setShuffle(shuffle: boolean): void;
   setLoop(loop: boolean): void;
   destroy(): void;
@@ -61,7 +68,9 @@ declare global {
   }
 }
 
+const YT_ENDED = 0;
 const YT_PLAYING = 1;
+const YT_PAUSED = 2;
 const YT_BUFFERING = 3;
 
 let apiPromise: Promise<YTNamespace> | null = null;
@@ -91,12 +100,45 @@ function loadApi(): Promise<YTNamespace> {
   return apiPromise;
 }
 
-function tune(player: YTPlayer, station: Station) {
+// Where each station was left. A playlist keeps its shuffled order, so the index still points at the same track.
+type Position = { time: number; playlist?: string[]; index?: number };
+
+function readPositions(): Record<string, Position> {
+  try {
+    return JSON.parse(localStorage.getItem(POSITIONS_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writePosition(id: string, position: Position | null) {
+  const positions = readPositions();
+  if (position) positions[id] = position;
+  else delete positions[id];
+  try {
+    localStorage.setItem(POSITIONS_KEY, JSON.stringify(positions));
+  } catch {}
+}
+
+function rememberPosition(player: YTPlayer, station: Station) {
+  if (station.live) return;
+  const time = player.getCurrentTime();
+  if ("video" in station) return writePosition(station.id, { time });
+  const playlist = player.getPlaylist();
+  if (playlist?.length) writePosition(station.id, { time, playlist, index: player.getPlaylistIndex() });
+}
+
+/** Loads the station, from where it was left when there is a position. Returns whether it resumed. */
+function tune(player: YTPlayer, station: Station): boolean {
+  const at = station.live ? undefined : readPositions()[station.id];
   if ("video" in station) {
-    player.loadVideoById(station.video);
+    player.loadVideoById({ videoId: station.video, startSeconds: at?.time ?? 0 });
+  } else if (at?.playlist?.length) {
+    player.loadPlaylist(at.playlist, at.index ?? 0, at.time);
   } else {
     player.loadPlaylist({ list: station.playlist, listType: "playlist" });
   }
+  return Boolean(at);
 }
 
 // The chosen station, persisted per browser. The in-memory copy covers storage that throws.
@@ -146,8 +188,13 @@ export function Radio() {
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const hovered = useRef(false);
   const lastPointer = useRef("mouse");
-  // Shuffle and loop only take once a playlist is loaded, so they wait for its first play.
-  const shufflePending = useRef(false);
+  // Shuffle and loop only take once a playlist is loaded, so they wait for its first play. A resumed playlist
+  // is already in its saved shuffled order, so it only loops.
+  const playlistSetup = useRef<"shuffle" | "loop" | null>(null);
+  // The station loaded in the player and its last reported state, so a position is only saved once it has
+  // really played that station.
+  const tunedRef = useRef<Station | null>(null);
+  const ytState = useRef<number | null>(null);
   // Opened or driven from the keyboard: then leaving with the mouse does not close it.
   const viaKeyboard = useRef(false);
   // An option to focus once the list has rendered, set when an arrow key opens it.
@@ -157,13 +204,33 @@ export function Radio() {
     stationRef.current = station;
   }, [station]);
 
-  useEffect(
-    () => () => {
+  const remember = () => {
+    const player = playerRef.current;
+    const tuned = tunedRef.current;
+    if (!player || !tuned || (ytState.current !== YT_PLAYING && ytState.current !== YT_PAUSED)) return;
+    rememberPosition(player, tuned);
+  };
+  const rememberRef = useRef(remember);
+  useEffect(() => {
+    rememberRef.current = remember;
+  });
+
+  useEffect(() => {
+    const onHide = () => rememberRef.current();
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
       clearTimeout(closeTimer.current);
+      rememberRef.current();
       playerRef.current?.destroy();
-    },
-    [],
-  );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (status !== "playing") return;
+    const timer = setInterval(() => rememberRef.current(), SAVE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [status]);
 
   useEffect(() => {
     if (!open || pendingFocus.current === null) return;
@@ -198,12 +265,15 @@ export function Radio() {
   }, [open]);
 
   const tuneTo = (player: YTPlayer, next: Station) => {
-    shufflePending.current = "playlist" in next;
-    tune(player, next);
+    tunedRef.current = next;
+    ytState.current = null;
+    const resumed = tune(player, next);
+    playlistSetup.current = "playlist" in next ? (resumed ? "loop" : "shuffle") : null;
   };
 
   const start = async () => {
     setStatus("loading");
+    remember();
     playerRef.current?.destroy();
     playerRef.current = null;
     try {
@@ -218,11 +288,15 @@ export function Radio() {
         events: {
           onReady: () => playerRef.current && tuneTo(playerRef.current, stationRef.current),
           onStateChange: ({ data }) => {
-            if (data === YT_PLAYING && shufflePending.current) {
-              shufflePending.current = false;
-              playerRef.current?.setShuffle(true);
+            ytState.current = data;
+            if (data === YT_PLAYING && playlistSetup.current) {
+              if (playlistSetup.current === "shuffle") playerRef.current?.setShuffle(true);
               playerRef.current?.setLoop(true);
+              playlistSetup.current = null;
             }
+            if (data === YT_PAUSED) rememberRef.current();
+            // A finished video starts over next time. Playlists loop, so they never end.
+            if (data === YT_ENDED && tunedRef.current && "video" in tunedRef.current) writePosition(tunedRef.current.id, null);
             setStatus(data === YT_PLAYING ? "playing" : data === YT_BUFFERING ? "buffering" : "paused");
           },
           onError: () => setStatus("error"),
@@ -256,6 +330,7 @@ export function Radio() {
     stationRef.current = next;
     if (status === "loading") return; // onReady tunes to stationRef
     if (live) {
+      remember();
       setStatus("buffering");
       tuneTo(player, next);
     } else void start();
