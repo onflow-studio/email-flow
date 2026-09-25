@@ -71,6 +71,13 @@
       "when": 1790205210427,
       "tag": "0009_work_keybinding",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790350676144,
+      "tag": "0010_bucket_receipts",
+      "breakpoints": true
     }
   ]
 }

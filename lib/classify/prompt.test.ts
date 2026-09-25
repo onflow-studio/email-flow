@@ -31,7 +31,7 @@ function answer(overrides: Partial<ClassifierAnswer> = {}): ClassifierAnswer {
     reason: "An invoice from Vercel.",
     language: "en",
     summary: "September invoice paid by card, nothing to do.",
-    bucket: { inbox: 0.04, news: 0.01, paper_trail: 0.95 },
+    bucket: { inbox: 0.04, news: 0.01, paper_trail: 0.95, receipts: 0 },
     urgency: 1,
     humanWritten: 0.05,
     legitNewSender: null,
@@ -141,18 +141,18 @@ describe("buildClassifierRequest", () => {
 
 describe("parseAnswer", () => {
   it("picks the top bucket and normalizes probabilities to sum to 1", () => {
-    const r = parseAnswer(answer({ bucket: { inbox: 0.2, news: 0.6, paper_trail: 0.2 } }), false);
+    const r = parseAnswer(answer({ bucket: { inbox: 0.2, news: 0.6, paper_trail: 0.2, receipts: 0 } }), false);
     expect(r.bucket).toBe("news");
-    expect(r.bucketProbabilities).toEqual({ inbox: 0.2, news: 0.6, paper_trail: 0.2 });
+    expect(r.bucketProbabilities).toEqual({ inbox: 0.2, news: 0.6, paper_trail: 0.2, receipts: 0 });
 
-    const off = parseAnswer(answer({ bucket: { inbox: 0.25, news: 0, paper_trail: 1 } }), false);
+    const off = parseAnswer(answer({ bucket: { inbox: 0.25, news: 0, paper_trail: 1, receipts: 0 } }), false);
     expect(off.bucket).toBe("paper_trail");
-    expect(off.bucketProbabilities).toEqual({ inbox: 0.2, news: 0, paper_trail: 0.8 });
+    expect(off.bucketProbabilities).toEqual({ inbox: 0.2, news: 0, paper_trail: 0.8, receipts: 0 });
   });
 
   it("rejects probabilities outside 0-1 and all-zero buckets", () => {
-    expect(() => parseAnswer(answer({ bucket: { inbox: -0.1, news: 0.5, paper_trail: 0.6 } }), false)).toThrow(/0-1/);
-    expect(() => parseAnswer(answer({ bucket: { inbox: 0, news: 0, paper_trail: 0 } }), false)).toThrow(/all-zero/);
+    expect(() => parseAnswer(answer({ bucket: { inbox: -0.1, news: 0.5, paper_trail: 0.6, receipts: 0 } }), false)).toThrow(/0-1/);
+    expect(() => parseAnswer(answer({ bucket: { inbox: 0, news: 0, paper_trail: 0, receipts: 0 } }), false)).toThrow(/all-zero/);
     expect(() => parseAnswer(answer({ humanWritten: 1.2 }), false)).toThrow(/humanWritten/);
   });
 

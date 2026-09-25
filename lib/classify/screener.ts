@@ -12,7 +12,7 @@ import {
 import { enqueueWriteback } from "@/lib/sync/jobs";
 
 import { recordCorrection } from "./corrections";
-import { PROMOTE_URGENCY } from "./thresholds";
+import { isRecordBucket, PROMOTE_URGENCY } from "./thresholds";
 
 export type UserDecision = Exclude<ScreenerDecision, "none">;
 
@@ -24,7 +24,7 @@ type Latest = { bucket: Bucket; urgency: number | null } | undefined;
 export function allowedTarget(defaultBucket: Bucket | null, latest: Latest): Bucket {
   if (defaultBucket) return defaultBucket;
   if (!latest) return "inbox";
-  if (latest.bucket === "paper_trail" && (latest.urgency ?? 0) >= PROMOTE_URGENCY) return "inbox";
+  if (isRecordBucket(latest.bucket) && (latest.urgency ?? 0) >= PROMOTE_URGENCY) return "inbox";
   return latest.bucket;
 }
 

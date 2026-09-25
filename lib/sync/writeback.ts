@@ -20,12 +20,13 @@ export const UNREAD_LABEL = "UNREAD";
 export const TRASH_LABEL = "TRASH";
 export const SPAM_LABEL = "SPAM";
 
-export type LabelledBucket = "inbox" | "news" | "paper_trail" | "triage";
+export type LabelledBucket = "inbox" | "news" | "paper_trail" | "receipts" | "triage";
 
 export const BUCKET_LABELS: Record<LabelledBucket, string> = {
   inbox: "superfer/inbox",
   news: "superfer/news",
   paper_trail: "superfer/paper-trail",
+  receipts: "superfer/receipts",
   triage: "superfer/triage",
 };
 

@@ -32,6 +32,7 @@ const BUCKET_VIEW: Record<Bucket, ViewSlug> = {
   inbox: "inbox",
   news: "news",
   paper_trail: "paper-trail",
+  receipts: "receipts",
   triage: "triage",
   out: "triage",
 };

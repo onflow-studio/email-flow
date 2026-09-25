@@ -2,7 +2,7 @@ import type { Bucket } from "@/lib/db/schema";
 
 import type { CommandId } from "./keys/commands";
 
-export type ViewSlug = "inbox" | "news" | "paper-trail" | "triage" | "work" | "snoozed" | "trash";
+export type ViewSlug = "inbox" | "news" | "paper-trail" | "receipts" | "triage" | "work" | "snoozed" | "trash";
 
 export type View = {
   slug: ViewSlug;
@@ -23,6 +23,7 @@ export const VIEWS: View[] = [
   { slug: "snoozed", command: "go.snoozed", label: "snoozed", group: "act" },
   { slug: "news", command: "go.news", label: "news", bucket: "news", group: "later" },
   { slug: "paper-trail", command: "go.paper-trail", label: "paper trail", bucket: "paper_trail", group: "later" },
+  { slug: "receipts", command: "go.receipts", label: "receipts", bucket: "receipts", group: "later" },
   { slug: "trash", command: "go.trash", label: "trash", group: "bottom" },
 ];
 

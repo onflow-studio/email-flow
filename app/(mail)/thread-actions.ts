@@ -29,7 +29,7 @@ function ids(threadIds: unknown): string[] {
 }
 
 const SIMPLE = new Set(["archive", "unarchive", "trash", "restore", "spam", "read", "unread", "unsnooze", "work", "done"]);
-const MOVABLE = new Set(["inbox", "news", "paper_trail"]);
+const MOVABLE = new Set(["inbox", "news", "paper_trail", "receipts"]);
 const isDate = (v: unknown) => typeof v === "string" && !Number.isNaN(Date.parse(v));
 
 function threadAction(a: unknown): ThreadAction {

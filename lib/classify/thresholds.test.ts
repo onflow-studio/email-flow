@@ -51,6 +51,11 @@ describe("promotion rule", () => {
     expect(d).toMatchObject({ bucket: "inbox", promoted: true, source: "user" });
   });
 
+  it("promotes urgent receipts to inbox", () => {
+    const d = decide(result({ bucket: "receipts", bucketProbabilities: { receipts: 0.9 }, urgency: 4 }), sender());
+    expect(d).toMatchObject({ bucket: "inbox", promoted: true });
+  });
+
   it("never promotes news", () => {
     const d = decide(
       result({ bucket: "news", bucketProbabilities: { news: 0.9 }, urgency: 5 }),

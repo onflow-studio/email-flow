@@ -1,0 +1,1 @@
+ALTER TYPE "public"."bucket" ADD VALUE 'receipts' BEFORE 'triage';

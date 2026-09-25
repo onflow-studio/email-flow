@@ -15,6 +15,11 @@ describe("allowedTarget", () => {
     expect(allowedTarget(null, { bucket: "paper_trail", urgency: 4 })).toBe("inbox");
   });
 
+  it("applies the promotion rule to released receipts", () => {
+    expect(allowedTarget(null, { bucket: "receipts", urgency: 4 })).toBe("inbox");
+    expect(allowedTarget(null, { bucket: "receipts", urgency: 1 })).toBe("receipts");
+  });
+
   it("defaults to inbox when never classified", () => {
     expect(allowedTarget(null, undefined)).toBe("inbox");
   });

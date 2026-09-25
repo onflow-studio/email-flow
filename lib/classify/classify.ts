@@ -4,7 +4,7 @@ import type { LanguageModel } from "ai";
 
 import { generateStructured } from "@/lib/ai";
 import type { Db } from "@/lib/db";
-import { classifications, senders, threads, type Job } from "@/lib/db/schema";
+import { classifications, senders, threads, type Bucket, type Job } from "@/lib/db/schema";
 import { enqueueSummary, enqueueWriteback, type JobContext } from "@/lib/sync/jobs";
 
 import { loadContext } from "./context";
@@ -94,11 +94,14 @@ function storeSummary(tx: Tx, threadId: string, summary: string | null, upTo: Da
     .where(and(eq(threads.id, threadId), or(isNull(threads.summaryMessageAt), lt(threads.summaryMessageAt, upTo))));
 }
 
-// Classify one thread and apply the decision. Skips threads the user already placed.
+// Classify one thread and apply the decision. Skips threads the user already placed. With `only`, the
+// decision is applied just when it lands in that bucket, for backfilling a new bucket without
+// reshuffling the rest.
 export async function classifyThread(
   db: Db,
   threadId: string,
   evaluate: Evaluator = defaultEvaluator,
+  opts: { only?: Bucket } = {},
 ): Promise<Decision | null> {
   const loaded = await loadContext(db, threadId);
   if (!loaded || loaded.thread.bucketSource === "user") return null;
@@ -110,10 +113,12 @@ export async function classifyThread(
     if (model) {
       await recordModel(tx, threadId, model);
       await storeSummary(tx, threadId, model.result.summary, thread.lastMessageAt);
-    } else if (wantsSummary(decision.bucket)) {
+    } else if (wantsSummary(decision.bucket) && (!opts.only || decision.bucket === opts.only)) {
       // A rule or the screener decided without the model; ask it for the summary alone.
       await enqueueSummary(tx, thread);
     }
+
+    if (opts.only && decision.bucket !== opts.only) return;
 
     // Re-check inside the transaction: a user move may have landed during the model call.
     const updated = await tx

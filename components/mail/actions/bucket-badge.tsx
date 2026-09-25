@@ -16,6 +16,7 @@ const NAMES: Record<ThreadDetail["bucket"], string> = {
   inbox: "inbox",
   news: "news",
   paper_trail: "paper trail",
+  receipts: "receipts",
   triage: "triage",
   out: "out",
 };
@@ -26,6 +27,7 @@ const TARGETS: { destination: MovableBucket | "work"; key: string }[] = [
   { destination: "work", key: "w" },
   { destination: "news", key: "n" },
   { destination: "paper_trail", key: "p" },
+  { destination: "receipts", key: "r" },
 ];
 
 /**

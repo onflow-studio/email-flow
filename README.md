@@ -14,7 +14,7 @@ Phase 1 built: sync, AI buckets and screener, actions with undo, compose, palett
 
 ## Core ideas
 
-- **Four buckets**: Inbox, News, Paper Trail, Triage. AI sorts, you correct, it learns.
+- **Five buckets**: Inbox, News, Paper Trail, Receipts, Triage. AI sorts, you correct, it learns.
 - **AI-gated screener**: new senders are held in Triage unless the AI is confident they're legit.
 - **Own database is the truth**: Gmail becomes transport plus a rough mirror, so the Gmail app still works as a fallback.
 - **Keyboard first**: full triage without a mouse, command palette for search and actions.

@@ -49,6 +49,7 @@ const BUCKET_NAMES: Record<Bucket, string> = {
   inbox: "inbox",
   news: "news",
   paper_trail: "paper trail",
+  receipts: "receipts",
   triage: "triage",
   out: "out",
 };
@@ -274,6 +275,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     move("inbox"),
     move("news"),
     move("paper_trail"),
+    move("receipts"),
     { id: "let-in", when: inTriage, run: () => void runSender({ type: "letIn" }) },
     { id: "keep-out", when: inTriage, run: () => void runSender({ type: "keepOut" }) },
     { id: "delete", when: () => !!target, run: () => void run({ type: "trash" }) },

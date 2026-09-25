@@ -19,7 +19,7 @@ export type MirrorState = {
 
 // Thread state as Gmail sees it, from each message's labels. Drafts don't count.
 // `archived` only when the INBOX label means something: our writeback strips INBOX from every
-// bucket except inbox, so for news, paper trail, triage and out its absence is our own doing.
+// bucket except inbox, so for news, paper trail, receipts, triage and out its absence is our own doing.
 export function mirrorState(messageLabels: string[][], bucket: Bucket): MirrorState {
   const live = messageLabels.filter((labels) => !labels.includes(LABEL.draft));
   const every = (label: string) => live.length > 0 && live.every((l) => l.includes(label));

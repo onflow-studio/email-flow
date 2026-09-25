@@ -1,6 +1,6 @@
 import type { Bucket } from "@/lib/db/schema";
 
-import type { Decision, ModelResult, RuleInput, SenderFacts, ThreadInput } from "./types";
+import { MODEL_BUCKETS, type Decision, type ModelBucket, type ModelResult, type RuleInput, type SenderFacts, type ThreadInput } from "./types";
 
 // Hybrid rules. A rule's literal conditions (sender, domain, account, subject words) are matched
 // here; its semantic part ("failed payments") is judged by the model.
@@ -51,8 +51,8 @@ export function readRule(structured: unknown): ReadRule | null {
   const bucket =
     s.keepOut === true
       ? "out"
-      : s.bucket === "inbox" || s.bucket === "news" || s.bucket === "paper_trail"
-        ? s.bucket
+      : MODEL_BUCKETS.includes(s.bucket as ModelBucket)
+        ? (s.bucket as ModelBucket)
         : null;
   return {
     conditions: {

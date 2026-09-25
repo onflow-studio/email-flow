@@ -20,7 +20,8 @@ Close the Gmail tabs for two weeks and not reopen them except for something the 
 |---|---|
 | Inbox | Threads from people and services that matter |
 | News | Newsletters and things to read. Phase 1: plain emails. Later: extracted content, possibly split. |
-| Paper Trail | Receipts, invoices, transactional notifications |
+| Paper Trail | Order and shipping updates, transactional and account notifications |
+| Receipts | Money that moved: receipts, invoices, payment confirmations, refunds, subscription charges |
 | Triage | New senders waiting for a decision |
 
 - Some transactional mail deserves Inbox (failed payments, security alerts). AI judges urgency, not just sender.
@@ -43,7 +44,7 @@ AI-gated:
 - High-confidence spam/promo from a new sender: straight to Triage.
 - High-confidence legit (replying to a thread the user started, known domain, etc.): lands in Inbox with an inline "new sender, allowed by AI, undo?" note.
 - Uncertain: Triage.
-- Decision outcomes per sender: Inbox, News, Paper Trail, or out. "Out" distinguishes clear spam from "not interested now" and is reviewable.
+- Decision outcomes per sender: Inbox, News, Paper Trail, Receipts, or out. "Out" distinguishes clear spam from "not interested now" and is reviewable.
 - Corrections in either direction feed the learning loop.
 - Writing in a thread beats the screener. Once the user has a message in a thread (a reply, a forward), every undecided inbound sender in it is let in by AI, the first sender included (a newsletter the user forwarded lets its sender in too), and the thread never sits in Triage: a held one moves to Inbox. Senders who already have a decision keep it. It shows with the usual "let in by AI" note, whose ok and undo cover every sender it let in; after an undo, those senders are not let in again by the same rule.
 - Let in and keep out decide on every undecided inbound sender of the thread at once (a newsletter forwarded to a colleague who answered is two senders), named on the buttons, the toast and the reading pane. Senders who already have a decision keep it. With nobody undecided, they decide on the thread's first sender. One undo reverses all of them.
@@ -56,7 +57,7 @@ AI-gated:
 - Work: its own view for things that need real effort after Inbox zero. `w` or the move menu moves a thread to Work from any view and out of every bucket view; a previously archived, trashed, spammed, or snoozed thread is restored so it appears in Work immediately. Inbox can reach zero. Order: overdue deadlines first, then upcoming deadlines soonest first, then the rest oldest-in-Work first. Done (`w` again, or archive) archives it and takes it out of Work; delete takes it out too. A new reply keeps it in Work, unread, and never lands in Inbox. After sending a reply on a Work thread, the sent toast offers done. Snoozing a Work thread hides it until the snooze ends, then it returns to Work.
 - Snoozed/reply-later lives as a separate view with a count badge; Work shows its total, marked when any thread has an unread reply. A digest of stale items may come later.
 - Single-message triage actions execute immediately with undo, no confirmation.
-- Moving a thread to Paper Trail marks it read in the same undoable action, including a move that confirms its existing Paper Trail placement. Other bucket moves preserve read state.
+- Moving a thread to Paper Trail or Receipts marks it read in the same undoable action, including a move that confirms its existing placement there. Other bucket moves preserve read state.
 - Bulk actions from cmd+k show a preview list before executing.
 - Phase 1: nothing requires confirmation beyond bulk preview.
 

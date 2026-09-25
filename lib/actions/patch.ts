@@ -32,13 +32,13 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
     case "unread":
       return { seenAt: null };
     case "move":
-      // Moving to the current bucket confirms an AI placement; Paper Trail also clears unread attention.
+      // Moving to the current bucket confirms an AI placement; Paper Trail and Receipts also clear unread attention.
       return {
         bucket: action.bucket,
         bucketSource: "user",
         bucketConfidence: 1,
         bucketSuggested: false,
-        ...(action.bucket === "paper_trail" ? { seenAt: t.seenAt ?? now } : {}),
+        ...(action.bucket === "paper_trail" || action.bucket === "receipts" ? { seenAt: t.seenAt ?? now } : {}),
       };
     case "snooze": {
       const until = new Date(action.until);

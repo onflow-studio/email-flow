@@ -16,7 +16,7 @@ import {
   type LabelIds,
 } from "./writeback";
 
-const ids: LabelIds = { inbox: "L_in", news: "L_news", paper_trail: "L_pt", triage: "L_tri" };
+const ids: LabelIds = { inbox: "L_in", news: "L_news", paper_trail: "L_pt", receipts: "L_rec", triage: "L_tri" };
 
 function mockGmail(existing: { id: string; name: string }[] = []) {
   let next = 0;
@@ -33,7 +33,7 @@ describe("labelChange", () => {
   it("inbox: sets its label, removes the others, keeps INBOX", () => {
     expect(labelChange("inbox", false, ids)).toEqual({
       addLabelIds: ["L_in", INBOX_LABEL],
-      removeLabelIds: ["L_news", "L_pt", "L_tri"],
+      removeLabelIds: ["L_news", "L_pt", "L_rec", "L_tri"],
     });
   });
 
@@ -41,18 +41,18 @@ describe("labelChange", () => {
     expect(labelChange("inbox", true, ids).addLabelIds).toEqual(["L_in"]);
   });
 
-  it.each(["news", "paper_trail", "triage"] as const)("%s: removes INBOX", (bucket) => {
+  it.each(["news", "paper_trail", "receipts", "triage"] as const)("%s: removes INBOX", (bucket) => {
     const change = labelChange(bucket, false, ids);
     expect(change.addLabelIds).toEqual([ids[bucket]]);
     expect(change.removeLabelIds).toContain(INBOX_LABEL);
     expect(change.removeLabelIds).not.toContain(ids[bucket]);
-    expect(change.removeLabelIds).toHaveLength(4);
+    expect(change.removeLabelIds).toHaveLength(5);
   });
 
   it("out: no bucket label and out of the inbox", () => {
     expect(labelChange("out", false, ids)).toEqual({
       addLabelIds: [],
-      removeLabelIds: ["L_in", "L_news", "L_pt", "L_tri", INBOX_LABEL],
+      removeLabelIds: ["L_in", "L_news", "L_pt", "L_rec", "L_tri", INBOX_LABEL],
     });
   });
 });
@@ -68,6 +68,7 @@ describe("ensureLabels", () => {
     expect(gmail.createLabel.mock.calls.map((c) => c[0])).toEqual([
       "superfer/news",
       "superfer/paper-trail",
+      "superfer/receipts",
       "superfer/triage",
     ]);
     await ensureLabels("acc1", gmail);
@@ -99,7 +100,7 @@ describe("mirrorChange", () => {
   it("read inbox thread: bucket label and INBOX, clears unread, trash and spam", () => {
     expect(mirrorChange(base, ids)).toEqual({
       addLabelIds: ["L_in", INBOX_LABEL],
-      removeLabelIds: ["L_news", "L_pt", "L_tri", UNREAD_LABEL, TRASH_LABEL, SPAM_LABEL],
+      removeLabelIds: ["L_news", "L_pt", "L_rec", "L_tri", UNREAD_LABEL, TRASH_LABEL, SPAM_LABEL],
     });
   });
 

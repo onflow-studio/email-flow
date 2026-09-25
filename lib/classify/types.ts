@@ -7,7 +7,7 @@ import type {
 } from "@/lib/db/schema";
 
 // Buckets the model chooses between. Triage and out come from the screener, never the model.
-export const MODEL_BUCKETS = ["inbox", "news", "paper_trail"] as const;
+export const MODEL_BUCKETS = ["inbox", "news", "paper_trail", "receipts"] as const;
 export type ModelBucket = (typeof MODEL_BUCKETS)[number];
 
 export type SenderFacts = {

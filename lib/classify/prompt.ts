@@ -14,7 +14,7 @@ export const answerSchema = z.object({
   language: z.string().describe("Language the mail body is written in, as an ISO 639-1 code such as es or en"),
   summary: z.string().describe("One-line summary of the thread for the mail list, written in that language"),
   bucket: z
-    .object({ inbox: z.number(), news: z.number(), paper_trail: z.number() })
+    .object({ inbox: z.number(), news: z.number(), paper_trail: z.number(), receipts: z.number() })
     .describe("Probability of each bucket, 0-1, summing to 1"),
   urgency: z.number().int().describe("1 to 5"),
   humanWritten: z.number().describe("Probability, 0-1, that a human wrote this mail personally"),
@@ -37,8 +37,12 @@ Buckets:
 - inbox: mail the user should see. From people, replies, anything that needs action or attention, and
   urgent service notices such as failed payments or security alerts.
 - news: newsletters, digests, announcements, promotions and marketing, things to read later.
-- paper_trail: receipts, invoices, order and shipping updates, routine account and transactional
-  notifications.
+- paper_trail: order and shipping updates, routine account and transactional notifications: anything
+  kept for the record that is not about money changing hands.
+- receipts: money that moved: receipts, invoices, payment confirmations, refunds and subscription or
+  renewal charges. An order confirmation that is also the receipt for the payment is receipts; a later
+  shipping or delivery update for that order is paper_trail. A payment that failed or needs action is
+  inbox, not receipts.
 
 Urgency, 1 to 5:
 1: no action ever needed.

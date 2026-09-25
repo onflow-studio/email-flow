@@ -1,6 +1,6 @@
 "use client";
 
-import { BriefcaseBusiness, Clock, Inbox, Newspaper, Receipt, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
+import { BriefcaseBusiness, Clock, Inbox, Newspaper, Receipt, ScrollText, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -16,7 +16,8 @@ import { mailHref, VIEWS, type View, type ViewSlug } from "./views";
 const ICONS: Record<ViewSlug, LucideIcon> = {
   inbox: Inbox,
   news: Newspaper,
-  "paper-trail": Receipt,
+  "paper-trail": ScrollText,
+  receipts: Receipt,
   triage: ShieldQuestionMark,
   work: BriefcaseBusiness,
   snoozed: Clock,

@@ -58,7 +58,7 @@ superfer/
 Core tables, Drizzle in `lib/db/schema.ts`.
 
 - `accounts`: id, email, label, color, oauth tokens (encrypted at rest with a key from env), gmail history cursor, last sync at, signature html.
-- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, deadline at, work at (stored as `pinned_at`: when the thread entered Work, null when not in Work), archived, participants summary, list summary and the last message time it covers. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
+- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, receipts, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, deadline at, work at (stored as `pinned_at`: when the thread entered Work, null when not in Work), archived, participants summary, list summary and the last message time it covers. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
 - `messages`: id, thread id, gmail message id, from, to, cc, date, snippet, html sanitized, text, is inbound, gmail labels, headers subset (list-unsubscribe, precedence, in-reply-to).
 - `attachments`: id, message id, filename, mime, size, gmail attachment id. Metadata only.
 - `senders`: id, email, domain, display name, first seen, screener decision (allowed, out_spam, out_not_now, none), decided at, decided by (ai, user), images allowed, notes. Shared across accounts, with a per-account seen count in a join table.
@@ -92,9 +92,9 @@ Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the cur
 `lib/classify/classify.ts`, one Claude Haiku 4.5 call per thread, structured output validated against a zod schema:
 
 - Prompt: a fixed system prompt (bucket, urgency and screening definitions) marked for prompt caching, then a user message with sender facts (domain, prior decision, counts across accounts), subject, first 2k chars of text, headers like list-unsubscribe and precedence, the enabled rules, and up to 5 similar recent corrections (same sender or domain first, then same subject words) as examples.
-- Output in one call: probabilities for inbox, news and paper_trail (normalized to sum to 1, top one is the bucket), urgency 1-5, human written probability, if sender is unknown legit new sender probability, and a one-line summary for the list, in the mail's own language. The raw output and model id go to `classifications`, the summary to the thread. A new message in a known thread queues the same call in summary-only mode, which never moves the bucket; the list shows the snippet until the summary catches up, and News always keeps the snippet. `pnpm summarize` fills summaries for threads imported before them, paced in calls per minute. Errors and 429s throw with SDK retries off, so the job runner's backoff retries.
+- Output in one call: probabilities for inbox, news, paper_trail and receipts (normalized to sum to 1, top one is the bucket), urgency 1-5, human written probability, if sender is unknown legit new sender probability, and a one-line summary for the list, in the mail's own language. The raw output and model id go to `classifications`, the summary to the thread. A new message in a known thread queues the same call in summary-only mode, which never moves the bucket; the list shows the snippet until the summary catches up, and News always keeps the snippet. `pnpm summarize` fills summaries for threads imported before them, paced in calls per minute. Errors and 429s throw with SDK retries off, so the job runner's backoff retries.
 - Thresholds in `lib/classify/thresholds.ts`, per bucket. Above threshold: apply and set bucket source ai. Thresholds sit a notch above what a calibrated classifier would need, since the model reports its own confidence. Below: apply the top bucket but mark as suggested and show the `--info` inline note. Unknown sender below the legit threshold: bucket triage.
-- Urgency 4 or higher on a paper_trail result promotes to inbox. This is the failed-payment rule.
+- Urgency 4 or higher on a paper_trail or receipts result promotes to inbox. This is the failed-payment rule.
 - Participation (`lib/classify/participation.ts`): ingest runs it on every thread with an outbound message, classify again after a triage call. Undecided inbound senders become allowed by ai, a triage thread whose first sender is now allowed moves to inbox (source ai), all logged in `actions_log` as `participation` under one batch, the move enqueuing writeback. Senders whose AI let-in was undone (an open `undoAiAllow` row) are skipped. `pnpm participation [--dry-run]` applied it once to mail synced before the rule.
 
 User moves write a correction row and set bucket source user. Rules are entered as text in settings, Claude parses them into structured hints stored alongside, and both text and structure go into the classifier prompt.
@@ -103,8 +103,8 @@ User moves write a correction row and set bucket source user. Rules are entered 
 
 `lib/sync/writeback.ts`, run as jobs so failures retry:
 
-- Ensure labels `superfer/inbox`, `superfer/news`, `superfer/paper-trail`, `superfer/triage` exist per account.
-- On bucket change: set the matching label, remove the others. For news, paper_trail, and triage: also remove INBOX so Gmail's inbox mirrors our Inbox bucket.
+- Ensure labels `superfer/inbox`, `superfer/news`, `superfer/paper-trail`, `superfer/receipts`, `superfer/triage` exist per account.
+- On bucket change: set the matching label, remove the others. For news, paper_trail, receipts, and triage: also remove INBOX so Gmail's inbox mirrors our Inbox bucket.
 - Read, archive, trash, spam: mirror both ways. Gmail changes come in via history, ours go out via modify.
 - Snooze, work, screener decisions, deadlines: never written to Gmail.
 
@@ -134,13 +134,13 @@ e             archive
 r / a / f     reply / reply all / forward
 s             snooze (opens picker, with needs-reply toggle)
 w             work / done (done archives and leaves Work)
-m then i/w/n/p  move to inbox / work / news / paper trail (menu under the bucket badge; same bucket confirms an AI placement)
+m then i/w/n/p/r  move to inbox / work / news / paper trail / receipts (menu under the bucket badge; same bucket confirms an AI placement)
 x             keep out (from triage)
 i             let in (from triage)
 u             unsubscribe (one-click, else mailto, else opens the page)
 #             delete (to trash)
 z / cmd+z     undo last
-g then i/t/n/p  go to bucket, g w work, g d trash (snoozed and settings bindable, unbound)
+g then i/t/n/p/r  go to bucket, g w work, g d trash (snoozed and settings bindable, unbound)
 cmd+k         palette
 /             search
 c             compose

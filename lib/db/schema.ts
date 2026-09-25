@@ -34,6 +34,7 @@ export const bucket = pgEnum("bucket", [
   "inbox",
   "news",
   "paper_trail",
+  "receipts",
   "triage",
   "out",
 ]);

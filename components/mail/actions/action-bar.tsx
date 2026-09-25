@@ -67,6 +67,7 @@ const MOVES: { bucket: MovableBucket; label: string }[] = [
   { bucket: "inbox", label: "inbox" },
   { bucket: "news", label: "news" },
   { bucket: "paper_trail", label: "paper trail" },
+  { bucket: "receipts", label: "receipts" },
 ];
 
 const subscribeWide = (cb: () => void) => {
@@ -144,6 +145,7 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
       return pick([letIn, keepOut], [archive, unsub, del], [snooze, work, reply, replyAll, forward, unread, spam]);
     case "news":
     case "paper-trail":
+    case "receipts":
       return pick([archive], [unsub, moveTo, del], [reply, replyAll, forward, snooze, unread, spam]);
     case "snoozed":
       return pick([reply, archive, snooze], [unsnooze, del], [replyAll, forward, work, unsub, unread, spam]);

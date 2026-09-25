@@ -4,7 +4,7 @@ import { runClassifier, type Evaluator } from "./classify";
 import { context, sender } from "./fixtures";
 import type { ClassifierAnswer } from "./prompt";
 import { evaluateRules, matchesConditions, readRule, type RuleConditions } from "./rules";
-import type { RuleInput, ThreadInput } from "./types";
+import type { ModelBucket, RuleInput, ThreadInput } from "./types";
 
 const saved = new Date("2026-09-01T00:00:00Z");
 
@@ -33,12 +33,12 @@ const paymentsAnywhere = rule({ semantic: "failed payments", bucket: "inbox" });
 const thread: ThreadInput = context().thread;
 const none: RuleConditions = { senders: [], domains: [], accounts: [], subjectKeywords: [] };
 
-function answer(bucket: "inbox" | "news" | "paper_trail", urgency = 1): ClassifierAnswer {
+function answer(bucket: ModelBucket, urgency = 1): ClassifierAnswer {
   return {
     reason: "test",
     language: "en",
     summary: "test",
-    bucket: { inbox: 0.05, news: 0.05, paper_trail: 0.05, [bucket]: 0.9 },
+    bucket: { inbox: 0.05, news: 0.05, paper_trail: 0.05, receipts: 0.05, [bucket]: 0.9 },
     urgency,
     humanWritten: 0.05,
     legitNewSender: 0.9,
@@ -58,6 +58,10 @@ describe("readRule", () => {
       semantic: null,
       bucket: "out",
     });
+  });
+
+  it("reads receipts as a rule bucket", () => {
+    expect(readRule({ match: { domains: ["stripe.com"] }, bucket: "receipts" })?.bucket).toBe("receipts");
   });
 
   it("tolerates missing or foreign shapes", () => {

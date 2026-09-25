@@ -8,7 +8,7 @@ Personal email client for one user, three Gmail accounts. Read these before any 
 
 ## Rules
 
-- Buckets are named Inbox, News, Paper Trail, Triage. Never use HEY's terminology.
+- Buckets are named Inbox, News, Paper Trail, Receipts, Triage. Never use HEY's terminology.
 - Own database is the source of truth. Gmail is transport plus a rough mirror. See the write-back section of the tech plan before touching sync.
 - All AI calls go through `lib/ai` or `lib/classify`. No provider imports elsewhere.
 - Single-thread actions execute immediately with undo. Bulk actions preview first.

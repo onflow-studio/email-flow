@@ -25,7 +25,7 @@ export const ruleStructureSchema = z.object({
         "or 'newsletters', null when the rule is fully literal",
     ),
   bucket: z
-    .enum(["inbox", "news", "paper_trail"])
+    .enum(["inbox", "news", "paper_trail", "receipts"])
     .nullable()
     .describe("Bucket matching mail goes to, null when the rule does not say"),
   keepOut: z.boolean().describe("True when the rule says to block, ignore or keep out matching mail"),
@@ -39,7 +39,8 @@ const INSTRUCTIONS = `You turn one email triage rule, written by the user in pla
 The mail client sorts threads into buckets:
 - inbox: mail the user should see and may act on, including urgent service notices
 - news: newsletters, digests, announcements, promotions
-- paper_trail: receipts, invoices, order and shipping updates, routine notifications
+- paper_trail: order and shipping updates, routine account notifications
+- receipts: receipts, invoices, payment confirmations, refunds, subscription charges
 Only fill what the rule states or clearly implies. Leave lists empty and use null rather than guessing.
 A company name like "Vercel" means its domain (vercel.com) when the domain is obvious.
 Split the condition: literal facts (sender, domain, receiving account, words the subject contains) go in

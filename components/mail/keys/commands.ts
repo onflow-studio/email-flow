@@ -43,6 +43,7 @@ export const COMMANDS = [
   go("snoozed", "snoozed"),
   go("news", "news", ["g n"]),
   go("paper-trail", "paper trail", ["g p"]),
+  go("receipts", "receipts", ["g r"]),
   go("trash", "trash", ["g d"]),
   go("settings", "settings"),
 
@@ -60,6 +61,7 @@ export const COMMANDS = [
   { id: "move.inbox", label: "move to inbox", group: "triage", scope: "mail", keys: [] },
   { id: "move.news", label: "move to news", group: "triage", scope: "mail", keys: [] },
   { id: "move.paper_trail", label: "move to paper trail", group: "triage", scope: "mail", keys: [] },
+  { id: "move.receipts", label: "move to receipts", group: "triage", scope: "mail", keys: [] },
 
   { id: "compose", label: "compose", group: "write", scope: "mail", keys: ["c"] },
   { id: "reply", label: "reply", group: "write", scope: "mail", keys: ["r"] },

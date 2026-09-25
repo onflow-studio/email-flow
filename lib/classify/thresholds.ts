@@ -1,3 +1,5 @@
+import type { Bucket } from "@/lib/db/schema";
+
 import type { Decision, ModelBucket, ModelResult, SenderFacts } from "./types";
 
 // Starting points. Above: applied. Below: applied but shown as a suggestion.
@@ -7,13 +9,19 @@ export const BUCKET_THRESHOLDS: Record<ModelBucket, number> = {
   inbox: 0.85,
   news: 0.9,
   paper_trail: 0.9,
+  receipts: 0.9,
 };
 
 // Unknown senders below this go to triage.
 export const LEGIT_SENDER_THRESHOLD = 0.8;
 
-// Urgency 1-5. At or above this, paper trail goes to inbox (failed payments, security alerts).
+// Urgency 1-5. At or above this, paper trail and receipts go to inbox (failed payments, security alerts).
 export const PROMOTE_URGENCY = 4;
+
+// Buckets for mail kept on record; urgent mail classified there is promoted to inbox.
+export function isRecordBucket(bucket: Bucket) {
+  return bucket === "paper_trail" || bucket === "receipts";
+}
 
 // The user has written to them or started the thread: no screening needed.
 export function knownByContact(sender: SenderFacts) {
@@ -61,7 +69,7 @@ export function decide(result: ModelResult | null, sender: SenderFacts): Decisio
     };
   }
 
-  if (decision.bucket === "paper_trail" && result.urgency >= PROMOTE_URGENCY) {
+  if (isRecordBucket(decision.bucket) && result.urgency >= PROMOTE_URGENCY) {
     decision = { ...decision, bucket: "inbox", promoted: true };
   }
 
