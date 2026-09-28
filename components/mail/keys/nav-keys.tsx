@@ -21,8 +21,9 @@ export function NavKeys() {
   const map = useKeyMap();
   const router = useRouter();
 
-  // With a thread open, j/k step through threads in reading mode.
+  // With a thread open, j/k step through threads in reading mode. A plain step drops the selection.
   const step = (dir: 1 | -1) => {
+    sel.clearSelected();
     const i = sel.threadIds.indexOf(sel.target ?? "");
     const next = sel.threadIds[i + dir];
     if (sel.openId) {
@@ -36,6 +37,8 @@ export function NavKeys() {
     { id: "thread.prev", run: () => step(-1) },
     { keys: "arrowdown", when: () => sel.pane === "list", run: () => step(1) },
     { keys: "arrowup", when: () => sel.pane === "list", run: () => step(-1) },
+    { keys: "shift+arrowdown", when: () => sel.pane === "list", run: () => sel.extend(1) },
+    { keys: "shift+arrowup", when: () => sel.pane === "list", run: () => sel.extend(-1) },
     {
       id: "pane.left",
       when: () => isDesktop() && sel.pane !== "rail",
@@ -47,6 +50,7 @@ export function NavKeys() {
       run: () => (sel.focusedId === sel.openId ? sel.setPane("reading") : sel.open()),
     },
     { id: "thread.open", when: () => !!sel.focusedId && sel.focusedId !== sel.openId, run: () => sel.open() },
+    { keys: "escape", when: () => sel.selectedIds.length > 0, run: () => sel.clearSelected() },
     { id: "thread.close", when: () => !!sel.openId, run: () => sel.close() },
     ...VIEWS.map<KeyBinding>((v) => ({ id: v.command, run: () => sel.go(v.slug) })),
     { id: "go.settings", run: () => router.push("/settings") },

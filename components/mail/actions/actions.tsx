@@ -173,10 +173,23 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     [router, sel.openId, sel.threadIds, sel.view],
   );
 
+  // Keyboard actions take the selection when there is one; the rest take one thread.
+  const selected = sel.selectedIds;
+  const { clearSelected } = sel;
+  const oneOnly = useCallback(
+    (label: string) => {
+      if (selected.length < 2) return false;
+      notify(`${label} takes one thread, esc clears the selection`, "warning");
+      return true;
+    },
+    [selected, notify],
+  );
+
   const run = useCallback(
     async (action: ThreadAction, ids?: string[]) => {
-      const targetIds = ids ?? (sel.target ? [sel.target] : []);
+      const targetIds = ids ?? (selected.length ? selected : sel.target ? [sel.target] : []);
       if (!targetIds.length) return null;
+      if (targetIds.some((id) => selected.includes(id))) clearSelected();
       try {
         // A move to the bucket every thread is already in confirms the placement instead.
         const kept = action.type === "move" && targetIds.every((id) => byId.get(id)?.bucket === action.bucket) ? action.bucket : null;
@@ -192,11 +205,12 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         return null;
       }
     },
-    [sel.target, byId, report, notify, afterAction],
+    [sel.target, selected, clearSelected, byId, report, notify, afterAction],
   );
 
   const runSender = useCallback(
     async (action: SenderAction, id?: string) => {
+      if (!id && oneOnly("the screener")) return null;
       const threadId = id ?? sel.target;
       if (!threadId) return null;
       if (!byId.get(threadId)?.senderId) {
@@ -213,11 +227,12 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         return null;
       }
     },
-    [sel.target, byId, report, notify, afterAction],
+    [sel.target, oneOnly, byId, report, notify, afterAction],
   );
 
   const unsubscribe = useCallback(
     async (id?: string) => {
+      if (!id && oneOnly("unsubscribe")) return;
       const threadId = id ?? sel.target;
       if (!threadId) return;
       try {
@@ -235,26 +250,29 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         notify("unsubscribe failed, retry", "error");
       }
     },
-    [sel.target, report, notify, afterAction],
+    [sel.target, oneOnly, report, notify, afterAction],
   );
 
   const openSnooze = useCallback(() => {
-    if (!sel.target) return;
+    const ids = selected.length ? selected : sel.target ? [sel.target] : [];
+    if (!ids.length) return;
     setOpenedAt(Date.now());
-    setSnoozeIds([sel.target]);
-  }, [sel.target]);
+    setSnoozeIds(ids);
+  }, [selected, sel.target]);
 
   const openDeadline = useCallback(() => {
+    if (oneOnly("deadline")) return;
     if (sel.target) setDeadlineId(sel.target);
-  }, [sel.target]);
+  }, [oneOnly, sel.target]);
 
   const toggleWork = useCallback(
     (id?: string) => {
-      const threadId = id ?? sel.target;
-      if (!threadId) return Promise.resolve(null);
-      return run({ type: sel.view === "work" && byId.get(threadId)?.work ? "done" : "work" }, [threadId]);
+      const threadIds = id ? [id] : selected.length ? selected : sel.target ? [sel.target] : [];
+      if (!threadIds.length) return Promise.resolve(null);
+      const done = sel.view === "work" && threadIds.every((t) => byId.get(t)?.work);
+      return run({ type: done ? "done" : "work" }, threadIds);
     },
-    [sel.target, sel.view, byId, run],
+    [selected, sel.target, sel.view, byId, run],
   );
 
   // The sent toast after a reply on a Work thread offers done through this.

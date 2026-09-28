@@ -48,7 +48,8 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
   const on = accounts.filter((a) => a.on);
 
   let state: React.ReactNode;
-  if (syncing) state = "syncing";
+  if (sel.selectedIds.length) state = <span className="text-text">{sel.selectedIds.length} selected</span>;
+  else if (syncing) state = "syncing";
   else if (error) state = <span className="text-warning">{error}</span>;
   else if (failed.length) {
     const reconnect = failed.filter((a) => needsReconnect(a.lastSyncError));
@@ -101,7 +102,9 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
       <KeyHints
         className="ml-auto min-w-0"
         hints={hints(
-          sel.pane === "rail"
+          sel.selectedIds.length
+            ? [[key("archive"), "archive"], [key("snooze"), "snooze"], [key("delete"), "delete"], ["escape", "clear"]]
+            : sel.pane === "rail"
             ? [[["arrowup", "arrowdown"], "move"], ["arrowright", "open"], [key("key-map"), "keys"]]
             : sel.pane === "reading"
               ? [[["arrowup", "arrowdown"], "scroll"], ["arrowleft", "list"], [pair("thread.next", "thread.prev"), "next"], ["escape", "back"], [key("key-map"), "keys"]]

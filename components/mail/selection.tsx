@@ -26,6 +26,11 @@ export type MailSelection = {
   pane: Pane;
   setPane: (pane: Pane) => void;
   focus: (id: string) => void;
+  /** Rows picked with shift and the arrows, in list order. Keyboard actions act on them instead of `target`. */
+  selectedIds: string[];
+  /** Grows or shrinks the picked range by one row from where it started, and moves there. */
+  extend: (dir: 1 | -1) => void;
+  clearSelected: () => void;
   focusNext: () => void;
   focusPrev: () => void;
   /** Opens a thread and focuses the reading pane, unless `keepPane` (stepping from the list). */
@@ -37,12 +42,17 @@ export type MailSelection = {
 const SelectionContext = createContext<MailSelection | null>(null);
 
 type Picked = { id: string | null; index: number };
+/** The row a range grows from, and the rows in it. */
+type Range = { anchor: string; ids: string[] };
 type FocusStore = {
   get: (key: string) => Picked | undefined;
   set: (key: string, picked: Picked) => void;
   /** Stable order of the view you are working in; a view you come back to starts fresh. */
   order: (key: string) => string[] | undefined;
   setOrder: (key: string, ids: string[]) => void;
+  /** One range at a time: switching view drops it. */
+  range: (key: string) => Range | undefined;
+  setRange: (key: string, range: Range | null) => void;
   pane: Pane | null;
   setPane: (pane: Pane) => void;
   /** Records the view shown; true when it differs from the last one (a view switch, not a return to the list). */
@@ -87,6 +97,7 @@ export function stableOrder(prev: string[] | undefined, next: string[]) {
 export function FocusStoreProvider({ children }: { children: React.ReactNode }) {
   const [picked, setPicked] = useState<Record<string, Picked>>({});
   const [order, setOrderState] = useState<{ key: string; ids: string[] } | null>(null);
+  const [range, setRangeState] = useState<(Range & { key: string }) | null>(null);
   const [pane, setPane] = useState<Pane | null>(null);
   const lastViewRef = useRef<string | null>(null);
   const autoOpenedRef = useRef<string | null>(null);
@@ -108,12 +119,15 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       setOrderState((prev) => (prev?.key === key && sameIds(prev.ids, ids) ? prev : { key, ids })),
     [],
   );
+  const setRange = useCallback((key: string, next: Range | null) => setRangeState(next && { key, ...next }), []);
   const value = useMemo<FocusStore>(
     () => ({
       get: (key) => picked[key],
       set,
       order: (key) => (order?.key === key ? order.ids : undefined),
       setOrder,
+      range: (key) => (range?.key === key ? range : undefined),
+      setRange,
       pane,
       setPane,
       switchedTo,
@@ -121,7 +135,7 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       isAutoOpened,
       clearAutoOpened,
     }),
-    [picked, order, set, setOrder, pane, switchedTo, setAutoOpened, isAutoOpened, clearAutoOpened],
+    [picked, order, set, setOrder, range, setRange, pane, switchedTo, setAutoOpened, isAutoOpened, clearAutoOpened],
   );
   return <FocusStoreContext.Provider value={value}>{children}</FocusStoreContext.Provider>;
 }
@@ -191,7 +205,12 @@ export function SelectionProvider({
     [threadIds, setPicked],
   );
 
-  const { setPane, switchedTo, setAutoOpened } = store;
+  const { setPane, switchedTo, setAutoOpened, setRange } = store;
+  const range = store.range(key);
+  const selectedIds = useMemo(() => {
+    const picked = new Set(range?.ids);
+    return threadIds.filter((id) => picked.has(id));
+  }, [range, threadIds]);
 
   // Switching view on desktop opens its top thread, without taking the keyboard to it.
   useEffect(() => {
@@ -218,6 +237,27 @@ export function SelectionProvider({
     [router, view, focusedId, setPane],
   );
 
+  // The range grows from where it started, so shift+up after shift+down shrinks it.
+  const extend = useCallback(
+    (dir: 1 | -1) => {
+      const current = openId ?? focusedId;
+      if (!current) return;
+      const from = threadIds.indexOf(current);
+      const to = from + dir;
+      if (from < 0 || to < 0 || to >= threadIds.length) return;
+      const anchor = range && threadIds.includes(range.anchor) ? range.anchor : current;
+      const a = threadIds.indexOf(anchor);
+      setRange(key, { anchor, ids: threadIds.slice(Math.min(a, to), Math.max(a, to) + 1) });
+      // Passing through a thread while picking is not reading it: it waits like an auto-opened one.
+      if (openId) {
+        setAutoOpened(threadIds[to]);
+        open(threadIds[to], true);
+      } else focusAt(to);
+    },
+    [openId, focusedId, threadIds, range, setRange, key, setAutoOpened, open, focusAt],
+  );
+  const clearSelected = useCallback(() => setRange(key, null), [setRange, key]);
+
   const value = useMemo<MailSelection>(
     () => ({
       view,
@@ -229,6 +269,9 @@ export function SelectionProvider({
       pane,
       setPane,
       focus: (id) => focusAt(threadIds.indexOf(id)),
+      selectedIds,
+      extend,
+      clearSelected,
       focusNext: () => focusAt(focusedIndex + 1),
       focusPrev: () => focusAt(focusedIndex - 1),
       open,
@@ -238,7 +281,7 @@ export function SelectionProvider({
       },
       go: (next) => router.push(mailHref(next)),
     }),
-    [view, account, threadIds, focusedId, focusedIndex, openId, pane, setPane, focusAt, open, router],
+    [view, account, threadIds, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, clearSelected, open, router],
   );
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

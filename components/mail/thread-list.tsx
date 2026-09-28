@@ -37,6 +37,7 @@ export function ThreadList({
   }
 
   const byId = new Map(threads.map((t) => [t.id, t]));
+  const selected = new Set(sel.selectedIds);
   const ordered = sel.threadIds.flatMap((id) => byId.get(id) ?? []);
   const work = sel.view === "work";
   // Work keeps its own order (deadlines, then queue), so it has no unseen and seen groups.
@@ -57,9 +58,13 @@ export function ThreadList({
             accountColors={t.accountIds.map((id) => accountColors[id])}
             accountNames={t.accountIds.map((id) => accountNames[id] ?? "unknown account")}
             focused={t.id === sel.focusedId}
+            selected={selected.has(t.id)}
             open={t.id === sel.openId}
             href={mailHref(sel.view, { threadId: t.id })}
-            onSelect={() => sel.focus(t.id)}
+            onSelect={() => {
+              sel.clearSelected();
+              sel.focus(t.id);
+            }}
             showSnooze={sel.view === "snoozed"}
             work={work}
           />
@@ -78,6 +83,7 @@ function ThreadRow({
   accountColors,
   accountNames,
   focused,
+  selected,
   open,
   href,
   onSelect,
@@ -89,6 +95,8 @@ function ThreadRow({
   accountColors: (string | undefined)[];
   accountNames: string[];
   focused: boolean;
+  /** In the shift+arrows range. */
+  selected: boolean;
   open: boolean;
   href: string;
   onSelect: () => void;
@@ -104,16 +112,19 @@ function ThreadRow({
       href={href}
       scroll={false}
       aria-current={open ? "page" : undefined}
+      data-selected={selected || undefined}
       data-thread-id={t.id}
       onClick={onSelect}
       className={cn(
         "flex min-h-mail-row min-w-0 flex-col justify-center gap-1 border-l-2 pr-3 pl-6 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
         focused
           ? "glow-focus border-accent bg-surface-raised"
-          : "border-transparent hover:bg-surface-raised",
+          : selected
+            ? "border-transparent bg-accent-dim/40"
+            : "border-transparent hover:bg-surface-raised",
       )}
     >
-      <span className="sr-only">{accountNames.join(", ")}; {t.unseen ? "unseen" : "seen"}{status.length ? `; ${status.join(", ")}` : ""}; </span>
+      <span className="sr-only">{selected ? "selected; " : ""}{accountNames.join(", ")}; {t.unseen ? "unseen" : "seen"}{status.length ? `; ${status.join(", ")}` : ""}; </span>
       <span className="flex w-full min-w-0 items-center gap-2">
         {t.unseen ? <UnreadDot /> : null}
         <span className={cn("min-w-0 flex-1 truncate font-medium", t.unseen ? "text-text" : "text-text-muted")}>{t.sender}</span>

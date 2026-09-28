@@ -35,6 +35,7 @@ export const COMMANDS = [
   { id: "thread.open", label: "open thread", group: "navigate", scope: "mail", keys: ["o"], fixed: ["enter"] },
   { id: "thread.close", label: "back to list", group: "navigate", scope: "mail", keys: [], fixed: ["escape"] },
   { id: "pane.move", label: "move in pane", group: "navigate", scope: "mail", keys: [], fixed: ["arrowup", "arrowdown"] },
+  { id: "thread.extend", label: "select threads", group: "navigate", scope: "mail", keys: [], fixed: ["shift+arrowdown", "shift+arrowup"] },
   { id: "pane.left", label: "pane left", group: "navigate", scope: "mail", keys: [], fixed: ["arrowleft"] },
   { id: "pane.right", label: "pane right", group: "navigate", scope: "mail", keys: [], fixed: ["arrowright"] },
   go("triage", "triage", ["g t"]),

@@ -62,7 +62,8 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
   // Same bucket confirms the placement as the user's own; another moves it. Both undoable.
   const pick = (destination: MovableBucket | "work") => {
     close();
-    void run(destination === "work" ? { type: "work" } : { type: "move", bucket: destination }, [thread.id]);
+    const ids = sel.selectedIds.includes(thread.id) ? sel.selectedIds : [thread.id];
+    void run(destination === "work" ? { type: "work" } : { type: "move", bucket: destination }, ids);
   };
   const focusRow = (dir: 1 | -1) => {
     const n = TARGETS.length;
