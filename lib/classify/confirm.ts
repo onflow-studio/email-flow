@@ -17,19 +17,20 @@ export type SecondOpinion = {
 // Null when there is no second opinion to be had (no key); errors throw.
 export type Confirmer = (ctx: ClassifyContext) => Promise<SecondOpinion | null>;
 
-// Validated against production history on 2026-09-29: auto-applied 29% of suggested threads,
-// one wrong out of 18 user corrections. Change the wording and that result no longer holds.
+// Validated against production history on 2026-09-29: none of the 18 threads the user corrected
+// would have been auto-applied, and every failed CI run goes to inbox. Change the wording and that
+// result no longer holds.
 export const BUCKET_QUESTION: JevChoice = {
   type: "choice",
   instructions: "Which bucket should this email go in for the person who received it?",
   criteria: {
     inbox:
-      "Mail the person should see: written by a real person, a reply, anything needing their action or attention, or an urgent service notice such as a failed payment or security alert",
+      "Mail the person should see: written by a real person, a reply, anything needing their action or attention, an urgent service notice such as a failed payment or security alert, or a failed CI run or deploy",
     news: "Newsletters, digests, announcements, promotions and marketing, things to read later",
     paper_trail:
-      "Order and shipping updates, routine account and transactional notifications, and automated notifications from developer tools (GitHub, CI runs, Linear, monitoring) kept for the record, not about money changing hands",
+      "Order and shipping updates, routine account and transactional notifications, and other automated notifications from developer tools (GitHub, Linear, monitoring) kept for the record, not about money changing hands",
     receipts:
-      "Money that moved: receipts, invoices, payment confirmations, refunds, subscription or renewal charges. Not failed payments.",
+      "Money that moved: receipts, invoices, payment confirmations, refunds, subscription or renewal charges, and paid bookings such as flights, hotels and car rentals, itineraries included. Not failed payments.",
   },
 };
 

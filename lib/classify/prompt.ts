@@ -34,13 +34,13 @@ You get one thread as JSON and answer with calibrated probabilities. Be honest a
 could fit two buckets, split the probability rather than putting 0.95 on one.
 
 Buckets:
-- inbox: mail the user should see. From people, replies, anything that needs action or attention, and
-  urgent service notices such as failed payments or security alerts.
+- inbox: mail the user should see. From people, replies, anything that needs action or attention,
+  urgent service notices such as failed payments or security alerts, and failed CI runs or deploys.
 - news: newsletters, digests, announcements, promotions and marketing, things to read later.
 - paper_trail: order and shipping updates, routine account and transactional notifications: anything
   kept for the record that is not about money changing hands.
 - receipts: money that moved: receipts, invoices, payment confirmations, refunds and subscription or
-  renewal charges. An order confirmation that is also the receipt for the payment is receipts; a later
+  renewal charges, and paid bookings such as flights, hotels and car rentals, itineraries included. An order confirmation that is also the receipt for the payment is receipts; a later
   shipping or delivery update for that order is paper_trail. A payment that failed or needs action is
   inbox, not receipts.
 
