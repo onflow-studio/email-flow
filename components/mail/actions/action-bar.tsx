@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { createPortal } from "react-dom";
 
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
+import { markSenderMachine } from "@/app/(mail)/thread-actions";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import type { MovableBucket } from "@/lib/actions/types";
@@ -15,6 +16,7 @@ import { useMailSelection } from "../selection";
 import type { ViewSlug } from "../views";
 import type { CommandId } from "../keys/commands";
 import { useThreadActions } from "./actions";
+import { useUndo } from "./undo";
 
 type BarAction = {
   id: string;
@@ -86,6 +88,7 @@ const useWide = () =>
 function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
   const { run, runSender, openSnooze, openDeadline, toggleWork, unsubscribe } = useThreadActions();
   const compose = useCompose();
+  const { notify } = useUndo();
   const overrides = useOverrides();
   const key = (id: CommandId) => shortcutOf(id, overrides);
   const ids = [thread.id];
@@ -116,6 +119,19 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
     : null;
   const unread: BarAction = { id: "unread", label: "mark unread", keys: key("unread"), run: () => void run({ type: "unread" }, ids) };
   const spam: BarAction = { id: "spam", label: "mark spam", keys: key("spam"), run: () => void run({ type: "spam" }, ids) };
+  // Fixes the list's call on the sender; the same row flips it back.
+  const sender = thread.latestSender;
+  const kind: BarAction | null = sender
+    ? {
+        id: "kind",
+        label: sender.machine ? "treat as person" : "treat as automated",
+        run: () =>
+          void markSenderMachine(sender.id, !sender.machine).then(
+            () => notify(`${sender.name} ${sender.machine ? "treated as a person" : "treated as automated"}`, "default"),
+            () => notify("change failed, retry", "error"),
+          ),
+      }
+    : null;
   const who = whoOf(thread.judged);
   const letIn: BarAction = { id: "let-in", label: "let in", who, keys: key("let-in"), run: () => void runSender({ type: "letIn" }, thread.id) };
   const keepOut: BarAction = { id: "keep-out", label: "keep out", who, keys: key("keep-out"), run: () => void runSender({ type: "keepOut" }, thread.id) };
@@ -146,15 +162,15 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
     case "news":
     case "paper-trail":
     case "receipts":
-      return pick([archive], [unsub, moveTo, del], [reply, replyAll, forward, snooze, unread, spam]);
+      return pick([archive], [unsub, moveTo, del], [reply, replyAll, forward, snooze, unread, kind, spam]);
     case "snoozed":
-      return pick([reply, archive, snooze], [unsnooze, del], [replyAll, forward, work, unsub, unread, spam]);
+      return pick([reply, archive, snooze], [unsnooze, del], [replyAll, forward, work, unsub, unread, kind, spam]);
     case "work":
-      return pick([work, reply], [snooze, del], [replyAll, forward, needsReply, deadline, unsnooze, unsub, unread, spam]);
+      return pick([work, reply], [snooze, del], [replyAll, forward, needsReply, deadline, unsnooze, unsub, unread, kind, spam]);
     case "trash":
       return pick([del], [], [work, reply, forward, spam]);
     default:
-      return pick([reply, archive, snooze], [work, del], [replyAll, forward, unsub, unread, spam]);
+      return pick([reply, archive, snooze], [work, del], [replyAll, forward, unsub, unread, kind, spam]);
   }
 }
 

@@ -16,6 +16,7 @@ import {
   type ThreadAction,
   type UnsubscribeResult,
 } from "@/lib/actions";
+import { setSenderMachine } from "@/lib/classify/machine";
 import { db } from "@/lib/db";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -91,6 +92,12 @@ export async function previewAction(threadIds: string[], action: ThreadAction): 
 export async function alwaysLoadImages(senderId: string): Promise<void> {
   const [id] = ids([senderId]);
   if (await allowSenderImages(db, id)) refresh();
+}
+
+/** Corrects whether a sender is a person or a machine, which sets its rows in the list. */
+export async function markSenderMachine(senderId: string, machine: boolean): Promise<void> {
+  const [id] = ids([senderId]);
+  if (await setSenderMachine(db, id, machine === true)) refresh();
 }
 
 export async function markSeen(threadId: string): Promise<void> {

@@ -57,8 +57,9 @@ export function machineVerdict(response: JevResponse): MachineVerdict {
 }
 
 /**
- * Senders not judged yet with at least two live threads where grouping applies, most threads first,
- * each with their latest inbound message as the sample.
+ * Senders not judged yet with a live thread where grouping applies, most threads first, each with
+ * their latest inbound message as the sample. One thread is enough: the list sets a row by whether
+ * its sender is a person, not only whether its mail groups.
  */
 async function candidates(db: Db, limit: number): Promise<SenderSample[]> {
   const rows = await db
@@ -75,7 +76,6 @@ async function candidates(db: Db, limit: number): Promise<SenderSample[]> {
       ),
     )
     .groupBy(threads.senderId)
-    .having(sql`count(*) > 1`)
     .orderBy(desc(sql`count(*)`))
     .limit(limit);
 
@@ -121,4 +121,14 @@ export async function judgeSenders(db: Db, ask: MachineAsk = jevMachineAsk, limi
       .where(eq(senders.id, sample.senderId));
   }
   return out;
+}
+
+/** The user's own call on a sender, from the action bar. It stands like a Jev verdict: never judged again. */
+export async function setSenderMachine(db: Db, senderId: string, machine: boolean): Promise<boolean> {
+  const rows = await db
+    .update(senders)
+    .set({ machine, machineConfidence: null })
+    .where(eq(senders.id, senderId))
+    .returning({ id: senders.id });
+  return rows.length > 0;
 }

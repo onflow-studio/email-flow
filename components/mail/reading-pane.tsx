@@ -92,11 +92,11 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
             {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
           </div>
           <AiNote thread={thread} />
-          <h1 className="text-20 font-semibold text-text">{thread.subject}</h1>
+          <Subject subject={thread.subject} />
         </header>
       ) : <header className="flex flex-col gap-2">
         <AiNote thread={thread} />
-        <h1 className="text-20 font-semibold text-text">{thread.subject}</h1>
+        <Subject subject={thread.subject} />
         <div className="flex flex-wrap items-center gap-2 text-11 text-text-muted">
           {thread.accounts.map((a) => (
             <span key={a.id} className="flex items-center gap-2">
@@ -204,5 +204,21 @@ function Deadline({ iso }: { iso: string }) {
     <span className={late ? "text-warning" : undefined}>
       {late ? "overdue since" : "due"} <Time iso={iso} format="full" />
     </span>
+  );
+}
+
+/**
+ * The thread subject, at most two lines with the whole of it on hover. A leading `[owner/repo]`
+ * style tag moves to a quiet line above, since the list's group label already names it.
+ */
+function Subject({ subject }: { subject: string }) {
+  const m = subject.match(/^\s*\[([^\]]{2,80})\]\s*(.+)$/);
+  return (
+    <div className="flex flex-col gap-1">
+      {m ? <span className="text-12 text-text-muted">{m[1]}</span> : null}
+      <h1 title={subject} className="line-clamp-2 text-20 font-semibold text-text">
+        {m ? m[2] : subject}
+      </h1>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 
 import type { View, ViewSlug } from "@/components/mail/views";
-import { CLUSTER_VIEWS, clusterOf, clusterOrder } from "@/components/mail/clusters";
+import { CLUSTER_VIEWS, clusterOf, clusterOrder, isMachine, type ClusterInput } from "@/components/mail/clusters";
 import { VIEWS } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import { aiAllowedSenders, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
@@ -165,21 +165,20 @@ export async function listThreads(view: View, on: string[] | null) {
       ? r.summary
       : null;
 
+  const latest = rows.map((r): ClusterInput | null =>
+    r.fromEmail
+      ? {
+          isInbound: !!r.lastInbound,
+          fromEmail: r.fromEmail,
+          fromName: r.fromName,
+          subject: r.lastSubject ?? r.subject,
+          headers: r.lastHeaders ?? {},
+          machine: r.lastMachine ?? null,
+        }
+      : null,
+  );
   // Machine mail from one source folds into a group once it has two threads here.
-  const found = CLUSTER_VIEWS.includes(view.slug)
-    ? rows.map((r) =>
-        r.fromEmail
-          ? clusterOf({
-              isInbound: !!r.lastInbound,
-              fromEmail: r.fromEmail,
-              fromName: r.fromName,
-              subject: r.lastSubject ?? r.subject,
-              headers: r.lastHeaders ?? {},
-              machine: r.lastMachine ?? null,
-            })
-          : null,
-      )
-    : [];
+  const found = CLUSTER_VIEWS.includes(view.slug) ? latest.map((m) => (m ? clusterOf(m) : null)) : [];
   const sizes = new Map<string, number>();
   // One name per group, its newest thread's.
   const labels = new Map<string, string>();
@@ -196,6 +195,10 @@ export async function listThreads(view: View, on: string[] | null) {
   const items = rows.map((r, i) => ({
     id: r.id,
     cluster: clusterAt(i),
+    // Who the latest message is from sets the row: people get two lines, machines one.
+    kind: latest[i] && isMachine(latest[i]) ? ("machine" as const) : ("person" as const),
+    // The user wrote last, so the next move is theirs.
+    lastFromMe: r.lastInbound === false,
     accountId: r.accountId,
     // Every account the conversation reached, in account order.
     accountIds: r.accountIds,
@@ -278,6 +281,7 @@ const threadWith = {
       to: true,
       cc: true,
       date: true,
+      subject: true,
       snippet: true,
       htmlSanitized: true,
       text: true,
@@ -285,7 +289,7 @@ const threadWith = {
       headers: true,
     },
     with: {
-      sender: { columns: { id: true, email: true, displayName: true, imagesAllowed: true, screenerDecision: true, decidedBy: true } },
+      sender: { columns: { id: true, email: true, displayName: true, imagesAllowed: true, screenerDecision: true, decidedBy: true, machine: true } },
       attachments: {
         columns: { id: true, filename: true, mimeType: true, size: true },
         orderBy: asc(attachments.filename),
@@ -351,6 +355,22 @@ export async function getThread(id: string) {
     archived: thread.archived,
     spam: thread.spam,
     canUnsubscribe: !!latestInbound?.headers.listUnsubscribe,
+    // The latest inbound sender and how the list shows them, so a wrong call can be corrected.
+    latestSender:
+      latestInbound?.sender
+        ? {
+            id: latestInbound.sender.id,
+            name: latestInbound.fromName || latestInbound.fromEmail,
+            machine: isMachine({
+              isInbound: true,
+              fromEmail: latestInbound.fromEmail,
+              fromName: latestInbound.fromName,
+              subject: latestInbound.subject,
+              headers: latestInbound.headers,
+              machine: latestInbound.sender.machine,
+            }),
+          }
+        : null,
     account: thread.account,
     // Every account the conversation reached, twins included, in account order.
     accounts: reached,

@@ -63,6 +63,13 @@
   --ease-snap: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* Wide windows give the reading pane room for a designed email at its 600px layout width. */
+@media (width >= 1100px) {
+  :root {
+    --reading-min: 600px;
+  }
+}
+
 /* Reset Tailwind defaults so only DESIGN.md values exist as utilities. */
 @theme {
   --color-*: initial;

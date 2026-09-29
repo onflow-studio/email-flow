@@ -104,12 +104,16 @@ export function buildEmailDocument(html: string, { allowImages, plain }: { allow
     ? `html{background:#e3e9ef;filter:invert(1) hue-rotate(180deg)}
 img,picture,video,svg,[style*="background-image"],[background]{filter:invert(1) hue-rotate(180deg)}`
     : "";
+  // Designed emails lay out at the width they were made for, then scale down to fit, instead of
+  // squeezing their tables into a narrow pane. 576 plus the body's 12px padding on each side is 600.
+  // Phone-width frames keep the email's own responsive layout.
+  const layoutCss = plain ? "" : "@media (min-width:420px){body{min-width:576px}}";
 
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="referrer" content="no-referrer">
 <base target="_blank">
-<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:anywhere;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}body:not([${QUOTE_OPEN}]) [${QUOTE_ATTR}]{display:none!important}${invertCss}${plain ? PLAIN_CSS : ""}</style>
+<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:break-word;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}body:not([${QUOTE_OPEN}]) [${QUOTE_ATTR}]{display:none!important}${layoutCss}${invertCss}${plain ? PLAIN_CSS : ""}</style>
 </head><body>${(allowImages ? restoreRemoteImages(html) : html).replace(META_REFRESH, "")}</body></html>`;
 }
 

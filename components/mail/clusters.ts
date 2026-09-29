@@ -19,15 +19,24 @@ export type ClusterInput = {
 export type Cluster = { key: string; label: string };
 
 /**
+ * Whether a thread's latest message came from a machine. A judged sender (by Jev, or by hand from the
+ * action bar) decides; an unjudged one is a machine only when its headers or address make it obvious.
+ * Anything unsure stays a person: a bot shown as a person costs one bright row, a person shown as a
+ * bot can be missed.
+ */
+export function isMachine(m: ClusterInput): boolean {
+  if (!m.isInbound) return false;
+  return m.machine ?? obviousMachine(m);
+}
+
+/**
  * The group a thread's latest message belongs to, or null when it is not machine mail: obvious from
  * its headers or address, or its sender judged a machine by Jev. One sender
  * is one group; a `[owner/repo]` style tag in the subject splits it further, so each repo's GitHub
  * mail stays together.
  */
 export function clusterOf(m: ClusterInput): Cluster | null {
-  if (!m.isInbound) return null;
-  const machine = m.machine === true || obviousMachine(m);
-  if (!machine) return null;
+  if (!isMachine(m)) return null;
 
   const email = m.fromEmail.toLowerCase();
   const domain = email.split("@")[1] ?? email;
