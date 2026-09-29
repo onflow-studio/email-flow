@@ -14,6 +14,7 @@ import { UNDO_MS, useUndo } from "../actions/undo";
 import { useKeys, useShortcut } from "../keys/keymap";
 import { ComposeBody, ComposeToolbar, useComposeEditor } from "./editor";
 import { readLastAccount, rememberAccount } from "./last-account";
+import { RecipientInput } from "./recipient-input";
 
 type Session = { key: number; mode: ComposeMode; threadId: string | null; accountHint: string | null };
 
@@ -298,14 +299,11 @@ function ComposePanel({
             <label htmlFor="compose-to" className={fieldLabel}>
               to
             </label>
-            <input
+            <RecipientInput
               id="compose-to"
               ref={toRef}
               value={to}
-              onChange={(e) => setTo(e.target.value)}
-              inputMode="email"
-              autoComplete="off"
-              spellCheck={false}
+              onChange={setTo}
               placeholder="name@example.com, ..."
               className={fieldInput}
             />
@@ -327,14 +325,11 @@ function ComposePanel({
               <label htmlFor="compose-cc" className={fieldLabel}>
                 cc
               </label>
-              <input
+              <RecipientInput
                 id="compose-cc"
                 autoFocus={!init?.cc}
                 value={cc}
-                onChange={(e) => setCc(e.target.value)}
-                inputMode="email"
-                autoComplete="off"
-                spellCheck={false}
+                onChange={setCc}
                 className={fieldInput}
               />
             </div>
@@ -344,14 +339,11 @@ function ComposePanel({
               <label htmlFor="compose-bcc" className={fieldLabel}>
                 bcc
               </label>
-              <input
+              <RecipientInput
                 id="compose-bcc"
                 autoFocus
                 value={bcc}
-                onChange={(e) => setBcc(e.target.value)}
-                inputMode="email"
-                autoComplete="off"
-                spellCheck={false}
+                onChange={setBcc}
                 className={fieldInput}
               />
             </div>

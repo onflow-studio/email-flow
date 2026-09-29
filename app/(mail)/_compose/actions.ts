@@ -17,6 +17,7 @@ import { formatAddressList, parseRecipients } from "@/lib/mail/address";
 
 import {
   composeSubject,
+  findRecipients,
   forwardBlock,
   listComposeAccounts,
   loadComposeThread,
@@ -204,4 +205,16 @@ export async function sendCompose(input: ComposeSend): Promise<SendResult> {
   }
 
   return { ok: true, accountId, accountLabel, work };
+}
+
+const SuggestInput = z.object({
+  query: z.string().trim().min(1).max(200),
+  exclude: z.array(z.string().max(320)).max(200),
+});
+
+/** Recipient suggestions for what is being typed, minus the addresses already in the field. */
+export async function suggestRecipients(query: string, exclude: string[]): Promise<Address[]> {
+  const parsed = SuggestInput.safeParse({ query, exclude });
+  if (!parsed.success) return [];
+  return findRecipients(parsed.data.query, parsed.data.exclude);
 }

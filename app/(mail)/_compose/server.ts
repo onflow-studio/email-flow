@@ -1,7 +1,7 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { accounts, attachments, messages, threads, type Address } from "@/lib/db/schema";
+import { accounts, attachments, messages, senderAccounts, senders, threads, type Address } from "@/lib/db/schema";
 import { htmlToPlainText } from "@/lib/gmail/send";
 import { mergeTimeline, replyCopy } from "@/lib/sync/twins";
 
@@ -185,4 +185,42 @@ export function quotingLabel(target: Target): string {
   const who = target.isInbound ? target.fromName || target.fromEmail : "me";
   const when = target.date.toLocaleDateString("en-US", { day: "numeric", month: "short" }).toLowerCase();
   return `${who}, ${when}`;
+}
+
+const SUGGESTION_LIMIT = 8;
+// Machines, not people: never worth writing to.
+const AUTOMATED = "(^|[._+-])(no-?reply|do-?not-?reply|notifications?|mailer-daemon|bounces?)([._+-]|@)";
+
+/**
+ * People matching `query` by name or address, for the recipient fields. Anyone written to comes
+ * first, by how often; then senders the screener kept, by how recently they wrote.
+ */
+export async function findRecipients(query: string, exclude: string[]): Promise<Address[]> {
+  const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+  const skip = new Set(exclude.map((e) => e.toLowerCase()));
+  const rows = await db.execute<{ email: string; name: string | null }>(sql`
+    with sent as (
+      select lower(r->>'email') as email, max(nullif(r->>'name', '')) as name,
+        count(*) as sent, max(m.date) as last
+      from ${messages} m, jsonb_array_elements(m.to || m.cc || m.bcc) r
+      where not m.is_inbound
+      group by 1
+    ), heard as (
+      select s.email, s.display_name as name, max(sa.last_seen_at) as last
+      from ${senders} s join ${senderAccounts} sa on sa.sender_id = s.id
+      where s.screener_decision in ('allowed', 'none')
+      group by s.id
+    )
+    select email, coalesce(sent.name, heard.name) as name
+    from sent full join heard using (email)
+    where (email ilike ${pattern} or coalesce(sent.name, heard.name) ilike ${pattern})
+      and email !~* ${AUTOMATED}
+      and email not in (select email from ${accounts})
+    order by coalesce(sent.sent, 0) desc, greatest(sent.last, heard.last) desc nulls last
+    limit ${SUGGESTION_LIMIT + skip.size}
+  `);
+  return rows
+    .filter((r) => !skip.has(r.email))
+    .slice(0, SUGGESTION_LIMIT)
+    .map((r) => ({ email: r.email, name: r.name }));
 }
