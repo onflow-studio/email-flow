@@ -91,19 +91,31 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
           title={it.label}
           aria-current={active ? "page" : undefined}
           className={cn(
-            "flex h-row items-center justify-center gap-2 border-l-2 border-transparent transition-colors duration-80 ease-snap rail:justify-between rail:rounded-sm rail:px-2",
+            "group flex h-row items-center justify-center gap-2 border-l-2 border-transparent transition-colors duration-80 ease-snap rail:justify-start rail:rounded-sm rail:px-2",
             active
-              ? "border-accent-dim bg-surface-raised font-medium text-text"
+              ? "rail-active font-medium text-text"
               : dim
-                ? "text-text-dim hover:bg-surface-raised hover:text-text-muted"
-                : "text-text-muted hover:bg-surface-raised hover:text-text",
+                ? "text-text-dim hover:rail-hover hover:text-text-muted"
+                : "text-text-muted hover:rail-hover hover:text-text",
             cursorClass(i),
           )}
         >
-          <Icon aria-hidden className="size-4 rail:hidden" strokeWidth={1.5} />
-          <span className="hidden rail:inline">{it.label}</span>
+          <Icon
+            aria-hidden
+            className={cn(
+              "size-4 shrink-0 transition-colors duration-80 ease-snap",
+              active ? "text-accent" : "group-hover:text-info",
+            )}
+            strokeWidth={1.5}
+          />
+          <span className={cn("hidden min-w-0 flex-1 truncate rail:inline", active && "rail-text")}>{it.label}</span>
           {it.count !== undefined && (it.count > 0 || it.key === "inbox" || it.key === "triage") ? (
-            <span className={cn("hidden items-center gap-1 text-11 rail:flex", it.strong && it.count > 0 ? "text-text" : "text-text-dim")}>
+            <span
+              className={cn(
+                "hidden items-center gap-1 text-11 tabular-nums rail:flex",
+                active ? "text-info" : it.strong && it.count > 0 ? "text-text" : "text-text-dim",
+              )}
+            >
               {it.unread ? <UnreadDot /> : null}
               {it.count}
             </span>
@@ -117,11 +129,12 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
     <nav
       aria-label="views"
       className={cn(
-        "hidden w-rail-icons shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface py-3 md:flex rail:w-rail rail:px-3",
+        "rail-surface hidden w-rail-icons shrink-0 flex-col gap-4 overflow-y-auto py-3 md:flex rail:w-rail rail:px-3",
         focused && "md:pane-focus",
       )}
     >
       <ul className="flex flex-col gap-1">{act.map((it, i) => row(it, i))}</ul>
+      <div aria-hidden className="rail-rule mx-2 h-px shrink-0" />
       <ul className="flex flex-col gap-1">{later.map((it, i) => row(it, act.length + i))}</ul>
 
       <ul className="mt-auto flex flex-col gap-1">{bottom.map((it, i) => row(it, act.length + later.length + i, true))}</ul>
