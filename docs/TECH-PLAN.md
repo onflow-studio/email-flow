@@ -20,6 +20,7 @@ Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
 | ORM | Drizzle | SQL-shaped, migrations are plain SQL that run identically on Neon |
 | Gmail | Google APIs Node client, OAuth 2 per account | Official, supports history sync and label writes |
 | Classification | Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) via `@ai-sdk/anthropic`, structured output | Fast, cheap, same key as the rest; probabilities are self-reported, so thresholds sit higher |
+| Second opinion | TypeSafe Jev (`jev-1.13.0`, pinned) over plain HTTP in `lib/ai/jev.ts` | Calibrated probabilities, about 250ms and $0.00004 a call; confirms Claude's doubtful buckets, never generates text |
 | LLM | Claude via `@ai-sdk/anthropic` with existing key | Summaries, questions, later drafts |
 | Embeddings | Deferred to 1.5, likely via Vercel AI Gateway | No key yet, not needed in phase 1 |
 | UI | Tailwind 4, shadcn base, custom tokens from DESIGN.md | Fast to build, restyled hard so it isn't generic |
@@ -94,6 +95,7 @@ Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the cur
 - Prompt: a fixed system prompt (bucket, urgency and screening definitions) marked for prompt caching, then a user message with sender facts (domain, prior decision, counts across accounts), subject, first 2k chars of text, headers like list-unsubscribe and precedence, the enabled rules, and up to 5 similar recent corrections (same sender or domain first, then same subject words) as examples.
 - Output in one call: probabilities for inbox, news, paper_trail and receipts (normalized to sum to 1, top one is the bucket), urgency 1-5, human written probability, if sender is unknown legit new sender probability, and a one-line summary for the list, in the mail's own language. The raw output and model id go to `classifications`, the summary to the thread. A new message in a known thread queues the same call in summary-only mode, which never moves the bucket; the list shows the snippet until the summary catches up, and News always keeps the snippet. `pnpm summarize` fills summaries for threads imported before them, paced in calls per minute. Errors and 429s throw with SDK retries off, so the job runner's backoff retries.
 - Thresholds in `lib/classify/thresholds.ts`, per bucket. Above threshold: apply and set bucket source ai. Thresholds sit a notch above what a calibrated classifier would need, since the model reports its own confidence. Below: apply the top bucket but mark as suggested and show the `--info` inline note. Unknown sender below the legit threshold: bucket triage.
+- Second opinion (`lib/classify/confirm.ts`): an AI placement below threshold (not promoted, not held in triage) is asked once more of Jev, with one Choice over the four buckets on sender, subject, list-unsubscribe and the first 1,500 characters. When Jev picks the same bucket with confidence 0.9 or more, the placement is applied without the suggested note. The bucket itself never changes. Jev's answer is kept in the classification's raw response; a Jev error or a missing `JEV_API_KEY` leaves the suggestion as it was. Checked against production history on 2026-09-29: it cleared 169 of 584 suggestions (29%) and would have auto-applied one of the 18 threads the user had corrected. `pnpm confirm [--limit n] [--dry-run]` applies it to threads classified before it existed.
 - Urgency 4 or higher on a paper_trail or receipts result promotes to inbox. This is the failed-payment rule.
 - Participation (`lib/classify/participation.ts`): ingest runs it on every thread with an outbound message, classify again after a triage call. Undecided inbound senders become allowed by ai, a triage thread whose first sender is now allowed moves to inbox (source ai), all logged in `actions_log` as `participation` under one batch, the move enqueuing writeback. Senders whose AI let-in was undone (an open `undoAiAllow` row) are skipped. `pnpm participation [--dry-run]` applied it once to mail synced before the rule.
 
@@ -169,6 +171,7 @@ GOOGLE_CLIENT_SECRET
 GOOGLE_REDIRECT_URI
 TOKEN_ENCRYPTION_KEY
 ANTHROPIC_API_KEY
+JEV_API_KEY           TypeSafe key for the second opinion, optional: without it suggestions stay suggestions
 SYNC_SECRET
 CRON_SECRET           production only, identical to SYNC_SECRET for Vercel cron authentication
 ALLOWED_EMAILS        comma-separated Google accounts allowed to log in
@@ -219,7 +222,7 @@ Local `.env` keeps `DATABASE_URL` pointed at Docker and stores the hosted direct
 
 ### Production environment and OAuth
 
-Production app variables: `DATABASE_URL`, `TOKEN_ENCRYPTION_KEY`, `SYNC_SECRET`, `CRON_SECRET`, `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `LOGIN_REDIRECT_URI`, `ALLOWED_EMAILS`, `SESSION_SECRET`. `AUTH_DISABLED` is unset. Production credentials are not assigned to preview or development environments; Neon also supplies its standard connection aliases in production.
+Production app variables: `DATABASE_URL`, `TOKEN_ENCRYPTION_KEY`, `SYNC_SECRET`, `CRON_SECRET`, `ANTHROPIC_API_KEY`, `JEV_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `LOGIN_REDIRECT_URI`, `ALLOWED_EMAILS`, `SESSION_SECRET`. `AUTH_DISABLED` is unset. Production credentials are not assigned to preview or development environments; Neon also supplies its standard connection aliases in production.
 
 The existing Google Cloud OAuth client has these authorized production redirects (in addition to localhost):
 

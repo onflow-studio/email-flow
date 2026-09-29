@@ -36,7 +36,7 @@ Close the Gmail tabs for two weeks and not reopen them except for something the 
 - Learning by both example (user moves a message, it is stored as a correction and fed into future classification) and natural-language rules ("Vercel failed payments go to Inbox").
 - Classification should be dynamic: buckets and rules learned from real data over time, AI may ask clarifying questions.
 - Model output and user corrections stored separately.
-- Classifier: Claude Haiku 4.5 with structured output. No memory or fine-tuning, so the correction loop is ours: inject exemplars and sender facts into each call. Its confidence is self-reported, so thresholds start conservative. General LLM (Claude) for summarization and questions.
+- Classifier: Claude Haiku 4.5 with structured output. No memory or fine-tuning, so the correction loop is ours: inject exemplars and sender facts into each call. Its confidence is self-reported, so thresholds start conservative; a doubtful placement is applied without its suggestion note when TypeSafe's Jev, a calibrated decision model, independently picks the same bucket. General LLM (Claude) for summarization and questions.
 
 ## Screener (Triage bucket)
 

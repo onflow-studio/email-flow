@@ -13,6 +13,7 @@
     "backfill": "tsx scripts/backfill.ts",
     "summarize": "tsx scripts/summarize.ts",
     "receipts": "tsx scripts/receipts.ts",
+    "confirm": "tsx scripts/confirm.ts",
     "participation": "tsx scripts/participation.ts",
     "twins": "tsx scripts/twins.ts",
     "db:generate": "drizzle-kit generate",

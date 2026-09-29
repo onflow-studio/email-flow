@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import type { Evaluator } from "@/lib/classify/classify";
+import type { Confirmer } from "@/lib/classify/confirm";
 import { classifyJob } from "@/lib/classify/classify";
 import type { Db } from "@/lib/db";
 import { jobs, type Job, type JobType } from "@/lib/db/schema";
@@ -22,6 +23,7 @@ export type JobContext = {
   db: Db;
   gmail: (accountId: string) => Promise<GmailLabelsPort>;
   evaluate?: Evaluator;
+  confirm?: Confirmer;
 };
 
 export type JobHandler = (job: Job, ctx: JobContext) => Promise<void>;

@@ -7,6 +7,7 @@ import type { Db } from "@/lib/db";
 import { classifications, senders, threads, type Bucket, type Job } from "@/lib/db/schema";
 import { enqueueSummary, enqueueWriteback, type JobContext } from "@/lib/sync/jobs";
 
+import { confirmed, jevConfirmer, needsConfirmation, type Confirmer, type SecondOpinion } from "./confirm";
 import { loadContext } from "./context";
 import { applyParticipation } from "./participation";
 import {
@@ -41,6 +42,7 @@ export type ClassifierRun = {
 export async function runClassifier(
   ctx: ClassifyContext,
   evaluate: Evaluator = defaultEvaluator,
+  confirm: Confirmer = jevConfirmer,
 ): Promise<ClassifierRun> {
   const { decision: screened } = ctx.sender;
   if (screened === "out_spam" || screened === "out_not_now") {
@@ -60,10 +62,22 @@ export async function runClassifier(
     rules.conditional && modelConfirms(rules.conditional, result)
       ? ruleDecision(rules.conditional.bucket, ctx.sender)
       : decide(result, ctx.sender);
+  const opinion = needsConfirmation(decision) ? await secondOpinion(ctx, confirm) : null;
+  const raw = opinion ? { ...(response.raw as object), secondOpinion: opinion } : response.raw;
   return {
-    decision,
-    model: { id: response.modelId, raw: response.raw, result },
+    decision: confirmed(decision, opinion) ? { ...decision, suggested: false } : decision,
+    model: { id: response.modelId, raw, result },
   };
+}
+
+// Best effort: without a second opinion the suggestion stays a suggestion, the job still succeeds.
+async function secondOpinion(ctx: ClassifyContext, confirm: Confirmer): Promise<SecondOpinion | null> {
+  try {
+    return await confirm(ctx);
+  } catch (error) {
+    console.error("second opinion failed", error);
+    return null;
+  }
 }
 
 async function callModel(ctx: ClassifyContext, hints: ClassifyContext["rules"], evaluate: Evaluator) {
@@ -101,12 +115,12 @@ export async function classifyThread(
   db: Db,
   threadId: string,
   evaluate: Evaluator = defaultEvaluator,
-  opts: { only?: Bucket } = {},
+  opts: { only?: Bucket; confirm?: Confirmer } = {},
 ): Promise<Decision | null> {
   const loaded = await loadContext(db, threadId);
   if (!loaded || loaded.thread.bucketSource === "user") return null;
 
-  const { decision, model } = await runClassifier(loaded.ctx, evaluate);
+  const { decision, model } = await runClassifier(loaded.ctx, evaluate, opts.confirm);
   const { thread, senderId } = loaded;
 
   await db.transaction(async (tx) => {
@@ -188,5 +202,5 @@ export async function classifyJob(job: Job, ctx: JobContext) {
   const { threadId, summaryOnly } = job.payload as { threadId?: string; summaryOnly?: boolean };
   if (!threadId) throw new Error("classify job without threadId");
   if (summaryOnly) await summarizeThread(ctx.db, threadId, ctx.evaluate);
-  else await classifyThread(ctx.db, threadId, ctx.evaluate);
+  else await classifyThread(ctx.db, threadId, ctx.evaluate, { confirm: ctx.confirm });
 }
