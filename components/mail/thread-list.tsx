@@ -7,10 +7,37 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ThreadListItem } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
 
+import { Glider } from "./glider";
 import { useListScroll, useMailSelection } from "./selection";
 import { fullTime, Time } from "./time";
 import { UnreadDot } from "./unread-dot";
 import { mailHref } from "./views";
+
+// Thread ids each view has shown this session, so a thread that turns up later can glow as new.
+// Undone threads coming back are not new, so ids are only ever added.
+const shownInView = new Map<string, Set<string>>();
+const AFTERGLOW_MS = 1500;
+
+/**
+ * Starts the leave animation on the rows of threads an action takes out of the view, while the
+ * server catches up. Returns a function that puts them back when the action fails or keeps them.
+ */
+export function markLeaving(ids: string[]): () => void {
+  const rows = ids.flatMap((id) =>
+    [...document.querySelectorAll<HTMLElement>(`[data-thread-id="${id}"]`)].map((el) => el.closest("li") ?? el),
+  );
+  for (const row of rows) {
+    // An explicit height, so the animation can close the gap to zero.
+    row.style.height = `${row.offsetHeight}px`;
+    row.dataset.leaving = "";
+  }
+  return () => {
+    for (const row of rows) {
+      row.style.height = "";
+      delete row.dataset.leaving;
+    }
+  };
+}
 
 export function ThreadList({
   threads,
@@ -25,11 +52,36 @@ export function ThreadList({
 }) {
   const sel = useMailSelection();
   const listRef = useRef<HTMLUListElement>(null);
+  // The box the focus bar moves in, around the list.
+  const glideRef = useRef<HTMLDivElement>(null);
   const { listScroll, setListScroll } = useListScroll();
+  const ids = threads.map((t) => t.id).join(",");
+
+  // Threads this view has not shown before this session arrive with an afterglow, on their row or
+  // on the collapsed group holding them. The first look at a view only takes note. The glow is CSS
+  // on a data attribute, so it never re-renders the list.
+  useEffect(() => {
+    const current = ids ? ids.split(",") : [];
+    const shown = shownInView.get(sel.view);
+    if (!shown) {
+      shownInView.set(sel.view, new Set(current));
+      return;
+    }
+    const fresh = current.filter((id) => !shown.has(id));
+    for (const id of fresh) shown.add(id);
+    const rows = fresh.flatMap((id) => {
+      const el = glideRef.current?.querySelector<HTMLElement>(`[data-thread-id="${id}"], [data-group-ids~="${id}"]`);
+      const row = el?.closest<HTMLElement>("[data-group-ids]") ?? el?.closest("li");
+      return row ? [row] : [];
+    });
+    for (const row of rows) row.dataset.arrived = "";
+    const timer = setTimeout(() => rows.forEach((row) => delete row.dataset.arrived), AFTERGLOW_MS);
+    return () => clearTimeout(timer);
+  }, [ids, sel.view]);
 
   // Back where it was before the page remounted, before the focused row is brought into view.
   useLayoutEffect(() => {
-    const scroller = listRef.current?.parentElement;
+    const scroller = listRef.current?.parentElement?.parentElement;
     if (!scroller) return;
     const top = listScroll(sel.view);
     if (top !== undefined) scroller.scrollTop = top;
@@ -99,7 +151,9 @@ export function ThreadList({
   );
 
   return (
-    <ul ref={listRef} aria-label="threads" className="@container flex flex-col py-1">
+    <div ref={glideRef} className="relative">
+      <Glider root={glideRef} selector={sel.focusedId ? `[data-thread-id="${sel.focusedId}"]` : null} memory={`list:${sel.view}`} watch={ids} className="bg-accent" />
+      <ul ref={listRef} aria-label="threads" className="@container flex flex-col py-1">
       {blocks.map((b, i) => {
         const labels = (
           <>
@@ -139,7 +193,8 @@ export function ThreadList({
           </li>
         );
       })}
-    </ul>
+      </ul>
+    </div>
   );
 }
 
@@ -185,7 +240,7 @@ function ClusterRow({
         type="button"
         onClick={onToggle}
         aria-expanded
-        className="flex h-row min-w-0 items-center gap-2 border-l-2 border-transparent pr-3 pl-6 text-left text-11 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised hover:text-text focus-visible:border-accent focus-visible:bg-surface-raised"
+        className="flex h-row min-w-0 items-center gap-2 border-l-2 border-transparent pr-3 pl-6 text-left text-11 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised/50 hover:text-text focus-visible:border-accent focus-visible:bg-surface-raised"
       >
         <Chevron aria-hidden className="-ml-4 size-3 shrink-0" strokeWidth={1.5} />
         <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -195,7 +250,7 @@ function ClusterRow({
   }
 
   return (
-    <div className="relative pb-1.5">
+    <div data-group-ids={threads.map((t) => t.id).join(" ")} className="relative pb-1.5">
       <button
         type="button"
         onClick={onToggle}
@@ -205,7 +260,7 @@ function ClusterRow({
         title={head.subject}
         className={cn(
           "relative z-10 flex h-touch w-full min-w-0 items-center gap-2 border-l-2 bg-surface pr-3 pl-6 text-left leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised md:h-row",
-          focused ? "border-accent bg-surface-raised" : "border-transparent hover:bg-surface-raised",
+          focused ? "border-transparent bg-surface-raised" : "border-transparent hover:bg-surface-raised/50",
         )}
       >
         <span className="sr-only">group of {threads.length} threads, {fresh} unseen, newest {head.subject}; </span>
@@ -327,10 +382,10 @@ function ThreadRow({
     nested ? "pl-8" : "pl-6",
     "flex min-w-0 border-l-2 pr-3 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
     focused
-      ? "border-accent bg-surface-raised"
+      ? "border-transparent bg-surface-raised"
       : selected
         ? "border-transparent bg-accent-dim/40"
-        : "border-transparent hover:bg-surface-raised",
+        : "border-transparent hover:bg-surface-raised/50",
   );
 
   if (machine) {

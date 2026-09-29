@@ -2,6 +2,7 @@ import { UndoProvider } from "@/components/mail/actions/undo";
 import { ComposeProvider } from "@/components/mail/compose/compose";
 import { KeyMapOverlay } from "@/components/mail/keys/key-map-overlay";
 import { KeymapProvider } from "@/components/mail/keys/keymap";
+import { LiveRefresh } from "@/components/mail/live-refresh";
 import { FocusStoreProvider } from "@/components/mail/selection";
 import { loadOverrides } from "@/lib/db/keybindings";
 
@@ -15,6 +16,7 @@ export default async function MailLayout({ children }: { children: React.ReactNo
         </UndoProvider>
       </FocusStoreProvider>
       <KeyMapOverlay />
+      <LiveRefresh />
     </KeymapProvider>
   );
 }

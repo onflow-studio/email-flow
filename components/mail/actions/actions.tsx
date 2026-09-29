@@ -10,6 +10,7 @@ import type { ActionResult, MovableBucket, SenderAction, ThreadAction } from "@/
 import { useCompose } from "../compose/compose";
 import { useKeys, type KeyBinding } from "../keys/keymap";
 import { useMailSelection } from "../selection";
+import { markLeaving } from "../thread-list";
 import { fullTime } from "../time";
 import { findView, mailHref, type ViewSlug } from "../views";
 import { DeadlinePicker, SnoozePicker } from "./snooze-picker";
@@ -192,22 +193,28 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       const targetIds = ids ?? sel.targetIds;
       if (!targetIds.length) return null;
       if (targetIds.some((id) => selected.includes(id))) clearSelected();
+      // A move to the bucket every thread is already in confirms the placement instead.
+      const kept = action.type === "move" && targetIds.every((id) => byId.get(id)?.bucket === action.bucket) ? action.bucket : null;
+      // Rows on their way out start leaving now, while the server catches up.
+      const putBack = !kept && leavesView(action, sel.view) ? markLeaving(targetIds) : () => {};
       try {
-        // A move to the bucket every thread is already in confirms the placement instead.
-        const kept = action.type === "move" && targetIds.every((id) => byId.get(id)?.bucket === action.bucket) ? action.bucket : null;
         const result = await runThreadAction(targetIds, action);
         if (result.count) {
           report(describeAction(action, result.count, !!kept), result.token);
           afterAction(action, targetIds);
-        } else if (kept) notify(`already in ${BUCKET_NAMES[kept]}`, "warning");
-        else if (action.type === "work") notify("already in work", "warning");
+        } else {
+          putBack();
+          if (kept) notify(`already in ${BUCKET_NAMES[kept]}`, "warning");
+          else if (action.type === "work") notify("already in work", "warning");
+        }
         return result;
       } catch {
+        putBack();
         notify(`${action.type} failed, retry`, "error");
         return null;
       }
     },
-    [sel.targetIds, selected, clearSelected, byId, report, notify, afterAction],
+    [sel.targetIds, sel.view, selected, clearSelected, byId, report, notify, afterAction],
   );
 
   const runSender = useCallback(
@@ -219,17 +226,19 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         notify("no sender to decide on", "warning");
         return null;
       }
+      const putBack = leavesView(action, sel.view) ? markLeaving([threadId]) : () => {};
       try {
         const result = await runSenderAction(threadId, action);
         report(describeAction(action, result.count, false, result.senders), result.token);
         afterAction(action, [threadId]);
         return result;
       } catch {
+        putBack();
         notify("screener failed, retry", "error");
         return null;
       }
     },
-    [sel.target, oneOnly, byId, report, notify, afterAction],
+    [sel.target, sel.view, oneOnly, byId, report, notify, afterAction],
   );
 
   const unsubscribe = useCallback(

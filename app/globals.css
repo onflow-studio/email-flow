@@ -62,6 +62,8 @@
   --duration-base: 150ms;
   /* Radio live border, one turn. The only looping animation. */
   --duration-drift: 6s;
+  /* The arrival afterglow: the one slow fade, a trace decaying rather than a move. */
+  --duration-afterglow: 1200ms;
   --ease-snap: cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -129,8 +131,6 @@
   --spacing-editor: 160px;
   --spacing-header: 44px;
   --spacing-timeline: 24px;
-  /* Reading pane bottom clearance: action bar 40 + 16 gap + 16 air. */
-  --spacing-action: 72px;
 
   --breakpoint-md: 768px;
   --breakpoint-rail: 1100px;
@@ -205,12 +205,10 @@
     linear-gradient(to bottom, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--bg));
 }
 
-/* The open view's row: a 2px --accent to --info bar on its left edge over a flat --accent-dim block, so
-   where you are reads from across the screen while its label stays plain text on a solid fill. */
+/* The open view's row: a flat --accent-dim block, so where you are reads from across the screen while
+   its label stays plain text on a solid fill. Its --accent to --info bar is the rail's glider. */
 @utility rail-active {
-  background:
-    linear-gradient(to bottom, var(--accent), var(--info)) left / 2px 100% no-repeat border-box,
-    var(--accent-dim);
+  background: var(--accent-dim);
 }
 
 /* A row under the mouse: a flat step up, like any row. */
@@ -221,6 +219,84 @@
 /* Between rail groups: a hairline that fades out to the right. */
 @utility rail-rule {
   background: linear-gradient(to right, var(--accent), color-mix(in srgb, var(--info) 40%, transparent) 50%, transparent);
+}
+
+/* Motion. Each fires once on a change, except the logo cursor. Reduced motion stills them all. */
+
+/* A row leaving the view (archive, delete, move): it slides right, fades and closes its gap. */
+@keyframes row-leave {
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+    height: 0;
+  }
+}
+
+[data-leaving] {
+  overflow: hidden;
+  pointer-events: none;
+  animation: row-leave var(--duration-base) var(--ease-snap) forwards;
+}
+
+/* A thread new since you last looked: a magenta afterglow that decays like phosphor. */
+@keyframes arrive {
+  from {
+    background-color: color-mix(in srgb, var(--signal) 22%, transparent);
+  }
+}
+
+[data-arrived] {
+  animation: arrive var(--duration-afterglow) ease-out;
+}
+
+@keyframes dot-pop {
+  0% {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.6);
+  }
+}
+
+[data-arrived] [data-unread-dot] {
+  animation: dot-pop 300ms var(--ease-snap);
+}
+
+/* The reading pane's body settling in under its subject. */
+@keyframes reader-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@utility reader-in {
+  animation: reader-in var(--duration-base) var(--ease-snap) both;
+}
+
+/* The reading pane subject typing in, left to right in character-sized steps. */
+@keyframes type-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+@utility type-in {
+  animation: type-in 200ms steps(24) both;
+}
+
+/* The logo's cursor, blinking like a prompt waiting for input. */
+@keyframes cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@utility cursor-blink {
+  animation: cursor-blink 1.2s steps(1) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 }
 
 /* Scrolls without a scrollbar: the rail's short overflow would otherwise draw a bar and its black track

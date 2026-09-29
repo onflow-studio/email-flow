@@ -22,7 +22,7 @@ export function Header({ className }: { className?: string }) {
       )}
     >
       <Link href="/inbox" className="flex shrink-0 items-center gap-2 font-medium">
-        <span className="text-accent">&gt;_</span>
+        <span className="text-accent">&gt;<span className="cursor-blink">_</span></span>
         <span className="hidden text-text md:inline">superfer</span>
       </Link>
 

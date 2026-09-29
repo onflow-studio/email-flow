@@ -48,7 +48,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
   }, [thread.account.id]);
 
   return (
-    <article ref={articleRef} className="flex min-h-full w-full flex-col gap-4 px-3 pt-8 md:px-6 md:pb-4">
+    <article ref={articleRef} className="flex min-h-full w-full flex-col gap-4 px-3 pt-8 md:px-6">
       <div className="sticky top-0 z-10 -mx-3 -mt-8 flex h-touch shrink-0 items-center border-b border-border bg-surface px-1 md:hidden">
         <button type="button" onClick={sel.close} className="flex h-touch items-center gap-2 px-2 text-text-muted">
           <ArrowLeft aria-hidden className="size-4" strokeWidth={1.5} />
@@ -137,6 +137,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
         </div>
       </header>}
 
+      <div className="reader-in flex flex-col gap-4">
       {judgedMessage ? (
         <>
           <MessageContent
@@ -151,10 +152,12 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
       ) : (
         <ThreadTimeline messages={thread.messages} />
       )}
+      </div>
 
-      {/* Sticks to the pane bottom, 16px up on desktop, docked flat on phone. Clearance under the last
-          message is the gap (16) + the bar (40) + the bottom offset (16): pb-action's 72. */}
-      <div className="pointer-events-none sticky bottom-0 z-10 -mx-3 mt-auto flex justify-center md:bottom-4 md:mx-0">
+      {/* A dock across the pane bottom: on desktop a frosted strip the email scrolls under, with the bar
+          centred in it; on phone the bar docks flat itself. It sits in the flow after the last message,
+          so scrolled to the end nothing is hidden behind it. */}
+      <div className="sticky bottom-0 z-10 -mx-3 mt-auto flex justify-center md:-mx-6 md:border-t md:border-text-dim/60 md:bg-surface-top/60 md:py-2 md:backdrop-blur-md md:backdrop-saturate-150">
         <ActionBar thread={thread} />
       </div>
     </article>
@@ -216,7 +219,7 @@ function Subject({ subject }: { subject: string }) {
   return (
     <div className="flex flex-col gap-1">
       {m ? <span className="text-12 text-text-muted">{m[1]}</span> : null}
-      <h1 title={subject} className="line-clamp-2 text-20 font-semibold text-text">
+      <h1 title={subject} className="type-in line-clamp-2 text-20 font-semibold text-text">
         {m ? m[2] : subject}
       </h1>
     </div>

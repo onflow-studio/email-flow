@@ -3,11 +3,12 @@
 import { BriefcaseBusiness, Clock, FilePen, Inbox, Newspaper, Receipt, ScrollText, Send, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { ViewCounts } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
 
+import { Glider } from "./glider";
 import { useKeys } from "./keys/keymap";
 import { useMailSelection } from "./selection";
 import { UnreadDot } from "./unread-dot";
@@ -55,6 +56,7 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
   const items = [...act, ...later, ...bottom];
   const [cursor, setCursor] = useState<number | null>(null);
   const currentHref = mailHref(view);
+  const navRef = useRef<HTMLElement>(null);
   const current = items.findIndex((i) => i.href === currentHref);
   const at = cursor ?? current;
   // Entering the rail starts from the open view.
@@ -127,12 +129,16 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
 
   return (
     <nav
+      ref={navRef}
       aria-label="views"
       className={cn(
-        "rail-surface scrollbar-none hidden w-rail-icons shrink-0 flex-col gap-4 overflow-y-auto py-3 md:flex rail:w-rail",
+        // pr-px keeps rows off the 1px right edge the rail draws in its background.
+        "rail-surface scrollbar-none relative hidden w-rail-icons shrink-0 flex-col gap-4 overflow-y-auto py-3 pr-px md:flex rail:w-rail",
         focused && "md:pane-focus",
       )}
     >
+      {/* The open view's bar glides from the view you left to this one. */}
+      <Glider root={navRef} selector='[aria-current="page"]' memory="rail" watch={currentHref} className="bg-linear-to-b from-accent to-info" />
       <ul className="flex flex-col gap-1">{act.map((it, i) => row(it, i))}</ul>
       <div aria-hidden className="rail-rule mx-3 h-px shrink-0" />
       <ul className="flex flex-col gap-1">{later.map((it, i) => row(it, act.length + i))}</ul>

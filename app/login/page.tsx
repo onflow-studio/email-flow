@@ -32,7 +32,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <main className="flex min-h-0 flex-1 justify-center px-2 pt-palette-top md:px-4">
         <div className="flex h-fit w-full max-w-palette flex-col gap-4 rounded-md border border-border bg-surface p-4">
           <p className="flex items-center gap-2 text-13 font-medium">
-            <span className="text-accent">&gt;_</span>
+            <span className="text-accent">&gt;<span className="cursor-blink">_</span></span>
             <span className="text-text">superfer</span>
           </p>
           <p className="text-13 leading-prose text-text-muted">single user. sign in with an allowed google account.</p>

@@ -54,7 +54,7 @@ export function SettingsPath() {
         }}
         className="flex items-center gap-2 rounded-sm text-text-muted outline-none transition-colors duration-80 ease-snap hover:text-text focus-visible:text-text"
       >
-        <span className="text-accent">&gt;_</span>
+        <span className="text-accent">&gt;<span className="cursor-blink">_</span></span>
         superfer
       </Link>
       <span className="text-text-dim">/</span>
