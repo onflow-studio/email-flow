@@ -280,8 +280,8 @@ function Row({
             onClick={onRecord}
             className={cn(
               rowClass,
-              "hover:bg-surface-raised focus-visible:glow-focus focus-visible:border-accent focus-visible:bg-surface-raised",
-              recording && "glow-focus border-accent bg-surface-raised",
+              "hover:bg-surface-raised focus-visible:border-accent focus-visible:bg-surface-raised",
+              recording && "border-accent bg-surface-raised",
             )}
           >
             {body}

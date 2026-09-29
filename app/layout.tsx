@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 
 // themeColor is DESIGN.md --bg; metadata cannot read CSS variables.
 export const viewport: Viewport = {
-  themeColor: "#0A0E12",
+  themeColor: "#030507",
   colorScheme: "dark",
   viewportFit: "cover",
 };

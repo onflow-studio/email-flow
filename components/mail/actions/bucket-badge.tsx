@@ -116,7 +116,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
           else show(e.detail === 0);
         }}
         className={cn(
-          "flex items-center gap-1 rounded-sm bg-accent-dim px-1 text-text outline-offset-0 transition-[outline-color] duration-80 ease-snap focus-visible:glow-focus",
+          "flex items-center gap-1 rounded-sm bg-accent-dim px-1 text-text outline-offset-0 transition-[outline-color] duration-80 ease-snap focus-visible:outline-accent",
           doubt ? "outline-1 outline-info outline-dashed" : "outline-1 outline-transparent hover:outline-accent",
         )}
       >
@@ -147,7 +147,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
                 }}
                 className={cn(
                   "flex h-touch items-center gap-2 border-l-2 border-transparent pr-3 pl-2 text-left whitespace-nowrap text-text-muted outline-none transition-colors duration-80 ease-snap md:h-row",
-                  "focus:glow-focus focus:border-accent focus:bg-surface-raised focus:text-text",
+                  "focus:border-accent focus:bg-surface-raised focus:text-text",
                 )}
               >
                 <span className="flex size-3 items-center justify-center text-accent">

@@ -130,7 +130,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
                   snoozed until <Time iso={thread.snoozedUntil} format="full" />
                 </span>
               ) : null}
-              {thread.needsReply ? <span className="text-text">needs reply</span> : null}
+              {thread.needsReply ? <span className="text-signal">needs reply</span> : null}
               {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
             </span>
           ) : null}

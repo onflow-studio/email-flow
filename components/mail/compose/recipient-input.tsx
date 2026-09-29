@@ -19,7 +19,7 @@ function tokenStart(value: string): number {
     else if (ch === '"') quoted = !quoted;
     else if (!quoted && ch === "<") angle++;
     else if (!quoted && ch === ">") angle = Math.max(0, angle - 1);
-    else if ((ch === "," || ch === ";") && !quoted && angle === 0) start = i + 1;
+    else if ((ch ==="," || ch === ";") && !quoted && angle === 0) start = i + 1;
   }
   return start;
 }
@@ -148,7 +148,7 @@ export function RecipientInput({
               onPointerMove={() => setActive(i)}
               className={cn(
                 "flex h-touch cursor-pointer items-center gap-2 border-l-2 border-transparent pr-3 pl-2 whitespace-nowrap text-text-muted transition-colors duration-80 ease-snap md:h-row",
-                i === active && "glow-focus border-accent bg-surface-raised text-text",
+                i === active && "border-accent bg-surface-raised text-text",
               )}
             >
               {s.name ? <span className="shrink-0 truncate">{s.name}</span> : null}

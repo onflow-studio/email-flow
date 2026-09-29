@@ -75,7 +75,8 @@ export function ThreadList({
   const firstSeen = grouped ? blocks.findIndex((b) => !blockUnseen(b)) : -1;
 
   const row = (t: ThreadListItem, nested = false) => (
-    <li key={t.id} className="relative">
+    // A hairline under every thread, so each one reads as its own box where it starts and ends.
+    <li key={t.id} className="relative after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border">
       <ThreadRow
         thread={t}
         accountColors={t.accountIds.map((id) => accountColors[id])}
@@ -204,7 +205,7 @@ function ClusterRow({
         title={head.subject}
         className={cn(
           "relative z-10 flex h-touch w-full min-w-0 items-center gap-2 border-l-2 bg-surface pr-3 pl-6 text-left leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised md:h-row",
-          focused ? "glow-focus border-accent bg-surface-raised" : "border-transparent hover:bg-surface-raised",
+          focused ? "border-accent bg-surface-raised" : "border-transparent hover:bg-surface-raised",
         )}
       >
         <span className="sr-only">group of {threads.length} threads, {fresh} unseen, newest {head.subject}; </span>
@@ -309,7 +310,7 @@ function ThreadRow({
   );
   const badges = (
     <span className="flex shrink-0 items-center gap-1" aria-hidden>
-      {t.needsReply ? <Badge className="text-text">reply</Badge> : null}
+      {t.needsReply ? <Badge className="bg-signal/15 text-signal">reply</Badge> : null}
       {overdue ? <Badge className="text-warning">overdue</Badge> : work && t.deadlineAt ? <Badge>due <Time iso={t.deadlineAt} /></Badge> : null}
     </span>
   );
@@ -326,7 +327,7 @@ function ThreadRow({
     nested ? "pl-8" : "pl-6",
     "flex min-w-0 border-l-2 pr-3 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
     focused
-      ? "glow-focus border-accent bg-surface-raised"
+      ? "border-accent bg-surface-raised"
       : selected
         ? "border-transparent bg-accent-dim/40"
         : "border-transparent hover:bg-surface-raised",
@@ -392,6 +393,6 @@ function ThreadRow({
 
 function Badge({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <span className={cn("shrink-0 rounded-sm bg-surface-raised px-1 text-11 text-text-muted", className)}>{children}</span>
+    <span className={cn("shrink-0 rounded-sm bg-surface-raised px-1 text-11 whitespace-nowrap text-text-muted", className)}>{children}</span>
   );
 }

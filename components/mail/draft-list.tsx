@@ -33,12 +33,12 @@ export function DraftList({
       {drafts.map((d) => {
         const color = accountColors[d.accountId];
         return (
-          <li key={d.id}>
+          <li key={d.id} className="relative after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border">
             <button
               type="button"
               onClick={() => compose.openDraft(d.id)}
               onKeyDown={step}
-              className="flex min-h-mail-row w-full min-w-0 flex-col justify-center gap-1 border-l-2 border-transparent pr-3 pl-6 text-left leading-list transition-colors duration-80 ease-snap outline-none hover:bg-surface-raised focus-visible:glow-focus focus-visible:border-accent focus-visible:bg-surface-raised"
+              className="flex min-h-mail-row w-full min-w-0 flex-col justify-center gap-1 border-l-2 border-transparent pr-3 pl-6 text-left leading-list transition-colors duration-80 ease-snap outline-none hover:bg-surface-raised focus-visible:border-accent focus-visible:bg-surface-raised"
             >
               <span className="flex w-full min-w-0 items-center gap-2">
                 <span className="min-w-0 flex-1 truncate font-medium text-text">{d.to}</span>

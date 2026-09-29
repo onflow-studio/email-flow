@@ -33,10 +33,10 @@ export function hasRemoteImages(html: string) {
 const QUOTE_OPEN = "data-quote-open";
 
 // DESIGN.md --text, --text-muted, --text-dim and --border: the iframe cannot read the app's CSS variables.
-const TEXT = "#d6e2ea";
-const TEXT_MUTED = "#7a8b98";
-const TEXT_DIM = "#4a5966";
-const BORDER = "#1f2a33";
+const TEXT = "#e6fbff";
+const TEXT_MUTED = "#7fb2c2";
+const TEXT_DIM = "#3f6674";
+const BORDER = "#132631";
 
 /**
  * Plain mail as native text: the app's colors, font, size and prose line height on a
@@ -99,9 +99,9 @@ export function buildEmailDocument(html: string, { allowImages, plain }: { allow
   // Light emails get inverted with a hue rotation so brand colors keep their
   // hue; media is inverted back so photos look right. Plain emails are restyled instead.
   const invert = !plain && !declaresDarkScheme(html);
-  // #e3e9ef lands near --surface after invert and hue rotation, so bare emails sit on the pane color.
+  // #edf0f5 lands near --surface after invert and hue rotation, so bare emails sit on the pane color.
   const invertCss = invert
-    ? `html{background:#e3e9ef;filter:invert(1) hue-rotate(180deg)}
+    ? `html{background:#edf0f5;filter:invert(1) hue-rotate(180deg)}
 img,picture,video,svg,[style*="background-image"],[background]{filter:invert(1) hue-rotate(180deg)}`
     : "";
   // Designed emails lay out at the width they were made for, then scale down to fit, instead of

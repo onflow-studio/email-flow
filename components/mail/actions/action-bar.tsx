@@ -52,7 +52,7 @@ function Label({ action }: { action: BarAction }) {
       {names.map((name, i) => (
         <span key={i} className="flex min-w-0">
           <span className="max-w-judged truncate">{name}</span>
-          {i < names.length - 1 ? ", " : null}
+          {i < names.length - 1 ?", " : null}
         </span>
       ))}
       {more ? ` +${more}` : null}
@@ -354,7 +354,7 @@ function MenuButton({
           }}
           className={cn(
             "flex h-touch items-center gap-4 border-l-2 border-transparent pr-3 pl-2 text-left whitespace-nowrap text-text-muted outline-none transition-colors duration-80 ease-snap md:h-row",
-            "focus:glow-focus focus:border-accent focus:bg-surface-raised focus:text-text",
+            "focus:border-accent focus:bg-surface-raised focus:text-text",
             item.tone === "delete" && "focus:text-danger",
           )}
         >

@@ -57,7 +57,7 @@ export function TriageQueue({ threads, accountColors }: { threads: ThreadListIte
               onClick={() => sel.focus(thread.id)}
               className={cn(
                 "flex min-h-touch flex-col justify-center gap-1 border-l-2 px-3 py-2 transition-colors duration-80 ease-snap hover:bg-surface-raised focus-visible:bg-surface-raised",
-                thread.id === active ? "glow-focus border-accent bg-surface-raised" : "border-transparent",
+                thread.id === active ? "border-accent bg-surface-raised" : "border-transparent",
               )}
             >
               <span className="flex min-w-0 items-center gap-2">

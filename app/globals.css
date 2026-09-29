@@ -9,26 +9,28 @@
 :root {
   color-scheme: dark;
 
-  --bg: #0a0e12;
-  --surface: #10161c;
+  --bg: #030507;
+  --surface: #0a0f12;
   --status: #000000;
-  --surface-raised: #161e26;
-  --surface-top: #1c2630;
-  /* The header bar: deep desaturated blue that frames the app without competing with --accent. */
-  --header: #0e1a2a;
-  --header-border: #1a2a40;
-  --border: #1f2a33;
-  --text: #d6e2ea;
-  --text-muted: #7a8b98;
-  --text-dim: #4a5966;
-  --accent: #3d8bff;
-  --accent-dim: #1c4480;
+  --surface-raised: #11202a;
+  --surface-top: #172a36;
+  /* The header bar: a deep cyan-black that frames the app in the accent's family without competing with it. */
+  --header: #061319;
+  --header-border: #123040;
+  --border: #132631;
+  --text: #e6fbff;
+  --text-muted: #7fb2c2;
+  --text-dim: #3f6674;
+  --accent: #00e1ff;
+  --accent-dim: #004a5a;
   /* Primary button hover: the accent brightened toward the text color. */
   --accent-hover: color-mix(in srgb, var(--accent) 88%, var(--text));
-  --info: #4fd1c5;
-  --warning: #ffb454;
-  --danger: #ff5c7a;
-  --success: #3d8bff;
+  /* Needs you: unseen and asked-for-a-reply marks. Never focus, never an action. */
+  --signal: #ff2bd6;
+  --info: #8c9eff;
+  --warning: #ffb000;
+  --danger: #ff4d4d;
+  --success: #00e1ff;
 
   /* Static radio-family lighting, scoped to the command palette. */
   --palette-frame-blue: color-mix(in srgb, var(--accent) 60%, var(--border));
@@ -159,6 +161,7 @@
   --color-accent: var(--accent);
   --color-accent-dim: var(--accent-dim);
   --color-accent-hover: var(--accent-hover);
+  --color-signal: var(--signal);
   --color-info: var(--info);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
@@ -186,13 +189,6 @@
 }
 
 /* Sanctioned gradients. Nothing else gets one. */
-@utility glow-focus {
-  background-image: linear-gradient(
-    to right,
-    color-mix(in srgb, var(--accent) 12%, transparent),
-    transparent 24px
-  );
-}
 
 /* The focus glow's light around a point (open timeline node): a 12px accent bleed. Light, not elevation. */
 @utility glow-bleed {
@@ -204,34 +200,36 @@
 @utility rail-surface {
   background:
     linear-gradient(to bottom, var(--accent), var(--info) 60%, color-mix(in srgb, var(--info) 30%, var(--border))) right / 1px 100% no-repeat,
-    radial-gradient(120% 40% at 0% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+    radial-gradient(120% 40% at 0% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
     radial-gradient(120% 30% at 0% 100%, color-mix(in srgb, var(--info) 10%, transparent), transparent 70%),
     linear-gradient(to bottom, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--bg));
 }
 
-/* The open view's row: a 2px --accent to --info bar on its left edge and strong light from it across the row. */
+/* The open view's row: a 2px --accent to --info bar on its left edge over a flat --accent-dim block, so
+   where you are reads from across the screen while its label stays plain text on a solid fill. */
 @utility rail-active {
   background:
     linear-gradient(to bottom, var(--accent), var(--info)) left / 2px 100% no-repeat border-box,
-    linear-gradient(to right, color-mix(in srgb, var(--accent) 38%, transparent), color-mix(in srgb, var(--info) 14%, transparent) 65%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 30%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--info) 18%, transparent);
+    var(--accent-dim);
 }
 
-/* A row under the mouse: a faint version of the open row's light. */
+/* A row under the mouse: a flat step up, like any row. */
 @utility rail-hover {
-  background: linear-gradient(to right, color-mix(in srgb, var(--accent) 14%, transparent), transparent);
-}
-
-/* The open view's label: --text to --info across the text. */
-@utility rail-text {
-  background: linear-gradient(90deg, var(--text), var(--info));
-  background-clip: text;
-  color: transparent;
+  background: var(--surface-raised);
 }
 
 /* Between rail groups: a hairline that fades out to the right. */
 @utility rail-rule {
   background: linear-gradient(to right, var(--accent), color-mix(in srgb, var(--info) 40%, transparent) 50%, transparent);
+}
+
+/* Scrolls without a scrollbar: the rail's short overflow would otherwise draw a bar and its black track
+   between the rail and the list when scrollbars are set to always show. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @utility pane-depth {
@@ -370,7 +368,7 @@
 
 .palette-row[data-selected="true"]:not([data-disabled="true"]) {
   border-left-color: var(--accent);
-  background: linear-gradient(90deg, var(--accent-dim), var(--surface-raised));
+  background: var(--surface-raised);
   color: var(--text);
 }
 
