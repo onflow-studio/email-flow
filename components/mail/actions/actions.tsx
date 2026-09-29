@@ -113,6 +113,8 @@ function flagLine(action: Extract<ThreadAction, { type: "flag" }>, n: string) {
 /** Whether the action takes the thread out of the current view. */
 function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
   const bucket = findView(view)?.bucket;
+  // Sent keeps every thread written in, wherever it went, until it is deleted or marked spam.
+  if (view === "sent") return action.type === "trash" || action.type === "spam";
   switch (action.type) {
     case "trash":
       return true;

@@ -339,6 +339,38 @@ export const actionsLog = pgTable(
   (t) => [index().on(t.threadId), index().on(t.batchId), index().on(t.createdAt)],
 );
 
+// Unsent messages. Each is a Gmail draft in its account; superfer writes them from compose and
+// sync reads the ones written elsewhere. See lib/sync/drafts.ts.
+export const drafts = pgTable(
+  "drafts",
+  {
+    id: id(),
+    accountId: uuid()
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    gmailDraftId: text().notNull(),
+    // Changes on every save; sync refetches a draft only when it differs.
+    gmailMessageId: text().notNull(),
+    // The thread a reply or forward belongs to.
+    threadId: uuid().references(() => threads.id, { onDelete: "set null" }),
+    mode: text().$type<"new" | "reply" | "reply-all" | "forward">().notNull(),
+    // As typed, so a half-written address survives.
+    to: text().notNull().default(""),
+    cc: text().notNull().default(""),
+    bcc: text().notNull().default(""),
+    subject: text().notNull().default(""),
+    html: text().notNull().default(""),
+    // True when `html` is only what was typed in compose; signature and quote are added on send.
+    // False for drafts written elsewhere, whose body already holds them.
+    composed: boolean().notNull().default(true),
+    // When it was last edited, here or elsewhere.
+    date: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex().on(t.accountId, t.gmailDraftId), index().on(t.threadId)],
+);
+
 export const accountsRelations = relations(accounts, ({ many }) => ({
   threads: many(threads),
   senderAccounts: many(senderAccounts),
@@ -452,3 +484,4 @@ export const keybindings = pgTable("keybindings", {
 });
 
 export type Keybinding = typeof keybindings.$inferSelect;
+export type Draft = typeof drafts.$inferSelect;

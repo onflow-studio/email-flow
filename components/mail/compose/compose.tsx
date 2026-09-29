@@ -1,10 +1,11 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { prepareCompose, sendCompose } from "@/app/(mail)/_compose/actions";
-import { MODE_LABELS, type ComposeAccount, type ComposeInit, type ComposeMode } from "@/app/(mail)/_compose/types";
+import { discardDraft, prepareCompose, saveDraft, sendCompose } from "@/app/(mail)/_compose/actions";
+import { MODE_LABELS, type ComposeAccount, type ComposeInit, type ComposeMode, type ComposeSend } from "@/app/(mail)/_compose/types";
 import { Button } from "@/components/ui/button";
 import { KeyHints } from "@/components/ui/kbd";
 import { Countdown, dismissToast, showToast, ToastCard } from "@/components/ui/toast";
@@ -16,11 +17,16 @@ import { ComposeBody, ComposeToolbar, useComposeEditor } from "./editor";
 import { readLastAccount, rememberAccount } from "./last-account";
 import { RecipientInput } from "./recipient-input";
 
-type Session = { key: number; mode: ComposeMode; threadId: string | null; accountHint: string | null };
+type Session = { key: number; mode: ComposeMode; threadId: string | null; accountHint: string | null; draftId: string | null };
+
+// Quiet time after the last keystroke before the draft is saved to Gmail.
+const AUTOSAVE_MS = 1500;
 
 type ComposeContextValue = {
   /** Opens compose. Ignored while an edited draft is open, so it is never lost. */
   open: (mode: ComposeMode, threadId?: string | null, accountHint?: string | null) => void;
+  /** Resumes a saved draft. Same rule as `open`. */
+  openDraft: (draftId: string) => void;
   isOpen: boolean;
   /** Registers what the sent toast's `done` runs on a Work thread; returns the unregister. */
   onDone: (handler: (threadId: string) => void) => () => void;
@@ -43,7 +49,16 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
     (mode: ComposeMode, threadId: string | null = null, accountHint: string | null = null) => {
       if (session && (dirty.current || (session.mode === mode && session.threadId === threadId))) return;
       dirty.current = false;
-      setSession({ key: Date.now(), mode, threadId, accountHint });
+      setSession({ key: Date.now(), mode, threadId, accountHint, draftId: null });
+    },
+    [session],
+  );
+
+  const openDraft = useCallback(
+    (draftId: string) => {
+      if (session && (dirty.current || session.draftId === draftId)) return;
+      dirty.current = false;
+      setSession({ key: Date.now(), mode: "new", threadId: null, accountHint: null, draftId });
     },
     [session],
   );
@@ -82,13 +97,13 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
     [notify],
   );
 
-  const value = useMemo(() => ({ open, isOpen: !!session, onDone }), [open, session, onDone]);
+  const value = useMemo(() => ({ open, openDraft, isOpen: !!session, onDone }), [open, openDraft, session, onDone]);
 
   return (
     <ComposeContext.Provider value={value}>
       {children}
       {session ? (
-        <ComposePanel key={session.key} session={session} dirtyRef={dirty} onClose={close} onSent={sent} />
+        <ComposePanel key={session.key} session={session} dirtyRef={dirty} onClose={close} onSent={sent} onNotice={notify} />
       ) : null}
     </ComposeContext.Provider>
   );
@@ -117,13 +132,16 @@ function ComposePanel({
   dirtyRef,
   onClose,
   onSent,
+  onNotice,
 }: {
   session: Session;
   dirtyRef: React.RefObject<boolean>;
   onClose: () => void;
   /** `workThreadId`: the reply went to a Work thread, which the toast can then finish. */
   onSent: (notice: string, workThreadId: string | null) => void;
+  onNotice: (message: string, type: "success" | "error") => void;
 }) {
+  const router = useRouter();
   const [init, setInit] = useState<ComposeInit | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -136,7 +154,8 @@ function ComposePanel({
   const [dropped, setDropped] = useState<Set<string>>(() => new Set());
   const [bodyEmpty, setBodyEmpty] = useState(true);
   const [linkOpen, setLinkOpen] = useState(false);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [bodyRev, setBodyRev] = useState(0);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | { error: string }>("idle");
   const [error, setError] = useState<string | null>(null);
   const [sending, startSend] = useTransition();
   const toRef = useRef<HTMLInputElement>(null);
@@ -144,8 +163,8 @@ function ComposePanel({
   const { editor, insertFiles } = useComposeEditor({
     placeholder: session.mode === "forward" ? "add a note" : "write",
     onUpdate: (e) => {
-      setConfirmDiscard(false);
       setBodyEmpty(e.isEmpty);
+      setBodyRev((r) => r + 1);
     },
     onError: setError,
     onSubmit: () => send(),
@@ -154,7 +173,7 @@ function ComposePanel({
 
   useEffect(() => {
     let live = true;
-    prepareCompose(session.mode, session.threadId)
+    prepareCompose(session.mode, session.threadId, session.draftId)
       .then((result) => {
         if (!live) return;
         if (!result) return setLoadError("thread not found, close and reload");
@@ -163,7 +182,11 @@ function ComposePanel({
         setTo(result.to);
         setCc(result.cc);
         setShowCc(!!result.cc);
+        setBcc(result.bcc);
+        setShowBcc(!!result.bcc);
         setSubject(result.subject);
+        setBodyEmpty(!result.html);
+        draftIdRef.current = result.draftId;
       })
       .catch(() => live && setLoadError("could not open compose, retry"));
     return () => {
@@ -171,54 +194,129 @@ function ComposePanel({
     };
   }, [session]);
 
-  // Replies start in the body, everything else at the recipients.
+  // Replies start in the body, everything else at the recipients. A resumed draft starts at the end of its body.
   useEffect(() => {
     if (!init || !editor) return;
-    if (init.mode === "reply" || init.mode === "reply-all") editor.commands.focus("start");
+    if (init.html) {
+      editor.commands.setContent(init.html, { emitUpdate: false });
+      editor.commands.focus("end");
+    } else if (init.mode === "reply" || init.mode === "reply-all") editor.commands.focus("start");
     else toRef.current?.focus();
   }, [init, editor]);
 
   const edited =
     !bodyEmpty ||
-    (!!init && (to !== init.to || cc !== init.cc || bcc !== "" || subject !== init.subject || dropped.size > 0));
+    (!!init && (to !== init.to || cc !== init.cc || bcc !== init.bcc || subject !== init.subject || dropped.size > 0));
   useEffect(() => {
     dirtyRef.current = edited;
   }, [edited, dirtyRef]);
 
-  const account = init?.accounts.find((a) => a.id === accountId) ?? null;
-  const threadMode = session.mode !== "new";
-
-  const send = () => {
-    if (!init || !editor || sending) return;
-    setError(null);
-    setConfirmDiscard(false);
-    startSend(async () => {
-      const result = await sendCompose({
-        mode: init.mode,
-        threadId: init.threadId,
+  // Autosave: the form is saved as a Gmail draft once typing pauses. Saves run one after another so the
+  // first one's draft id reaches the next. `snapshot` changes with every edit; `saved` is the last one stored.
+  const draftIdRef = useRef<string | null>(null);
+  const saving = useRef<Promise<void>>(Promise.resolve());
+  const saved = useRef<string | null>(null);
+  const snapshot = init ? JSON.stringify([accountId, to, cc, bcc, subject, bodyRev]) : null;
+  const latest = useRef({ snapshot, edited, form: null as (() => ComposeSend) | null });
+  useEffect(() => {
+    latest.current = {
+      snapshot,
+      edited,
+      form: () => ({
+        mode: init!.mode,
+        threadId: init!.threadId,
         accountId,
         to,
         cc,
         bcc,
         subject,
         // Drop the empty paragraph the editor keeps at the end.
-        html: editor.isEmpty ? "" : editor.getHTML().replace(/(<p><\/p>)+$/, ""),
-        attachmentIds: init.attachments.filter((a) => !dropped.has(a.id)).map((a) => a.id),
-      });
+        html: !editor || editor.isEmpty ? "" : editor.getHTML().replace(/(<p><\/p>)+$/, ""),
+        attachmentIds: init!.attachments.filter((a) => !dropped.has(a.id)).map((a) => a.id),
+        draftId: draftIdRef.current,
+      }),
+    };
+    if (saved.current === null) saved.current = snapshot;
+  });
+
+  const persist = useCallback(() => {
+    saving.current = saving.current.then(async () => {
+      const { snapshot: snap, edited: changed, form } = latest.current;
+      if (!form || snap === saved.current) return;
+      // Nothing typed yet: no draft to keep.
+      if (!draftIdRef.current && !changed) return;
+      setSaveState("saving");
+      const result = await saveDraft(form()).catch(() => ({ ok: false as const, error: "draft not saved" }));
+      if (result.ok) {
+        draftIdRef.current = result.draftId;
+        saved.current = snap;
+        setSaveState("saved");
+      } else {
+        setSaveState({ error: result.error });
+      }
+    });
+    return saving.current;
+  }, []);
+
+  useEffect(() => {
+    if (!snapshot || snapshot === saved.current || sending) return;
+    const timer = setTimeout(() => void persist(), AUTOSAVE_MS);
+    return () => clearTimeout(timer);
+  }, [snapshot, sending, persist]);
+
+  const account = init?.accounts.find((a) => a.id === accountId) ?? null;
+  const threadMode = session.mode !== "new";
+
+  const send = () => {
+    const form = latest.current.form;
+    if (!init || !editor || !form || sending) return;
+    setError(null);
+    startSend(async () => {
+      // A save in flight may be creating the draft; wait so send removes it.
+      await saving.current;
+      const result = await sendCompose(form());
       if (result.ok) {
         rememberAccount(result.accountId);
         onSent(`sent from ${result.accountLabel}`, result.work ? init.threadId : null);
         onClose();
+        if (draftIdRef.current) router.refresh();
       } else {
         setError(result.error);
       }
     });
   };
 
+  /** Closes and keeps the draft: whatever is unsaved is saved on the way out. */
+  const close = () => {
+    if (sending) return;
+    const pending = latest.current.snapshot !== saved.current && (draftIdRef.current || latest.current.edited);
+    onClose();
+    if (!pending) return;
+    void persist().then(() => {
+      if (draftIdRef.current) {
+        onNotice("draft saved", "success");
+        router.refresh();
+      } else {
+        onNotice("draft not saved", "error");
+      }
+    });
+  };
+
+  const discard = () => {
+    if (sending) return;
+    onClose();
+    // Wait for a save in flight so its draft is the one removed.
+    void saving.current.then(async () => {
+      if (!draftIdRef.current) return;
+      const result = await discardDraft(draftIdRef.current);
+      if (!result.ok) onNotice("could not discard the draft", "error");
+      router.refresh();
+    });
+  };
+
   const escape = () => {
     if (linkOpen) return setLinkOpen(false);
-    if (edited && !confirmDiscard && !sending) return setConfirmDiscard(true);
-    onClose();
+    close();
   };
 
   const sendKey = useShortcut("compose.send");
@@ -233,9 +331,11 @@ function ComposePanel({
 
   const modeLabel = MODE_LABELS[session.mode];
   let footerNote: React.ReactNode = null;
-  if (confirmDiscard) footerNote = <span className="text-warning">unsent draft, esc again to discard</span>;
-  else if (error) footerNote = <span className="text-danger">{error}</span>;
+  if (error) footerNote = <span className="text-danger">{error}</span>;
   else if (sending) footerNote = <span className="text-text-muted">sending</span>;
+  else if (typeof saveState === "object") footerNote = <span className="text-danger">{saveState.error}</span>;
+  else if (saveState === "saving") footerNote = <span className="text-text-dim">saving draft</span>;
+  else if (saveState === "saved") footerNote = <span className="text-text-dim">draft saved</span>;
 
   return (
     <div
@@ -246,7 +346,7 @@ function ComposePanel({
       <header className="flex h-touch shrink-0 items-center gap-3 border-b border-border px-3 md:h-row">
         <button
           type="button"
-          onClick={onClose}
+          onClick={close}
           aria-label="close"
           className="-ml-1 flex size-touch items-center justify-center text-text-muted md:hidden"
         >
@@ -421,7 +521,7 @@ function ComposePanel({
         <Button variant="primary" shortcut={sendKey} onClick={send} disabled={!init || sending} className="hidden md:inline-flex">
           {sending ? "sending" : "send"}
         </Button>
-        <Button variant="ghost" onClick={onClose} disabled={sending}>
+        <Button variant="ghost" onClick={discard} disabled={sending}>
           discard
         </Button>
         <span role="status" className="min-w-0 truncate text-11">

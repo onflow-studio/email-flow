@@ -14,6 +14,11 @@ export const GMAIL_UNITS = {
   "threads.list": 10,
   "threads.get": 10,
   "threads.modify": 10,
+  "drafts.list": 5,
+  "drafts.get": 5,
+  "drafts.create": 10,
+  "drafts.update": 15,
+  "drafts.delete": 10,
 } as const;
 
 export type GmailMethod = keyof typeof GMAIL_UNITS;

@@ -3,8 +3,10 @@ import { asc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { ReauthRequiredError, getGmailLabelsAdapter } from "@/lib/gmail/client";
+import { getGmailDraftsAdapter } from "@/lib/gmail/drafts";
 import { isRateLimitError } from "@/lib/gmail/errors";
 
+import { syncDrafts } from "./drafts";
 import { getGmailSyncAdapter } from "./gmail";
 import { releaseStaleLocks } from "./queue";
 import { syncAccount, type SyncResult } from "./run";
@@ -37,7 +39,9 @@ async function syncOne(account: typeof accounts.$inferSelect): Promise<AccountSy
   try {
     const outcome = await withLock(`superfer:sync:${account.id}`, async () => {
       const gmail = await getGmailSyncAdapter(account.id);
-      return syncAccount(db, account, gmail, { db, gmail: getGmailLabelsAdapter });
+      const result = await syncAccount(db, account, gmail, { db, gmail: getGmailLabelsAdapter });
+      await syncDrafts(db, await getGmailDraftsAdapter(account.id), account.id);
+      return result;
     });
     if (outcome === "busy") return { ...base, status: "busy" };
     return { ...base, status: "ok", result: outcome };

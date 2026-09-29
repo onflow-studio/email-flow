@@ -1,6 +1,6 @@
 "use client";
 
-import { BriefcaseBusiness, Clock, Inbox, Newspaper, Receipt, ScrollText, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
+import { BriefcaseBusiness, Clock, FilePen, Inbox, Newspaper, Receipt, ScrollText, Send, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -21,6 +21,8 @@ const ICONS: Record<ViewSlug, LucideIcon> = {
   triage: ShieldQuestionMark,
   work: BriefcaseBusiness,
   snoozed: Clock,
+  sent: Send,
+  drafts: FilePen,
   trash: Trash2,
 };
 
@@ -36,8 +38,8 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
     label: sentenceCase(v.label),
     href: mailHref(v.slug),
     icon: ICONS[v.slug],
-    // Trash carries no count.
-    count: v.group === "bottom" ? undefined : counts.n[v.slug],
+    // Trash and sent carry no count; drafts shows how many wait.
+    count: v.group === "bottom" && v.slug !== "drafts" ? undefined : counts.n[v.slug],
     // Bucket and Work counts are what is left to do; snoozed only waits.
     strong: !!v.bucket || v.slug === "work",
     unread: counts.unread[v.slug],

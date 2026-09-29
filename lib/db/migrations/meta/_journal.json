@@ -78,6 +78,13 @@
       "when": 1790350676144,
       "tag": "0010_bucket_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790686289976,
+      "tag": "0011_drafts",
+      "breakpoints": true
     }
   ]
 }

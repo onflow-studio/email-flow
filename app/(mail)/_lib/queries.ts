@@ -4,7 +4,7 @@ import type { View, ViewSlug } from "@/components/mail/views";
 import { VIEWS } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import { aiAllowedSenders, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
-import { accounts, attachments, messages, threads } from "@/lib/db/schema";
+import { accounts, attachments, drafts, messages, threads, type Address } from "@/lib/db/schema";
 import { mergeTimeline, shownCopy } from "@/lib/sync/twins";
 
 const live = () => and(eq(threads.archived, false), eq(threads.trashed, false), eq(threads.spam, false));
@@ -15,8 +15,15 @@ const unseen = () => or(isNull(threads.seenAt), resurfaced());
 
 const snoozed = () => gt(threads.snoozedUntil, sql`now()`);
 
+// Threads the user wrote in, by their latest message from us.
+const wroteIn = () => sql`exists (select 1 from ${messages} m where m.thread_id = ${threads.id} and not m.is_inbound)`;
+const lastSentAt = () => sql`(select max(m.date) from ${messages} m where m.thread_id = ${threads.id} and not m.is_inbound)`;
+
 function viewFilter(view: View): SQL | undefined {
   if (view.slug === "snoozed") return and(live(), snoozed());
+  if (view.slug === "sent") return and(eq(threads.trashed, false), eq(threads.spam, false), wroteIn());
+  // Drafts are not threads; see listDrafts.
+  if (view.slug === "drafts") return sql`false`;
   if (view.slug === "trash") return and(eq(threads.trashed, true), eq(threads.spam, false));
   // A snoozed Work thread hides until its snooze ends, then comes back here.
   if (view.slug === "work") return and(live(), isNotNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
@@ -62,6 +69,10 @@ export type ViewCounts = {
 export async function viewCounts(on: string[] | null): Promise<ViewCounts> {
   const rows = await Promise.all(
     VIEWS.map(async (view) => {
+      if (view.slug === "drafts") {
+        const [row] = await db.select({ n: count() }).from(drafts).where(on ? inArray(drafts.accountId, on) : undefined);
+        return { slug: view.slug, n: row.n, unread: false };
+      }
       const unseenOnly = view.slug === "news" || view.slug === "paper-trail" || view.slug === "receipts";
       const [row] = await db
         .select({ n: count(), unseen: count(sql`case when ${unseen()} then 1 end`) })
@@ -118,6 +129,10 @@ export async function listThreads(view: View, on: string[] | null) {
       // Distinct messages across copies: the same Message-ID in two accounts counts once.
       messageCount: sql<number>`(select count(distinct coalesce(${messages.headers}->>'messageId', ${messages.id}::text))::int from ${messages} where ${messages.threadId} in ${copies})`,
       accountIds: sql<string[]>`array(select a.id from ${accounts} a where a.id in (select t.account_id from ${threads} t where t.id in ${copies}) order by a.created_at)`,
+      sentTo:
+        view.slug === "sent"
+          ? sql<Address[] | null>`(select m.to from ${messages} m where m.thread_id = ${threads.id} and not m.is_inbound order by m.date desc limit 1)`
+          : sql<null>`null`,
     })
     .from(threads)
     .leftJoinLateral(last, sql`true`)
@@ -125,11 +140,13 @@ export async function listThreads(view: View, on: string[] | null) {
     .orderBy(
       ...(view.slug === "work"
         ? workOrder()
-        : [
+        : view.slug === "sent"
+          ? [desc(lastSentAt())]
+          : [
             desc(sql`coalesce(${resurfaced()}, false)`),
             desc(sql`coalesce(${unseen()}, false)`),
             desc(threads.lastMessageAt),
-          ]),
+            ]),
     )
     .limit(300);
 
@@ -147,7 +164,8 @@ export async function listThreads(view: View, on: string[] | null) {
     senderId: r.senderId,
     bucket: r.bucket,
     subject: r.subject || "(no subject)",
-    sender: r.participants || r.fromName || r.fromEmail || "unknown",
+    // Sent names who it went to.
+    sender: r.sentTo ? sentLabel(r.sentTo) : r.participants || r.fromName || r.fromEmail || "unknown",
     snippet: r.snippet ?? "",
     summary: summaryOf(r),
     lastMessageAt: r.lastMessageAt.toISOString(),
@@ -162,6 +180,50 @@ export async function listThreads(view: View, on: string[] | null) {
 }
 
 export type ThreadListItem = Awaited<ReturnType<typeof listThreads>>[number];
+
+function sentLabel(to: Address[]): string {
+  if (!to.length) return "to (no recipient)";
+  const names = to.map((a) => a.name?.split(/\s+/)[0] || a.email.split("@")[0]);
+  return `to ${names.slice(0, 3).join(", ")}${names.length > 3 ? ` +${names.length - 3}` : ""}`;
+}
+
+/** Drafts, newest edit first, for the accounts toggled on. */
+export async function listDrafts(on: string[] | null) {
+  const rows = await db
+    .select({
+      id: drafts.id,
+      accountId: drafts.accountId,
+      to: drafts.to,
+      subject: drafts.subject,
+      html: drafts.html,
+      date: drafts.date,
+    })
+    .from(drafts)
+    .where(on ? inArray(drafts.accountId, on) : undefined)
+    .orderBy(desc(drafts.date))
+    .limit(300);
+  return rows.map((r) => ({
+    id: r.id,
+    accountId: r.accountId,
+    to: r.to.trim() ? `to ${r.to.trim()}` : "no recipient",
+    subject: r.subject.trim() || "(no subject)",
+    // A line of text for the row, never the whole body.
+    snippet: r.html
+      .slice(0, 4000)
+      .replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 200),
+    date: r.date.toISOString(),
+  }));
+}
+
+export type DraftListItem = Awaited<ReturnType<typeof listDrafts>>[number];
 
 const threadWith = {
   account: { columns: { id: true, email: true, label: true, color: true } },

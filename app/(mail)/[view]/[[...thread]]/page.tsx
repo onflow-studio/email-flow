@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ActionsProvider } from "@/components/mail/actions/actions";
 import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
+import { DraftList } from "@/components/mail/draft-list";
 import { FocusPane } from "@/components/mail/focus-pane";
 import { NavKeys } from "@/components/mail/keys/nav-keys";
 import { MarkSeen } from "@/components/mail/mark-seen";
@@ -21,7 +22,7 @@ import { findView, mailHref, VIEWS, type ViewSlug } from "@/components/mail/view
 import { cn } from "@/lib/utils";
 
 import { accountsOff, accountsOn } from "../../_lib/account-filter";
-import { getThread, listAccounts, listThreads, viewCounts } from "../../_lib/queries";
+import { getThread, listAccounts, listDrafts, listThreads, viewCounts } from "../../_lib/queries";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -30,22 +31,24 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
 
   const view = findView(slug);
   if (!view) notFound();
-  if (thread && (thread.length > 1 || !UUID.test(thread[0]))) notFound();
+  if (thread && (thread.length > 1 || !UUID.test(thread[0]) || view.slug === "drafts")) notFound();
   const threadId = thread?.[0] ?? null;
 
   const [accounts, off] = await Promise.all([listAccounts(), accountsOff()]);
   const on = accountsOn(accounts, off);
   const isOn = (id: string) => !on || on.includes(id);
 
-  const [counts, threads, detail] = await Promise.all([
+  const [counts, threads, drafts, detail] = await Promise.all([
     viewCounts(on),
     listThreads(view, on),
+    view.slug === "drafts" ? listDrafts(on) : [],
     threadId ? getThread(threadId) : null,
   ]);
   if (threadId && !detail) notFound();
   // A thread opened under a view it no longer belongs to (an old link, a thread snoozed elsewhere) moves to its
   // own view, so the list always holds the open thread. Archived and kept-out threads have no view and stay put.
-  const home = detail ? homeView(detail) : null;
+  // Sent holds any thread written in, whatever its own view.
+  const home = detail && !(view.slug === "sent" && detail.wroteIn) ? homeView(detail) : null;
   if (detail && home && home !== view.slug) redirect(mailHref(home, { threadId: detail.id }));
   // The list shows one copy per conversation; open that copy so the row and the pane line up.
   const listed = detail && !threads.some((t) => t.id === detail.id) ? threads.find((t) => detail.copyIds.includes(t.id)) : null;
@@ -129,18 +132,26 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                       <h1 className="font-medium">{view.label}</h1>
                       <span className="flex items-center gap-2">
                         <span className="text-11 text-text-muted">
-                          {view.bucket ? `${unseen} unseen` : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
+                          {view.bucket
+                            ? `${unseen} unseen`
+                            : view.slug === "drafts"
+                              ? `${drafts.length} ${drafts.length === 1 ? "draft" : "drafts"}`
+                              : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
                         </span>
                         <ComposeButton />
                       </span>
                     </header>
                     <div className="min-h-0 flex-1 overflow-y-auto">
-                      <ThreadList
-                        threads={threads}
-                        accountColors={accountColors}
-                        accountNames={accountNames}
-                        emptyLabel={view.bucket || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
-                      />
+                      {view.slug === "drafts" ? (
+                        <DraftList drafts={drafts} accountColors={accountColors} accountNames={accountNames} />
+                      ) : (
+                        <ThreadList
+                          threads={threads}
+                          accountColors={accountColors}
+                          accountNames={accountNames}
+                          emptyLabel={view.bucket || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
+                        />
+                      )}
                     </div>
                   </>
                 )}
@@ -161,7 +172,9 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                   <p className="p-3 text-text-dim">
                     {view.slug === "triage"
                       ? threads.length ? "choose a sender to review" : "triage clear. new senders will appear here."
-                      : "no thread open"}
+                      : view.slug === "drafts"
+                        ? drafts.length ? "pick a draft to keep writing" : "no drafts"
+                        : "no thread open"}
                   </p>
                 )}
               </FocusPane>
