@@ -26,10 +26,14 @@ export type MailSelection = {
   pane: Pane;
   setPane: (pane: Pane) => void;
   focus: (id: string) => void;
-  /** Rows picked with shift and the arrows, in list order. Keyboard actions act on them instead of `target`. */
+  /** Picked rows, in list order. Keyboard actions act on them instead of `target`. */
   selectedIds: string[];
-  /** Grows or shrinks the picked range by one row from where it started, and moves there. */
+  /** Grows or shrinks the shift range by one row from where it started, and moves there. Earlier picks stay. */
   extend: (dir: 1 | -1) => void;
+  /** Picks or unpicks one row (its checkbox). */
+  toggleSelected: (id: string) => void;
+  /** Keeps the picks but ends the shift range: the next shift starts a new one from where you are. */
+  endRange: () => void;
   clearSelected: () => void;
   focusNext: () => void;
   focusPrev: () => void;
@@ -42,8 +46,11 @@ export type MailSelection = {
 const SelectionContext = createContext<MailSelection | null>(null);
 
 type Picked = { id: string | null; index: number };
-/** The row a range grows from, and the rows in it. */
-type Range = { anchor: string; ids: string[] };
+/**
+ * Picked rows. A shift range grows from `anchor` and adds to `base`, the rows
+ * picked before it started, so shrinking it never drops those.
+ */
+type Range = { anchor: string | null; base: string[]; ids: string[] };
 type FocusStore = {
   get: (key: string) => Picked | undefined;
   set: (key: string, picked: Picked) => void;
@@ -53,6 +60,9 @@ type FocusStore = {
   /** One range at a time: switching view drops it. */
   range: (key: string) => Range | undefined;
   setRange: (key: string, range: Range | null) => void;
+  /** The list's scroll position: the page remounts when the open thread changes, and the list must not move. */
+  listScroll: (key: string) => number | undefined;
+  setListScroll: (key: string, top: number) => void;
   pane: Pane | null;
   setPane: (pane: Pane) => void;
   /** Records the view shown; true when it differs from the last one (a view switch, not a return to the list). */
@@ -119,7 +129,18 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       setOrderState((prev) => (prev?.key === key && sameIds(prev.ids, ids) ? prev : { key, ids })),
     [],
   );
-  const setRange = useCallback((key: string, next: Range | null) => setRangeState(next && { key, ...next }), []);
+  const setRange = useCallback(
+    (key: string, next: Range | null) => setRangeState(next?.ids.length ? { key, ...next } : null),
+    [],
+  );
+  const listScrollRef = useRef<{ key: string; top: number } | null>(null);
+  const listScroll = useCallback(
+    (key: string) => (listScrollRef.current?.key === key ? listScrollRef.current.top : undefined),
+    [],
+  );
+  const setListScroll = useCallback((key: string, top: number) => {
+    listScrollRef.current = { key, top };
+  }, []);
   const value = useMemo<FocusStore>(
     () => ({
       get: (key) => picked[key],
@@ -128,6 +149,8 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       setOrder,
       range: (key) => (range?.key === key ? range : undefined),
       setRange,
+      listScroll,
+      setListScroll,
       pane,
       setPane,
       switchedTo,
@@ -135,7 +158,7 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       isAutoOpened,
       clearAutoOpened,
     }),
-    [picked, order, set, setOrder, range, setRange, pane, switchedTo, setAutoOpened, isAutoOpened, clearAutoOpened],
+    [picked, order, set, setOrder, range, setRange, listScroll, setListScroll, pane, switchedTo, setAutoOpened, isAutoOpened, clearAutoOpened],
   );
   return <FocusStoreContext.Provider value={value}>{children}</FocusStoreContext.Provider>;
 }
@@ -144,6 +167,12 @@ export function useAutoOpened() {
   const store = useContext(FocusStoreContext);
   if (!store) throw new Error("useAutoOpened must be used inside <FocusStoreProvider>");
   return { isAutoOpened: store.isAutoOpened, clearAutoOpened: store.clearAutoOpened };
+}
+
+export function useListScroll() {
+  const store = useContext(FocusStoreContext);
+  if (!store) throw new Error("useListScroll must be used inside <FocusStoreProvider>");
+  return { listScroll: store.listScroll, setListScroll: store.setListScroll };
 }
 
 export function useMailSelection() {
@@ -245,9 +274,12 @@ export function SelectionProvider({
       const from = threadIds.indexOf(current);
       const to = from + dir;
       if (from < 0 || to < 0 || to >= threadIds.length) return;
-      const anchor = range && threadIds.includes(range.anchor) ? range.anchor : current;
+      const ongoing = !!range?.anchor && threadIds.includes(range.anchor);
+      const anchor = ongoing ? range!.anchor! : current;
+      const base = ongoing ? range!.base : (range?.ids ?? []);
       const a = threadIds.indexOf(anchor);
-      setRange(key, { anchor, ids: threadIds.slice(Math.min(a, to), Math.max(a, to) + 1) });
+      const ids = new Set([...base, ...threadIds.slice(Math.min(a, to), Math.max(a, to) + 1)]);
+      setRange(key, { anchor, base, ids: [...ids] });
       // Passing through a thread while picking is not reading it: it waits like an auto-opened one.
       if (openId) {
         setAutoOpened(threadIds[to]);
@@ -256,6 +288,16 @@ export function SelectionProvider({
     },
     [openId, focusedId, threadIds, range, setRange, key, setAutoOpened, open, focusAt],
   );
+  const toggleSelected = useCallback(
+    (id: string) => {
+      const ids = range?.ids.includes(id) ? range.ids.filter((x) => x !== id) : [...(range?.ids ?? []), id];
+      setRange(key, { anchor: null, base: ids, ids });
+    },
+    [range, setRange, key],
+  );
+  const endRange = useCallback(() => {
+    if (range?.anchor) setRange(key, { anchor: null, base: range.ids, ids: range.ids });
+  }, [range, setRange, key]);
   const clearSelected = useCallback(() => setRange(key, null), [setRange, key]);
 
   const value = useMemo<MailSelection>(
@@ -271,6 +313,8 @@ export function SelectionProvider({
       focus: (id) => focusAt(threadIds.indexOf(id)),
       selectedIds,
       extend,
+      toggleSelected,
+      endRange,
       clearSelected,
       focusNext: () => focusAt(focusedIndex + 1),
       focusPrev: () => focusAt(focusedIndex - 1),
@@ -281,7 +325,7 @@ export function SelectionProvider({
       },
       go: (next) => router.push(mailHref(next)),
     }),
-    [view, account, threadIds, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, clearSelected, open, router],
+    [view, account, threadIds, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, toggleSelected, endRange, clearSelected, open, router],
   );
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

@@ -1,12 +1,13 @@
 "use client";
 
+import { Check } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ThreadListItem } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
 
-import { useMailSelection } from "./selection";
+import { useListScroll, useMailSelection } from "./selection";
 import { fullTime, Time } from "./time";
 import { UnreadDot } from "./unread-dot";
 import { mailHref } from "./views";
@@ -24,6 +25,18 @@ export function ThreadList({
 }) {
   const sel = useMailSelection();
   const listRef = useRef<HTMLUListElement>(null);
+  const { listScroll, setListScroll } = useListScroll();
+
+  // Back where it was before the page remounted, before the focused row is brought into view.
+  useLayoutEffect(() => {
+    const scroller = listRef.current?.parentElement;
+    if (!scroller) return;
+    const top = listScroll(sel.view);
+    if (top !== undefined) scroller.scrollTop = top;
+    const save = () => setListScroll(sel.view, scroller.scrollTop);
+    scroller.addEventListener("scroll", save, { passive: true });
+    return () => scroller.removeEventListener("scroll", save);
+  }, [sel.view, listScroll, setListScroll]);
 
   useEffect(() => {
     if (!sel.focusedId) return;
@@ -38,6 +51,7 @@ export function ThreadList({
 
   const byId = new Map(threads.map((t) => [t.id, t]));
   const selected = new Set(sel.selectedIds);
+  const picking = selected.size > 0;
   const ordered = sel.threadIds.flatMap((id) => byId.get(id) ?? []);
   const work = sel.view === "work";
   // Work keeps its own order (deadlines, then queue), so it has no unseen and seen groups.
@@ -50,7 +64,7 @@ export function ThreadList({
   return (
     <ul ref={listRef} aria-label="threads" className="flex flex-col py-1">
       {ordered.map((t, i) => (
-        <li key={t.id}>
+        <li key={t.id} className="relative">
           {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
           {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
           <ThreadRow
@@ -62,15 +76,40 @@ export function ThreadList({
             open={t.id === sel.openId}
             href={mailHref(sel.view, { threadId: t.id })}
             onSelect={() => {
-              sel.clearSelected();
+              sel.endRange();
               sel.focus(t.id);
             }}
             showSnooze={sel.view === "snoozed"}
             work={work}
           />
+          {picking ? <PickBox checked={selected.has(t.id)} label={t.subject} onToggle={() => sel.toggleSelected(t.id)} /> : null}
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Sits in the row's left gutter, beside the link, so picking never opens the thread. */
+function PickBox({ checked, label, onToggle }: { checked: boolean; label: string; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={`select ${label}`}
+      onClick={onToggle}
+      className="group absolute inset-y-0 left-0 flex w-6 items-center justify-center"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-4 items-center justify-center rounded-sm border transition-colors duration-80 ease-snap group-focus-visible:border-accent",
+          checked ? "border-accent bg-accent text-bg" : "border-text-muted bg-bg group-hover:border-text",
+        )}
+      >
+        {checked ? <Check className="size-3" strokeWidth={2.5} /> : null}
+      </span>
+    </button>
   );
 }
 

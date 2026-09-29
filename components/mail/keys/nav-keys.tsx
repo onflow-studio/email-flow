@@ -21,9 +21,9 @@ export function NavKeys() {
   const map = useKeyMap();
   const router = useRouter();
 
-  // With a thread open, j/k step through threads in reading mode. A plain step drops the selection.
+  // With a thread open, j/k step through threads in reading mode. A plain step keeps the picks but ends the shift range.
   const step = (dir: 1 | -1) => {
-    sel.clearSelected();
+    sel.endRange();
     const i = sel.threadIds.indexOf(sel.target ?? "");
     const next = sel.threadIds[i + dir];
     if (sel.openId) {
