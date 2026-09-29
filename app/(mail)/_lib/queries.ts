@@ -1,10 +1,11 @@
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 
 import type { View, ViewSlug } from "@/components/mail/views";
+import { CLUSTER_VIEWS, clusterOf, clusterOrder } from "@/components/mail/clusters";
 import { VIEWS } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import { aiAllowedSenders, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
-import { accounts, attachments, drafts, messages, threads, type Address } from "@/lib/db/schema";
+import { accounts, attachments, drafts, messages, senders, threads, type Address } from "@/lib/db/schema";
 import { mergeTimeline, shownCopy } from "@/lib/sync/twins";
 
 const live = () => and(eq(threads.archived, false), eq(threads.trashed, false), eq(threads.spam, false));
@@ -99,6 +100,10 @@ export async function listThreads(view: View, on: string[] | null) {
       fromName: messages.fromName,
       fromEmail: messages.fromEmail,
       snippet: messages.snippet,
+      isInbound: messages.isInbound,
+      headers: messages.headers,
+      subject: messages.subject,
+      machine: sql<boolean | null>`(select ${senders.machine} from ${senders} where ${senders.id} = ${messages.senderId})`.as("machine"),
     })
     .from(messages)
     .where(eq(messages.threadId, threads.id))
@@ -124,6 +129,10 @@ export async function listThreads(view: View, on: string[] | null) {
       fromName: last.fromName,
       fromEmail: last.fromEmail,
       snippet: last.snippet,
+      lastInbound: last.isInbound,
+      lastHeaders: last.headers,
+      lastSubject: last.subject,
+      lastMachine: last.machine,
       summary: threads.summary,
       summaryMessageAt: threads.summaryMessageAt,
       // Distinct messages across copies: the same Message-ID in two accounts counts once.
@@ -156,8 +165,37 @@ export async function listThreads(view: View, on: string[] | null) {
       ? r.summary
       : null;
 
-  return rows.map((r) => ({
+  // Machine mail from one source folds into a group once it has two threads here.
+  const found = CLUSTER_VIEWS.includes(view.slug)
+    ? rows.map((r) =>
+        r.fromEmail
+          ? clusterOf({
+              isInbound: !!r.lastInbound,
+              fromEmail: r.fromEmail,
+              fromName: r.fromName,
+              subject: r.lastSubject ?? r.subject,
+              headers: r.lastHeaders ?? {},
+              machine: r.lastMachine ?? null,
+            })
+          : null,
+      )
+    : [];
+  const sizes = new Map<string, number>();
+  // One name per group, its newest thread's.
+  const labels = new Map<string, string>();
+  for (const c of found) {
+    if (!c) continue;
+    sizes.set(c.key, (sizes.get(c.key) ?? 0) + 1);
+    if (!labels.has(c.key)) labels.set(c.key, c.label);
+  }
+  const clusterAt = (i: number) => {
+    const c = found[i];
+    return c && sizes.get(c.key)! > 1 ? { key: c.key, label: labels.get(c.key)! } : null;
+  };
+
+  const items = rows.map((r, i) => ({
     id: r.id,
+    cluster: clusterAt(i),
     accountId: r.accountId,
     // Every account the conversation reached, in account order.
     accountIds: r.accountIds,
@@ -177,6 +215,9 @@ export async function listThreads(view: View, on: string[] | null) {
     work: r.workAt !== null,
     messageCount: r.messageCount,
   }));
+  const byId = new Map(items.map((t) => [t.id, t]));
+  const keys = Object.fromEntries(items.flatMap((t) => (t.cluster ? [[t.id, t.cluster.key]] : [])));
+  return clusterOrder(items.map((t) => t.id), keys).map((id) => byId.get(id)!);
 }
 
 export type ThreadListItem = Awaited<ReturnType<typeof listThreads>>[number];

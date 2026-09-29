@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { clusterOrder } from "./clusters";
 import { rememberMailPath } from "./return-path";
 import { mailHref, type ViewSlug } from "./views";
 
@@ -18,7 +19,17 @@ export type MailSelection = {
   view: ViewSlug;
   /** The one account toggled on, when only one is: new mail defaults to it. */
   account: string | null;
+  /** Rows the keyboard stops on, in list order: a collapsed group is one stop, its first thread. */
   threadIds: string[];
+  /** Every thread in list order, collapsed groups included. */
+  allIds: string[];
+  /** The group a thread is in, if any. */
+  clusterOf: (id: string) => string | null;
+  /** True when the group's rows are folded into its first one. */
+  isCollapsed: (key: string) => boolean;
+  toggleCluster: (key: string) => void;
+  /** What keyboard actions act on: the picks, else a collapsed group's every thread, else `target`. */
+  targetIds: string[];
   focusedId: string | null;
   openId: string | null;
   target: string | null;
@@ -60,6 +71,9 @@ type FocusStore = {
   /** One range at a time: switching view drops it. */
   range: (key: string) => Range | undefined;
   setRange: (key: string, range: Range | null) => void;
+  /** Groups opened up in a view; every other group stays collapsed. */
+  expanded: (key: string) => string[];
+  setExpanded: (key: string, clusters: string[]) => void;
   /** The list's scroll position: the page remounts when the open thread changes, and the list must not move. */
   listScroll: (key: string) => number | undefined;
   setListScroll: (key: string, top: number) => void;
@@ -109,6 +123,12 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
   const [order, setOrderState] = useState<{ key: string; ids: string[] } | null>(null);
   const [range, setRangeState] = useState<(Range & { key: string }) | null>(null);
   const [pane, setPane] = useState<Pane | null>(null);
+  const [expandedState, setExpandedState] = useState<Record<string, string[]>>({});
+  const expanded = useCallback((key: string) => expandedState[key] ?? [], [expandedState]);
+  const setExpanded = useCallback(
+    (key: string, clusters: string[]) => setExpandedState((prev) => ({ ...prev, [key]: clusters })),
+    [],
+  );
   const lastViewRef = useRef<string | null>(null);
   const autoOpenedRef = useRef<string | null>(null);
   const switchedTo = useCallback((view: string) => {
@@ -149,6 +169,8 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       setOrder,
       range: (key) => (range?.key === key ? range : undefined),
       setRange,
+      expanded,
+      setExpanded,
       listScroll,
       setListScroll,
       pane,
@@ -158,7 +180,7 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       isAutoOpened,
       clearAutoOpened,
     }),
-    [picked, order, set, setOrder, range, setRange, listScroll, setListScroll, pane, switchedTo, setAutoOpened, isAutoOpened, clearAutoOpened],
+    [picked, order, set, setOrder, range, setRange, expanded, setExpanded, listScroll, setListScroll, pane, switchedTo, setAutoOpened, isAutoOpened, clearAutoOpened],
   );
   return <FocusStoreContext.Provider value={value}>{children}</FocusStoreContext.Provider>;
 }
@@ -185,6 +207,7 @@ export function SelectionProvider({
   view,
   account,
   threadIds: serverIds,
+  clusters = {},
   openId,
   children,
 }: {
@@ -192,6 +215,8 @@ export function SelectionProvider({
   account: string | null;
   /** In server order; the list shows them in stable order. */
   threadIds: string[];
+  /** Thread id to its group key, for threads in a group. */
+  clusters?: Record<string, string>;
   openId: string | null;
   children: React.ReactNode;
 }) {
@@ -202,12 +227,35 @@ export function SelectionProvider({
 
   const prevOrder = store.order(key);
   const serverKey = serverIds.join();
-  const threadIds = useMemo(
-    () => stableOrder(prevOrder, serverKey ? serverKey.split(",") : []),
-    [prevOrder, serverKey],
+  const clusterKey = JSON.stringify(clusters);
+  // A group stays together even when new mail joins it.
+  const allIds = useMemo(
+    () => clusterOrder(stableOrder(prevOrder, serverKey ? serverKey.split(",") : []), JSON.parse(clusterKey)),
+    [prevOrder, serverKey, clusterKey],
   );
   const { setOrder } = store;
-  useEffect(() => setOrder(key, threadIds), [setOrder, key, threadIds]);
+  useEffect(() => setOrder(key, allIds), [setOrder, key, allIds]);
+
+  const opened = store.expanded(key);
+  const { setExpanded } = store;
+  // A group's first thread stands for it while collapsed. Opening any other of its threads opens the group.
+  const heads = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const id of allIds) if (clusters[id] && !out.has(clusters[id])) out.set(clusters[id], id);
+    return out;
+  }, [allIds, clusters]);
+  const collapsed = useCallback(
+    (k: string) => !opened.includes(k) && !(openId && clusters[openId] === k && heads.get(k) !== openId),
+    [opened, openId, clusters, heads],
+  );
+  const threadIds = useMemo(
+    () => allIds.filter((id) => !clusters[id] || !collapsed(clusters[id]) || heads.get(clusters[id]) === id),
+    [allIds, clusters, collapsed, heads],
+  );
+  const toggleCluster = useCallback(
+    (k: string) => setExpanded(key, opened.includes(k) ? opened.filter((x) => x !== k) : [...opened, k]),
+    [setExpanded, key, opened],
+  );
   const openIndex = openId ? threadIds.indexOf(openId) : -1;
   const picked = openId ? { id: openId, index: openIndex } : (store.get(key) ?? { id: null, index: 0 });
   const { set: storeSet } = store;
@@ -300,14 +348,27 @@ export function SelectionProvider({
   }, [range, setRange, key]);
   const clearSelected = useCallback(() => setRange(key, null), [setRange, key]);
 
+  const target = openId ?? focusedId;
+  const targetIds = useMemo(() => {
+    if (selectedIds.length) return selectedIds;
+    if (!target) return [];
+    const k = clusters[target];
+    return k && collapsed(k) && heads.get(k) === target ? allIds.filter((id) => clusters[id] === k) : [target];
+  }, [selectedIds, target, clusters, collapsed, heads, allIds]);
+
   const value = useMemo<MailSelection>(
     () => ({
       view,
       account,
       threadIds,
+      allIds,
+      clusterOf: (id) => clusters[id] ?? null,
+      isCollapsed: collapsed,
+      toggleCluster,
+      targetIds,
       focusedId,
       openId,
-      target: openId ?? focusedId,
+      target,
       pane,
       setPane,
       focus: (id) => focusAt(threadIds.indexOf(id)),
@@ -325,7 +386,7 @@ export function SelectionProvider({
       },
       go: (next) => router.push(mailHref(next)),
     }),
-    [view, account, threadIds, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, toggleSelected, endRange, clearSelected, open, router],
+    [view, account, threadIds, allIds, clusters, collapsed, toggleCluster, targetIds, target, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, toggleSelected, endRange, clearSelected, open, router],
   );
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

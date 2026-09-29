@@ -80,7 +80,13 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   const unseen = threads.filter((t) => t.unseen).length;
 
   return (
-    <SelectionProvider view={view.slug} account={on?.length === 1 ? on[0] : null} threadIds={threads.map((t) => t.id)} openId={threadId}>
+    <SelectionProvider
+      view={view.slug}
+      account={on?.length === 1 ? on[0] : null}
+      threadIds={threads.map((t) => t.id)}
+      clusters={Object.fromEntries(threads.flatMap((t) => (t.cluster ? [[t.id, t.cluster.key]] : [])))}
+      openId={threadId}
+    >
       <NavKeys />
       <ComposeKeys />
       <ActionsProvider targets={targets}>

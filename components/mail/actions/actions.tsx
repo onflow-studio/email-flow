@@ -189,7 +189,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
 
   const run = useCallback(
     async (action: ThreadAction, ids?: string[]) => {
-      const targetIds = ids ?? (selected.length ? selected : sel.target ? [sel.target] : []);
+      const targetIds = ids ?? sel.targetIds;
       if (!targetIds.length) return null;
       if (targetIds.some((id) => selected.includes(id))) clearSelected();
       try {
@@ -207,7 +207,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         return null;
       }
     },
-    [sel.target, selected, clearSelected, byId, report, notify, afterAction],
+    [sel.targetIds, selected, clearSelected, byId, report, notify, afterAction],
   );
 
   const runSender = useCallback(
@@ -256,11 +256,11 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   );
 
   const openSnooze = useCallback(() => {
-    const ids = selected.length ? selected : sel.target ? [sel.target] : [];
+    const ids = sel.targetIds;
     if (!ids.length) return;
     setOpenedAt(Date.now());
     setSnoozeIds(ids);
-  }, [selected, sel.target]);
+  }, [sel.targetIds]);
 
   const openDeadline = useCallback(() => {
     if (oneOnly("deadline")) return;
@@ -269,12 +269,12 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
 
   const toggleWork = useCallback(
     (id?: string) => {
-      const threadIds = id ? [id] : selected.length ? selected : sel.target ? [sel.target] : [];
+      const threadIds = id ? [id] : sel.targetIds;
       if (!threadIds.length) return Promise.resolve(null);
       const done = sel.view === "work" && threadIds.every((t) => byId.get(t)?.work);
       return run({ type: done ? "done" : "work" }, threadIds);
     },
-    [selected, sel.target, sel.view, byId, run],
+    [sel.targetIds, sel.view, byId, run],
   );
 
   // The sent toast after a reply on a Work thread offers done through this.

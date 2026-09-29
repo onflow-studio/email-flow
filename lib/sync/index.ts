@@ -1,5 +1,6 @@
 import { asc, eq, isNotNull } from "drizzle-orm";
 
+import { judgeSenders } from "@/lib/classify/machine";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { ReauthRequiredError, getGmailLabelsAdapter } from "@/lib/gmail/client";
@@ -70,5 +71,11 @@ export async function syncAllAccounts(accountId?: string): Promise<AccountSyncOu
     .orderBy(asc(accounts.createdAt));
   const outcomes: AccountSyncOutcome[] = [];
   for (const account of rows) outcomes.push(await syncOne(account));
+  // Settles a few senders' machine flag per pass, for grouping. Best effort: sync is done either way.
+  try {
+    await withLock("superfer:machine", () => judgeSenders(db));
+  } catch (error) {
+    console.error("machine judge pass failed", error);
+  }
   return outcomes;
 }

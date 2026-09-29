@@ -32,6 +32,11 @@ export function NavKeys() {
     else sel.focusPrev();
   };
 
+  const collapsedHead = () => {
+    const k = sel.focusedId ? sel.clusterOf(sel.focusedId) : null;
+    return k && sel.isCollapsed(k) ? k : null;
+  };
+
   const bindings: KeyBinding[] = [
     { id: "thread.next", run: () => step(1) },
     { id: "thread.prev", run: () => step(-1) },
@@ -49,7 +54,16 @@ export function NavKeys() {
       when: () => isDesktop() && sel.pane === "list" && !!sel.focusedId,
       run: () => (sel.focusedId === sel.openId ? sel.setPane("reading") : sel.open()),
     },
-    { id: "thread.open", when: () => !!sel.focusedId && sel.focusedId !== sel.openId, run: () => sel.open() },
+    // Enter on a collapsed group opens it up; the next enter opens the thread.
+    {
+      id: "thread.open",
+      when: () => !!sel.focusedId && (sel.focusedId !== sel.openId || collapsedHead() !== null),
+      run: () => {
+        const k = collapsedHead();
+        if (k) sel.toggleCluster(k);
+        else sel.open();
+      },
+    },
     { keys: "escape", when: () => sel.selectedIds.length > 0, run: () => sel.clearSelected() },
     { id: "thread.close", when: () => !!sel.openId, run: () => sel.close() },
     ...VIEWS.map<KeyBinding>((v) => ({ id: v.command, run: () => sel.go(v.slug) })),

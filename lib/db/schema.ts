@@ -118,6 +118,11 @@ export const senders = pgTable(
     decidedAt: timestamp({ withTimezone: true }),
     decidedBy: decidedBy(),
     imagesAllowed: boolean().notNull().default(false),
+    // Whether the sender is a machine (notifications, bulk mail), for grouping its threads. Null until
+    // judged: by the rules when obvious, else by Jev. See lib/classify/machine.ts.
+    machine: boolean(),
+    // Jev's probability the sender is a machine; null when the rules decided.
+    machineConfidence: real(),
     notes: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

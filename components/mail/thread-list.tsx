@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -52,40 +52,175 @@ export function ThreadList({
   const byId = new Map(threads.map((t) => [t.id, t]));
   const selected = new Set(sel.selectedIds);
   const picking = selected.size > 0;
-  const ordered = sel.threadIds.flatMap((id) => byId.get(id) ?? []);
+  const ordered = sel.allIds.flatMap((id) => byId.get(id) ?? []);
   const work = sel.view === "work";
+
+  // Rows come in blocks: a thread alone, or a group of machine mail from one source.
+  type Block = { key: string; cluster: { key: string; label: string } | null; threads: ThreadListItem[] };
+  const blocks: Block[] = [];
+  for (const t of ordered) {
+    const last = blocks.at(-1);
+    if (t.cluster && last?.cluster?.key === t.cluster.key) last.threads.push(t);
+    else blocks.push({ key: t.cluster ? `c:${t.cluster.key}` : t.id, cluster: t.cluster, threads: [t] });
+  }
+  const blockUnseen = (b: Block) => b.threads.some((t) => t.unseen);
   // Work keeps its own order (deadlines, then queue), so it has no unseen and seen groups.
   const unseen = work ? 0 : threads.filter((t) => t.unseen).length;
   // Group labels only hold while rows sit in server order (unseen first).
   const grouped = ordered.every((t, i) => t.id === threads[i]?.id);
   const firstUnseen = grouped ? 0 : -1;
-  const firstSeen = grouped ? ordered.findIndex((t) => !t.unseen) : -1;
+  const firstSeen = grouped ? blocks.findIndex((b) => !blockUnseen(b)) : -1;
+
+  const row = (t: ThreadListItem, nested = false) => (
+    <li key={t.id} className="relative">
+      <ThreadRow
+        thread={t}
+        accountColors={t.accountIds.map((id) => accountColors[id])}
+        accountNames={t.accountIds.map((id) => accountNames[id] ?? "unknown account")}
+        focused={t.id === sel.focusedId}
+        selected={selected.has(t.id)}
+        open={t.id === sel.openId}
+        href={mailHref(sel.view, { threadId: t.id })}
+        onSelect={() => {
+          sel.endRange();
+          sel.focus(t.id);
+        }}
+        showSnooze={sel.view === "snoozed"}
+        work={work}
+        nested={nested}
+      />
+      {picking ? <PickBox checked={selected.has(t.id)} label={t.subject} onToggle={() => sel.toggleSelected(t.id)} /> : null}
+    </li>
+  );
 
   return (
     <ul ref={listRef} aria-label="threads" className="flex flex-col py-1">
-      {ordered.map((t, i) => (
-        <li key={t.id} className="relative">
-          {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
-          {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
-          <ThreadRow
-            thread={t}
-            accountColors={t.accountIds.map((id) => accountColors[id])}
-            accountNames={t.accountIds.map((id) => accountNames[id] ?? "unknown account")}
-            focused={t.id === sel.focusedId}
-            selected={selected.has(t.id)}
-            open={t.id === sel.openId}
-            href={mailHref(sel.view, { threadId: t.id })}
-            onSelect={() => {
-              sel.endRange();
-              sel.focus(t.id);
-            }}
-            showSnooze={sel.view === "snoozed"}
-            work={work}
-          />
-          {picking ? <PickBox checked={selected.has(t.id)} label={t.subject} onToggle={() => sel.toggleSelected(t.id)} /> : null}
-        </li>
-      ))}
+      {blocks.map((b, i) => {
+        const labels = (
+          <>
+            {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
+            {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
+          </>
+        );
+        if (!b.cluster) {
+          return (
+            <li key={b.key} className="flex flex-col">
+              {labels}
+              <ul>{row(b.threads[0])}</ul>
+            </li>
+          );
+        }
+        const head = b.threads[0];
+        const collapsed = sel.isCollapsed(b.cluster.key);
+        const accountIds = [...new Set(b.threads.flatMap((t) => t.accountIds))];
+        return (
+          <li key={b.key} className="flex flex-col">
+            {labels}
+            <ClusterRow
+              label={b.cluster.label}
+              threads={b.threads}
+              collapsed={collapsed}
+              accountColors={accountIds.map((id) => accountColors[id])}
+              accountNames={accountIds.map((id) => accountNames[id] ?? "unknown account")}
+              focused={collapsed && head.id === sel.focusedId}
+              open={collapsed && head.id === sel.openId}
+              onToggle={() => {
+                sel.endRange();
+                sel.focus(head.id);
+                sel.toggleCluster(b.cluster!.key);
+              }}
+            />
+            {collapsed ? null : <ul className="relative flex flex-col before:absolute before:inset-y-0 before:left-4 before:w-px before:bg-border">{b.threads.map((t) => row(t, true))}</ul>}
+          </li>
+        );
+      })}
     </ul>
+  );
+}
+
+/**
+ * A group of machine mail from one source. Collapsed it is one row standing for all of them, the
+ * keyboard's stop, with a deck edge under it; expanded it is a slim header over its threads.
+ */
+function ClusterRow({
+  label,
+  threads,
+  collapsed,
+  accountColors,
+  accountNames,
+  focused,
+  open,
+  onToggle,
+}: {
+  label: string;
+  threads: ThreadListItem[];
+  collapsed: boolean;
+  accountColors: (string | undefined)[];
+  accountNames: string[];
+  focused: boolean;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const head = threads[0];
+  const fresh = threads.filter((t) => t.unseen).length;
+  const Chevron = collapsed ? ChevronRight : ChevronDown;
+  const names = (
+    <span aria-hidden title={accountNames.join(", ")} className="flex max-w-[35%] min-w-0 shrink-0 gap-1 overflow-hidden whitespace-nowrap text-11">
+      {accountNames.map((name, i) => (
+        <span key={i} className="shrink-0" style={{ color: accountColors[i] ? `color-mix(in srgb, ${accountColors[i]} 40%, var(--text-muted))` : "var(--text-muted)" }}>
+          {name}
+        </span>
+      ))}
+    </span>
+  );
+
+  if (!collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded
+        className="flex h-row min-w-0 items-center gap-2 border-l-2 border-transparent pr-3 pl-6 text-left text-11 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised hover:text-text focus-visible:border-accent focus-visible:bg-surface-raised"
+      >
+        <Chevron aria-hidden className="-ml-4 size-3 shrink-0" strokeWidth={1.5} />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="shrink-0 tabular-nums">{threads.length}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative pb-1.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={false}
+        aria-current={open ? "page" : undefined}
+        data-thread-id={head.id}
+        className={cn(
+          "relative z-10 flex min-h-mail-row w-full min-w-0 flex-col justify-center gap-1 border-l-2 bg-surface pr-3 pl-6 text-left leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
+          focused ? "glow-focus border-accent bg-surface-raised" : "border-transparent hover:bg-surface-raised",
+        )}
+      >
+        <span className="sr-only">group of {threads.length} threads, {fresh} unseen; </span>
+        <span className="flex w-full min-w-0 items-center gap-2">
+          <Chevron aria-hidden className="-ml-4 size-3 shrink-0 text-text-muted" strokeWidth={1.5} />
+          {fresh ? <UnreadDot /> : null}
+          <span className={cn("min-w-0 flex-1 truncate font-medium", fresh ? "text-text" : "text-text-muted")}>{label}</span>
+          {names}
+          <Time iso={head.lastMessageAt} className="shrink-0 text-11 tabular-nums text-text-muted" />
+        </span>
+        <span className="flex w-full min-w-0 items-center gap-2">
+          <span className={cn("min-w-0 flex-1 truncate", fresh ? "text-text-muted" : "text-text-dim")}>{head.subject}</span>
+          <span aria-hidden>
+            <Badge className={fresh ? "text-text" : undefined}>{fresh ? `${fresh} new · ${threads.length}` : `${threads.length} threads`}</Badge>
+          </span>
+        </span>
+      </button>
+      {/* The deck: two edges peeking under the row, one per thread it stands on. */}
+      <span aria-hidden className="absolute inset-x-3 bottom-[3px] h-px bg-border" />
+      <span aria-hidden className="absolute inset-x-6 bottom-0 h-px bg-border/60" />
+    </div>
   );
 }
 
@@ -128,6 +263,7 @@ function ThreadRow({
   onSelect,
   showSnooze,
   work,
+  nested = false,
 }: {
   thread: ThreadListItem;
   /** One per account the conversation reached: twins show each name by the date. */
@@ -142,6 +278,8 @@ function ThreadRow({
   showSnooze: boolean;
   /** Work rows show the deadline and needs reply, and mark an unread reply with the dot. */
   work: boolean;
+  /** Inside an open group: indented past the group's guide line. */
+  nested?: boolean;
 }) {
   const [now] = useState(() => Date.now());
   const overdue = !!t.deadlineAt && new Date(t.deadlineAt).getTime() < now;
@@ -155,7 +293,8 @@ function ThreadRow({
       data-thread-id={t.id}
       onClick={onSelect}
       className={cn(
-        "flex min-h-mail-row min-w-0 flex-col justify-center gap-1 border-l-2 pr-3 pl-6 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
+        nested ? "pl-8" : "pl-6",
+        "flex min-h-mail-row min-w-0 flex-col justify-center gap-1 border-l-2 pr-3 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
         focused
           ? "glow-focus border-accent bg-surface-raised"
           : selected
