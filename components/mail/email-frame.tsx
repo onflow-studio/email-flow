@@ -41,10 +41,13 @@ const BORDER = "#132631";
 /**
  * Plain mail as native text: the app's colors, font, size and prose line height on a
  * transparent page, no frame. Bold is 600 as everywhere; links are text-colored and underlined.
+ * The body is its own formatting context: with no padding, its children's margins would otherwise
+ * escape it, and the frame, sized from the body, would cut the last line off.
  */
 const PLAIN_CSS = `:root{color-scheme:dark}
 html,body{background:transparent!important}
 body{padding:0;color:${TEXT};font:13px/1.6 var(--app-font,ui-monospace,SFMono-Regular,Menlo,monospace)}
+body{display:flow-root}body>:first-child{margin-top:0!important}body>:last-child{margin-bottom:0!important}
 body *{color:inherit!important;background-color:transparent!important;font-family:inherit!important;font-size:inherit!important;line-height:inherit!important;border-color:${BORDER}!important}
 body h1{font-size:20px!important}body h2{font-size:15px!important}
 body h1,body h2,body h3,body b,body strong,body th{font-weight:600!important}
