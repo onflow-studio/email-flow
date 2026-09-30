@@ -88,7 +88,10 @@ const META_REFRESH = /<meta[^>]+http-equiv\s*=\s*["']?refresh[^>]*>/gi;
  * email and the network: no scripts, no remote styles or fonts, no forms, and
  * remote images only when explicitly allowed.
  */
-export function buildEmailDocument(html: string, { allowImages, plain }: { allowImages: boolean; plain: boolean }) {
+export function buildEmailDocument(
+  html: string,
+  { allowImages, plain, invert }: { allowImages: boolean; plain: boolean; invert: boolean },
+) {
   const csp = [
     "default-src 'none'",
     "style-src 'unsafe-inline'",
@@ -103,7 +106,8 @@ export function buildEmailDocument(html: string, { allowImages, plain }: { allow
 
   // Light emails get inverted with a hue rotation so brand colors keep their
   // hue; media is inverted back so photos look right. Plain emails are restyled instead.
-  const invert = !plain && !declaresDarkScheme(html);
+  // Shown as original, a light email sits on white, the page it was designed for.
+  const lightCss = plain || invert || declaresDarkScheme(html) ? "" : "html{background:#fff}";
   // #edf0f5 lands near --surface after invert and hue rotation, so bare emails sit on the pane color.
   const invertCss = invert
     ? `html{background:#edf0f5;filter:invert(1) hue-rotate(180deg)}
@@ -118,7 +122,7 @@ img,picture,video,svg,[style*="background-image"],[background]{filter:invert(1) 
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="referrer" content="no-referrer">
 <base target="_blank">
-<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:break-word;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}body:not([${QUOTE_OPEN}]) [${QUOTE_ATTR}]{display:none!important}${layoutCss}${invertCss}${plain ? PLAIN_CSS : ""}</style>
+<style>html,body{margin:0}html{overflow:hidden}body{padding:12px;overflow-wrap:break-word;font-family:system-ui,sans-serif}img{max-width:100%;height:auto}body:not([${QUOTE_OPEN}]) [${QUOTE_ATTR}]{display:none!important}${layoutCss}${invertCss}${lightCss}${plain ? PLAIN_CSS : ""}</style>
 </head><body>${(allowImages ? restoreRemoteImages(html) : html).replace(META_REFRESH, "")}</body></html>`;
 }
 
@@ -139,7 +143,11 @@ export function EmailFrame({
   const [height, setHeight] = useState(120);
   const allowImages = imagesAllowed || loadImages;
   const plain = useMemo(() => isPlainEmail(html), [html]);
-  const invert = !plain && !declaresDarkScheme(html);
+  const [original, setOriginal] = useState(false);
+  // Light designed emails are inverted to sit in the dark pane; "original colors" is the way out
+  // when the inversion goes wrong.
+  const adapted = !plain && !declaresDarkScheme(html);
+  const invert = adapted && !original;
   const blocked = !allowImages && hasRemoteImages(html);
 
   const [hasQuote, setHasQuote] = useState(false);
@@ -217,17 +225,19 @@ export function EmailFrame({
 
   return (
     <div className="flex flex-col gap-2">
-      {blocked ? (
+      {blocked || adapted ? (
         <p className="flex items-center gap-2 text-11 text-text-muted">
-          <span>remote images blocked</span>
-          <button
-            type="button"
-            onClick={() => setLoadImages(true)}
-            className="text-text-muted underline decoration-text-dim underline-offset-2 transition-colors duration-80 ease-snap hover:text-text"
-          >
-            load images
-          </button>
-          {senderId ? (
+          {blocked ? <span>remote images blocked</span> : null}
+          {blocked ? (
+            <button
+              type="button"
+              onClick={() => setLoadImages(true)}
+              className="text-text-muted underline decoration-text-dim underline-offset-2 transition-colors duration-80 ease-snap hover:text-text"
+            >
+              load images
+            </button>
+          ) : null}
+          {blocked && senderId ? (
             <button
               type="button"
               onClick={() => {
@@ -239,6 +249,16 @@ export function EmailFrame({
               always load from this sender
             </button>
           ) : null}
+          {adapted ? (
+            <button
+              type="button"
+              onClick={() => setOriginal((o) => !o)}
+              aria-pressed={original}
+              className="ml-auto text-text-muted underline decoration-text-dim underline-offset-2 transition-colors duration-80 ease-snap hover:text-text"
+            >
+              {original ? "dark colors" : "original colors"}
+            </button>
+          ) : null}
         </p>
       ) : null}
       <iframe
@@ -246,7 +266,7 @@ export function EmailFrame({
         title="message"
         sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         referrerPolicy="no-referrer"
-        srcDoc={buildEmailDocument(html, { allowImages, plain })}
+        srcDoc={buildEmailDocument(html, { allowImages, plain, invert })}
         onLoad={onLoad}
         // An inverted email renders light, so its own dark media queries stay off and are not inverted back.
         style={{ height, colorScheme: invert ? "light" : "dark" }}
