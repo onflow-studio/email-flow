@@ -11,13 +11,15 @@ import { cn } from "@/lib/utils";
 
 import { QuoteFold } from "./quote-fold";
 
-/** Declares a dark scheme via meta, CSS `color-scheme`, or a dark media query. */
+/**
+ * Declares a dark scheme via meta or CSS `color-scheme`. A dark media query alone does not count:
+ * senders like Google Calendar use it to lighten text only, leaving their white backgrounds.
+ */
 export function declaresDarkScheme(html: string) {
   return (
     /<meta[^>]+name=["']?color-scheme["']?[^>]*content=["'][^"']*dark/i.test(html) ||
     /<meta[^>]+content=["'][^"']*dark[^"']*["'][^>]*name=["']?color-scheme/i.test(html) ||
-    /color-scheme\s*:\s*[^;}"']*dark/i.test(html) ||
-    /prefers-color-scheme\s*:\s*dark/i.test(html)
+    /(^|[^-])color-scheme\s*:\s*[^;}"']*dark/i.test(html)
   );
 }
 
@@ -137,6 +139,7 @@ export function EmailFrame({
   const [height, setHeight] = useState(120);
   const allowImages = imagesAllowed || loadImages;
   const plain = useMemo(() => isPlainEmail(html), [html]);
+  const invert = !plain && !declaresDarkScheme(html);
   const blocked = !allowImages && hasRemoteImages(html);
 
   const [hasQuote, setHasQuote] = useState(false);
@@ -245,7 +248,8 @@ export function EmailFrame({
         referrerPolicy="no-referrer"
         srcDoc={buildEmailDocument(html, { allowImages, plain })}
         onLoad={onLoad}
-        style={{ height }}
+        // An inverted email renders light, so its own dark media queries stay off and are not inverted back.
+        style={{ height, colorScheme: invert ? "light" : "dark" }}
         className={cn("w-full bg-transparent", !plain && "rounded-sm border border-border")}
       />
       {hasQuote && quoteLabel !== null ? <QuoteFold label={quoteLabel} open={quoteOpen} onToggle={toggleQuote} /> : null}
