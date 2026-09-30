@@ -268,8 +268,8 @@ export function EmailFrame({
         referrerPolicy="no-referrer"
         srcDoc={buildEmailDocument(html, { allowImages, plain, invert })}
         onLoad={onLoad}
-        // An inverted email renders light, so its own dark media queries stay off and are not inverted back.
-        style={{ height, colorScheme: invert ? "light" : "dark" }}
+        // A light email renders light, inverted or not, so its own dark media queries stay off.
+        style={{ height, colorScheme: adapted ? "light" : "dark" }}
         className={cn("w-full bg-transparent", !plain && "rounded-sm border border-border")}
       />
       {hasQuote && quoteLabel !== null ? <QuoteFold label={quoteLabel} open={quoteOpen} onToggle={toggleQuote} /> : null}
