@@ -90,9 +90,9 @@ export async function viewCounts(on: string[] | null): Promise<ViewCounts> {
 
 /**
  * Work: overdue deadlines, then upcoming ones soonest first (both by deadline ascending), then the
- * threads without one in the order they entered Work.
+ * threads without one, newest activity first.
  */
-const workOrder = () => [sql`${threads.deadlineAt} asc nulls last`, asc(threads.workAt), desc(threads.lastMessageAt)];
+const workOrder = () => [sql`${threads.deadlineAt} asc nulls last`, desc(threads.lastMessageAt)];
 
 export async function listThreads(view: View, on: string[] | null) {
   const last = db

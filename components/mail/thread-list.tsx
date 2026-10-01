@@ -119,12 +119,21 @@ export function ThreadList({
     else blocks.push({ key: t.cluster ? `c:${t.cluster.key}` : t.id, cluster: t.cluster, threads: [t] });
   }
   const blockUnseen = (b: Block) => b.threads.some((t) => t.unseen);
-  // Work keeps its own order (deadlines, then queue), so it has no unseen and seen groups.
+  // Work keeps its own order (deadlines, then by date), so it has no unseen and seen groups.
   const unseen = work ? 0 : threads.filter((t) => t.unseen).length;
   // Group labels only hold while rows sit in server order (unseen first).
   const grouped = ordered.every((t, i) => t.id === threads[i]?.id);
   const firstUnseen = grouped ? 0 : -1;
   const firstSeen = grouped ? blocks.findIndex((b) => !blockUnseen(b)) : -1;
+  // Work groups by when: deadlines first, then the rest by their newest message.
+  const weekStart = startOfWeek(new Date(), 0);
+  const lastWeekStart = startOfWeek(new Date(), 1);
+  const when = (t: ThreadListItem) => {
+    if (t.deadlineAt) return "deadlines";
+    const at = new Date(t.lastMessageAt).getTime();
+    return at >= weekStart ? "this week" : at >= lastWeekStart ? "last week" : "older";
+  };
+  const whenAt = (i: number) => (work && grouped && blocks[i] ? when(blocks[i].threads[0]) : null);
 
   const row = (t: ThreadListItem, nested = false) => (
     // A hairline under every thread, so each one reads as its own box where it starts and ends.
@@ -159,6 +168,7 @@ export function ThreadList({
           <>
             {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
             {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
+            {whenAt(i) && whenAt(i) !== whenAt(i - 1) ? <GroupLabel>{whenAt(i)}</GroupLabel> : null}
           </>
         );
         if (!b.cluster) {
@@ -304,6 +314,12 @@ function PickBox({ checked, label, onToggle }: { checked: boolean; label: string
       </span>
     </button>
   );
+}
+
+/** Monday 00:00 local time, `weeksBack` weeks before the week holding `d`. */
+function startOfWeek(d: Date, weeksBack: number): number {
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7) - 7 * weeksBack);
+  return monday.getTime();
 }
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
