@@ -279,7 +279,7 @@ function ComposePanel({
         rememberAccount(result.accountId);
         onSent(`sent from ${result.accountLabel}`, result.work ? init.threadId : null);
         onClose();
-        if (draftIdRef.current) router.refresh();
+        router.refresh();
       } else {
         setError(result.error);
       }

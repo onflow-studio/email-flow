@@ -17,6 +17,8 @@ import {
   type ReplyHeaders,
 } from "@/lib/gmail/send";
 import { formatAddressList, parseRecipients } from "@/lib/mail/address";
+import { getGmailSyncAdapter } from "@/lib/sync/gmail";
+import { ingestThread } from "@/lib/sync/store";
 
 import {
   composeSubject,
@@ -254,8 +256,9 @@ export async function sendCompose(input: ComposeSend): Promise<SendResult> {
     }
   }
 
+  let sent: Awaited<ReturnType<typeof sendMessage>>;
   try {
-    await sendMessage(accountId, { ...built.message, attachments: files }, built.gmailThreadId);
+    sent = await sendMessage(accountId, { ...built.message, attachments: files }, built.gmailThreadId);
   } catch (error) {
     console.error("compose: send failed", error);
     if (error instanceof ReauthRequiredError) {
@@ -264,11 +267,19 @@ export async function sendCompose(input: ComposeSend): Promise<SendResult> {
     return { ok: false, error: `send failed for ${accountLabel}, retry` };
   }
 
+  // Stored now so the reply shows in its thread at once; otherwise the next sync brings it in.
+  await storeSent(accountId, sent.gmailThreadId).catch((error) => console.error("compose: could not store sent message", error));
   if (draft) {
     // Sent is sent; a leftover draft only clutters, so a failure here is logged, not shown.
     await dropDraft(draft).catch((error) => console.error("compose: could not remove sent draft", error));
   }
   return { ok: true, accountId, accountLabel, work: built.work };
+}
+
+async function storeSent(accountId: string, gmailThreadId: string): Promise<void> {
+  const [account] = await db.select({ id: accounts.id, email: accounts.email }).from(accounts).where(eq(accounts.id, accountId));
+  if (!account) return;
+  await ingestThread(db, await getGmailSyncAdapter(accountId), account, gmailThreadId);
 }
 
 /** Saves the form as a Gmail draft in its account, creating it on the first save. */
