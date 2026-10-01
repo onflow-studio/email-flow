@@ -14,7 +14,7 @@ function rule(structured: Record<string, unknown>, overrides: Partial<RuleInput>
     text: "rule",
     updatedAt: saved,
     structured: {
-      match: { senders: [], domains: [], accounts: [], subjectKeywords: [], ...(structured.match as object) },
+      match: { senders: [], fromNames: [], domains: [], accounts: [], subjectKeywords: [], ...(structured.match as object) },
       semantic: null,
       bucket: null,
       keepOut: false,
@@ -31,7 +31,7 @@ const vercelPayments = rule({ match: { domains: ["vercel.com"] }, semantic: "fai
 const paymentsAnywhere = rule({ semantic: "failed payments", bucket: "inbox" });
 
 const thread: ThreadInput = context().thread;
-const none: RuleConditions = { senders: [], domains: [], accounts: [], subjectKeywords: [] };
+const none: RuleConditions = { senders: [], fromNames: [], domains: [], accounts: [], subjectKeywords: [] };
 
 function answer(bucket: ModelBucket, urgency = 1): ClassifierAnswer {
   return {
@@ -54,7 +54,7 @@ describe("readRule", () => {
     expect(
       readRule({ match: { senders: ["Billing@Vercel.com"], domains: ["@Stripe.com"] }, semantic: " ", keepOut: true, bucket: "news" }),
     ).toEqual({
-      conditions: { senders: ["billing@vercel.com"], domains: ["stripe.com"], accounts: [], subjectKeywords: [] },
+      conditions: { senders: ["billing@vercel.com"], fromNames: [], domains: ["stripe.com"], accounts: [], subjectKeywords: [] },
       semantic: null,
       bucket: "out",
     });
@@ -86,6 +86,18 @@ describe("matchesConditions", () => {
       expect(matchesConditions({ ...none, accounts: [a] }, { ...thread, accountLabel: "work" })).toBe(true);
     }
     expect(matchesConditions({ ...none, accounts: ["work2"] }, thread)).toBe(false);
+  });
+
+  it("matches a sender name whole and case-insensitively, against the newest inbound message", () => {
+    const github = { ...thread, fromEmail: "notifications@github.com", fromName: "Linear-Code[bot]", latest: null };
+    const bot = { ...none, fromNames: ["linear-code[bot]"] };
+    expect(matchesConditions(bot, github)).toBe(true);
+    expect(matchesConditions({ ...none, fromNames: ["linear"] }, github)).toBe(false);
+    const reviewer = { fromName: "A Reviewer", fromEmail: "notifications@github.com", fromUser: false, text: "" };
+    expect(matchesConditions(bot, { ...github, latest: reviewer })).toBe(false);
+    expect(matchesConditions(bot, { ...github, fromName: "A Reviewer", latest: { ...reviewer, fromName: "linear-code[bot]" } })).toBe(true);
+    expect(matchesConditions(bot, { ...github, latest: { ...reviewer, fromName: "Me", fromUser: true } })).toBe(true);
+    expect(matchesConditions(bot, { ...github, fromName: null })).toBe(false);
   });
 
   it("matches subject words case-insensitively", () => {

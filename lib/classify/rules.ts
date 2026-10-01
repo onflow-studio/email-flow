@@ -2,7 +2,7 @@ import type { Bucket } from "@/lib/db/schema";
 
 import { MODEL_BUCKETS, type Decision, type ModelBucket, type ModelResult, type RuleInput, type SenderFacts, type ThreadInput } from "./types";
 
-// Hybrid rules. A rule's literal conditions (sender, domain, account, subject words) are matched
+// Hybrid rules. A rule's literal conditions (sender, sender name, domain, account, subject words) are matched
 // here; its semantic part ("failed payments") is judged by the model.
 // - literal only, all conditions match: the rule bucket applies directly, the model is not asked
 // - literal plus semantic, literal part matches: the model decides; the rule bucket applies when its
@@ -15,6 +15,9 @@ export const RULE_URGENCY = 4;
 
 export type RuleConditions = {
   senders: string[];
+  // Display names, matched whole: GitHub sends every notification from one address, the bot
+  // or person behind it is only in the name.
+  fromNames: string[];
   domains: string[];
   accounts: string[];
   subjectKeywords: string[];
@@ -57,6 +60,7 @@ export function readRule(structured: unknown): ReadRule | null {
   return {
     conditions: {
       senders: strings(match.senders),
+      fromNames: strings(match.fromNames),
       domains: strings(match.domains).map((d) => d.replace(/^@/, "")),
       accounts: strings(match.accounts),
       subjectKeywords: strings(match.subjectKeywords),
@@ -67,18 +71,24 @@ export function readRule(structured: unknown): ReadRule | null {
 }
 
 export function hasLiteralConditions(c: RuleConditions): boolean {
-  return c.senders.length + c.domains.length + c.accounts.length + c.subjectKeywords.length > 0;
+  return c.senders.length + c.fromNames.length + c.domains.length + c.accounts.length + c.subjectKeywords.length > 0;
 }
 
 function domainOf(email: string) {
   return email.slice(email.lastIndexOf("@") + 1).toLowerCase();
 }
 
+type MatchInput = Pick<ThreadInput, "fromEmail" | "fromName" | "latest" | "accountEmail" | "accountLabel" | "subject">;
+
+// Whose name a name condition checks: the newest inbound message, so a thread of mixed senders
+// (one GitHub PR, many commenters) follows whoever wrote last; the first message otherwise.
+function senderName(thread: MatchInput) {
+  const latest = thread.latest && !thread.latest.fromUser ? thread.latest : null;
+  return (latest ? latest.fromName : thread.fromName)?.trim().toLowerCase() ?? null;
+}
+
 // Every non-empty condition list must match; within a list, any entry may.
-export function matchesConditions(
-  c: RuleConditions,
-  thread: Pick<ThreadInput, "fromEmail" | "accountEmail" | "accountLabel" | "subject">,
-): boolean {
+export function matchesConditions(c: RuleConditions, thread: MatchInput): boolean {
   const from = thread.fromEmail.toLowerCase();
   const fromDomain = domainOf(from);
   const account = thread.accountEmail.toLowerCase();
@@ -86,6 +96,10 @@ export function matchesConditions(
   const subject = (thread.subject ?? "").toLowerCase();
 
   if (c.senders.length && !c.senders.includes(from)) return false;
+  if (c.fromNames.length) {
+    const name = senderName(thread);
+    if (!name || !c.fromNames.includes(name)) return false;
+  }
   if (c.domains.length && !c.domains.some((d) => fromDomain === d || fromDomain.endsWith(`.${d}`))) {
     return false;
   }
@@ -105,7 +119,7 @@ function savedAt(rule: RuleInput) {
 
 export function evaluateRules(
   rules: RuleInput[],
-  thread: Pick<ThreadInput, "fromEmail" | "accountEmail" | "accountLabel" | "subject">,
+  thread: MatchInput,
   {
     senderCorrectedAt = null,
     screening = false,
