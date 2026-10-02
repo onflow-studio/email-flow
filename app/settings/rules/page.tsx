@@ -7,7 +7,7 @@ import { rules } from "@/lib/db/schema";
 
 import { RulesSection } from "../rules-section";
 
-export const metadata: Metadata = { title: "rules · settings · superfer" };
+export const metadata: Metadata = { title: "rules · settings · email-flow" };
 
 export default async function RulesPage() {
   const ruleRows = await db

@@ -42,7 +42,7 @@ const lightNewsletter = (title: string, body: string) => `
   <tr><td align="center" style="padding:24px">
     <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:6px">
       <tr><td style="padding:24px">
-        <img src="https://picsum.photos/seed/superfer/512/160" width="512" height="160" alt="header" style="display:block;border-radius:4px">
+        <img src="https://picsum.photos/seed/email-flow/512/160" width="512" height="160" alt="header" style="display:block;border-radius:4px">
         <h1 style="color:#111;font-size:22px;margin:20px 0 8px">${title}</h1>
         <p style="color:#333;font-size:15px;line-height:1.6">${body}</p>
         <p><a href="https://example.com/read" style="background:#0a66ff;color:#fff;padding:10px 16px;border-radius:4px;text-decoration:none">Read more</a></p>
@@ -56,7 +56,7 @@ const darkEmail = `
 <html><head><meta name="color-scheme" content="dark"><style>:root{color-scheme:dark}</style></head>
 <body style="background:#111418;color:#e6e6e6;font-family:system-ui,sans-serif;padding:24px">
   <h2 style="margin:0 0 12px">Deploy succeeded</h2>
-  <p>Production deployment <code style="color:#7ee787">superfer-9f3a</code> is live.</p>
+  <p>Production deployment <code style="color:#7ee787">email-flow-9f3a</code> is live.</p>
   <p style="color:#8b949e">Build 38s, 12 functions, 0 warnings.</p>
 </body></html>`;
 
@@ -129,10 +129,10 @@ const THREADS: SeedThread[] = [
   },
   {
     account: "work1",
-    subject: "Deploy succeeded: superfer-9f3a",
+    subject: "Deploy succeeded: email-flow-9f3a",
     bucket: "inbox",
     seen: true,
-    messages: [{ from: { name: "Vercel", email: "notifications@vercel.com" }, minutesAgo: 3 * D, text: "Production deployment superfer-9f3a is live.", html: darkEmail }],
+    messages: [{ from: { name: "Vercel", email: "notifications@vercel.com" }, minutesAgo: 3 * D, text: "Production deployment email-flow-9f3a is live.", html: darkEmail }],
   },
   {
     account: "personal",

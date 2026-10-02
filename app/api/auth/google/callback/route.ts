@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       .where(eq(accounts.email, email));
 
     if (!columns.refreshTokenEnc && !existing?.refreshTokenEnc) {
-      return back(request, { error: `no refresh token for ${email}, remove superfer access in google account settings and connect again` });
+      return back(request, { error: `no refresh token for ${email}, remove email-flow access in google account settings and connect again` });
     }
 
     await db

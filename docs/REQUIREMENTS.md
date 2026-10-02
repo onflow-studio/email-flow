@@ -1,4 +1,4 @@
-# superfer — Requirements
+# email-flow — Requirements
 
 Personal email client for one user. Aggregates three Gmail accounts, adds HEY-style triage, Superhuman-style keyboard speed, and AI that knows the mail. Decided 2026-09-22.
 
