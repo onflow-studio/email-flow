@@ -2,6 +2,8 @@ name: superfer
 
 services:
   postgres:
+    # pgvector is for the planned semantic search (phase 1.5). No migration enables it yet;
+    # until then it works as plain Postgres 16.
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
