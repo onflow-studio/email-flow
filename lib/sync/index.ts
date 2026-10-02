@@ -3,9 +3,9 @@ import { asc, eq, isNotNull } from "drizzle-orm";
 import { judgeSenders } from "@/lib/classify/machine";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
-import { ReauthRequiredError, getGmailLabelsAdapter } from "@/lib/gmail/client";
+import { ReauthRequiredError, getGmailLabelsAdapter, markReauthRequired } from "@/lib/gmail/client";
 import { getGmailDraftsAdapter } from "@/lib/gmail/drafts";
-import { isRateLimitError } from "@/lib/gmail/errors";
+import { isInvalidGrant, isRateLimitError } from "@/lib/gmail/errors";
 
 import { syncDrafts } from "./drafts";
 import { getGmailSyncAdapter } from "./gmail";
@@ -47,8 +47,13 @@ async function syncOne(account: typeof accounts.$inferSelect): Promise<AccountSy
     if (outcome === "busy") return { ...base, status: "busy" };
     return { ...base, status: "ok", result: outcome };
   } catch (error) {
-    // getGmailClient already recorded "reconnect required" on the account.
+    // getGmailClient already recorded the reconnect message on the account.
     if (error instanceof ReauthRequiredError) return { ...base, status: "reauth" };
+    // The token died mid-pass, on a refresh the library did on its own.
+    if (isInvalidGrant(error)) {
+      await markReauthRequired(account.id);
+      return { ...base, status: "reauth" };
+    }
     // Gmail asked us to slow down. Progress is saved and the next pass picks up from there, so this
     // is not a failure to show; it also proves the account is reachable, so an old error is stale.
     if (isRateLimitError(error)) {

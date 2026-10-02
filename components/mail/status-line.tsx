@@ -1,12 +1,12 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { refreshSync } from "@/app/(mail)/actions";
 import { Kbd, KeyHints } from "@/components/ui/kbd";
-import { needsReconnect } from "@/lib/gmail/status";
+import { needsReconnect, reconnectHref } from "@/lib/gmail/status";
+import { expiryText } from "@/lib/sync/expiry";
 
 import { COMMANDS, effectiveKeys, type CommandId } from "./keys/commands";
 import { useOverrides, usePendingKeys, shortcutOf } from "./keys/keymap";
@@ -16,10 +16,13 @@ import { Time } from "./time";
 
 type SyncAccount = {
   id: string;
+  email: string;
   label: string;
   color: string;
   lastSyncAt: string | null;
   lastSyncError: string | null;
+  // Gmail access about to lapse, or lapsed, by the refresh token's age (lib/sync/expiry.ts).
+  accessExpiry: { state: "expiring" | "expired"; expiresAt: string } | null;
   // First sync or a stale-cursor recovery still working through its backlog, a slice per pass.
   catchingUp: boolean;
   /** Toggled on in the header. */
@@ -38,7 +41,10 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
       setError(result.ok ? null : result.error);
     });
 
-  const failed = accounts.filter((a) => a.lastSyncError);
+  // Only a new Google consent fixes these: Google refused the token, or its lifetime ran out.
+  const reconnect = accounts.filter((a) => needsReconnect(a.lastSyncError) || a.accessExpiry?.state === "expired");
+  const retry = accounts.filter((a) => a.lastSyncError && !reconnect.includes(a));
+  const expiring = accounts.filter((a) => a.accessExpiry?.state === "expiring" && !reconnect.includes(a));
   const catchingUp = accounts.filter((a) => a.catchingUp);
   const lastSync = accounts
     .map((a) => a.lastSyncAt)
@@ -51,23 +57,21 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
   if (sel.selectedIds.length) state = <span className="text-text">{sel.selectedIds.length} selected</span>;
   else if (syncing) state = "syncing";
   else if (error) state = <span className="text-warning">{error}</span>;
-  else if (failed.length) {
-    const reconnect = failed.filter((a) => needsReconnect(a.lastSyncError));
-    const retry = failed.filter((a) => !needsReconnect(a.lastSyncError));
-    state = (
-      <span className="text-warning">
-        {reconnect.length ? (
-          <>
-            sync failed for {reconnect.map((a) => a.label).join(", ")},{" "}
-            <Link href="/settings" className="underline decoration-warning underline-offset-2 hover:text-text">
-              reconnect
-            </Link>
-          </>
-        ) : null}
-        {reconnect.length && retry.length ? "; " : null}
-        {retry.length ? <>sync failed for {retry.map((a) => a.label).join(", ")}, retry</> : null}
-      </span>
-    );
+  else if (reconnect.length || retry.length || expiring.length) {
+    const notes: React.ReactNode[] = [
+      ...reconnect.map((a) => (
+        <span key={a.id}>
+          {a.label}: gmail access expired, <ReconnectLink email={a.email} />
+        </span>
+      )),
+      ...(retry.length ? [<span key="retry">sync failed for {retry.map((a) => a.label).join(", ")}, retry</span>] : []),
+      ...expiring.map((a) => (
+        <span key={a.id} suppressHydrationWarning>
+          {a.label}: {expiryText(a.accessExpiry!)}, <ReconnectLink email={a.email} />
+        </span>
+      )),
+    ];
+    state = <span className="text-warning">{notes.flatMap((n, i) => (i ? ["; ", n] : [n]))}</span>;
   }
   else if (catchingUp.length) state = `catching up ${catchingUp.map((a) => a.label).join(", ")}`;
   else if (!accounts.length) state = "no accounts";
@@ -140,5 +144,15 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
       </span>
       {hint}
     </footer>
+  );
+}
+
+/** Straight into Google consent for this address, the same flow settings uses. */
+function ReconnectLink({ email }: { email: string }) {
+  // OAuth start is a route handler redirecting to Google, not a page, so a plain link.
+  return (
+    <a href={reconnectHref(email)} className="underline decoration-warning underline-offset-2 hover:text-text">
+      reconnect
+    </a>
   );
 }

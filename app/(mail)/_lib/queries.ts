@@ -52,6 +52,7 @@ export async function listAccounts() {
       color: accounts.color,
       lastSyncAt: accounts.lastSyncAt,
       lastSyncError: accounts.lastSyncError,
+      refreshTokenIssuedAt: accounts.refreshTokenIssuedAt,
       catchingUp: isNotNull(accounts.catchUp).mapWith(Boolean),
     })
     .from(accounts)
