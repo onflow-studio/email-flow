@@ -65,7 +65,7 @@ Write a rule the way you'd say it, in English or Spanish. The AI parses it into 
 
 <img src="docs/readme/radio.png" alt="The station panel open above the status line, listing five focus stations" width="900">
 
-The status line has a radio. Hover it, pick a station, and focus music plays while you clear the inbox. It got so much use that it now also lives in the menu bar as [Flow Radio](https://github.com/onflow-studio/radio-flow).
+The status line has a radio. Hover it, pick a station, and focus music plays while you clear the inbox. It got so much use that it now also lives in the menu bar as [Radio Flow](https://github.com/onflow-studio/radio-flow).
 
 ### In your pocket
 
