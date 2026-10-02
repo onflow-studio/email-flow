@@ -40,7 +40,12 @@ export async function GET(request: NextRequest) {
 
     await db
       .insert(accounts)
-      .values({ email, ...defaultAccountStyle(email), ...columns, lastSyncError: null })
+      .values({
+        email,
+        ...defaultAccountStyle(email, await db.select({ label: accounts.label, color: accounts.color }).from(accounts)),
+        ...columns,
+        lastSyncError: null,
+      })
       .onConflictDoUpdate({
         target: accounts.email,
         set: { ...columns, lastSyncError: null },

@@ -29,7 +29,7 @@ export type ClassifierAnswer = z.infer<typeof answerSchema>;
 export type ClassifierRequest = { system: string; prompt: string };
 
 // Identical for every thread so the prefix caches. Everything per thread goes in the user message.
-export const SYSTEM_PROMPT = `You sort incoming email for one person who reads three Gmail accounts.
+export const SYSTEM_PROMPT = `You sort incoming email for one person who reads one or more Gmail accounts.
 You get one thread as JSON and answer with calibrated probabilities. Be honest about doubt: when a thread
 could fit two buckets, split the probability rather than putting 0.95 on one.
 
