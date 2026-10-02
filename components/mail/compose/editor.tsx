@@ -165,6 +165,8 @@ export function ComposeToolbar({
           <button
             key={t.key}
             type="button"
+            // Out of the tab order: tab goes from the subject straight into the body, and every tool has a shortcut.
+            tabIndex={-1}
             title={t.title}
             aria-pressed={t.on}
             onMouseDown={(e) => e.preventDefault()}
@@ -189,6 +191,7 @@ export function ComposeToolbar({
             type="file"
             accept={IMAGE_TYPES.join(",")}
             multiple
+            tabIndex={-1}
             className="sr-only"
             onChange={(e) => {
               onImages(Array.from(e.target.files ?? []));
