@@ -1,10 +1,10 @@
 # email-flow — Tech Plan
 
-Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
+Companion to REQUIREMENTS.md and DESIGN.md.
 
 ## Principles
 
-1. Mac first, hosted later, with the move being config only: change the database URL, add a cron, update the OAuth redirect. No rewrite.
+1. Runs locally or hosted, with the move being config only: change the database URL, add a cron, update the OAuth redirect. No rewrite.
 2. One language, one process type. TypeScript everywhere. No Redis, no queue service, no separate worker service. Background work is rows in a table processed by a function.
 3. Own database is the source of truth for triage state. Gmail is transport plus a rough mirror.
 4. Vendors behind one module. Nothing outside `lib/ai` knows which model or gateway answered.
@@ -14,9 +14,9 @@ Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
 
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | Next.js App Router, TypeScript | Runs as one process on the Mac, deploys to Vercel unchanged, AI SDK native |
+| Framework | Next.js App Router, TypeScript | Runs as one process locally, deploys to Vercel unchanged, AI SDK native |
 | Package manager | pnpm | Fast, strict |
-| Database | Postgres 16 with pgvector, Docker locally, Neon later | Same engine both places, built-in full-text search now, vectors in 1.5 |
+| Database | Postgres 16 with pgvector, Docker locally, Neon hosted | Same engine both places, built-in full-text search now, vectors in 1.5 |
 | ORM | Drizzle | SQL-shaped, migrations are plain SQL that run identically on Neon |
 | Gmail | Google APIs Node client, OAuth 2 per account | Official, supports history sync and label writes |
 | Classification | Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) via `@ai-sdk/anthropic`, structured output | Fast, cheap, same key as the rest; probabilities are self-reported, so thresholds sit higher |
@@ -27,7 +27,7 @@ Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
 | Palette | cmdk | Keyboard-first command palette, extensible with actions |
 | Editor | Tiptap | ProseMirror, emits clean HTML, h1-h3 bold italic underline links images |
 | Email HTML | sanitize-html server-side, sandboxed iframe render | Strip scripts and trackers, block remote images by default |
-| Sync process | Separate Node script, `pnpm sync`, loops every 5 min | Mirrors Vercel cron later, decoupled from web server |
+| Sync process | Separate Node script, `pnpm sync`, loops every 5 min locally; Vercel cron hits the sync route when hosted | Same pass both ways, decoupled from web server |
 | Tests | Vitest, unit only on `lib/classify` and `lib/sync` | Lighter to start |
 
 ## Repo layout
@@ -36,7 +36,7 @@ Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
 email-flow/
   app/                    Next.js routes and UI
     (mail)/               three-pane shell, buckets, thread, compose
-    api/sync/route.ts     POST triggers one sync pass, used by cron later
+    api/sync/route.ts     GET or POST runs one sync pass, used by the cron
     api/auth/google/      OAuth start and callback per account
   lib/
     db/                   drizzle schema, client, migrations
@@ -47,7 +47,7 @@ email-flow/
     mail/                 html sanitize, text extraction, thread grouping
     actions/              archive, snooze, work, move, undo log
   scripts/
-    sync.ts               loop runner for the Mac
+    sync.ts               local loop runner
     backfill.ts           year-to-date import per account
   docker-compose.yml      postgres with pgvector
   DESIGN.md
@@ -84,7 +84,7 @@ Phase 1.5 adds `embeddings` (chunk, vector) and `entities` (people, projects, co
 
 Every Gmail call goes through a per-account limiter in `lib/gmail/quota.ts`: at most 4 calls in flight, a token bucket spending 100 quota units a second (Gmail allows 15,000 a minute per user, shared by the loop, backfill and web), and 429 or rate-limit 403 retries with jittered exponential backoff that honor Retry-After. A pass that still runs out of quota ends quietly and resumes next pass; it is not a sync failure.
 
-`scripts/sync.ts` loops all accounts every 5 minutes. `app/api/sync/route.ts` runs one pass, protected by a bearer secret, so a Vercel cron can hit it later. The refresh button calls the same route.
+`scripts/sync.ts` loops all accounts every 5 minutes. `app/api/sync/route.ts` runs one pass, protected by a bearer secret, which the Vercel cron calls when hosted. The refresh button calls the same route.
 
 Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the current year forward, per account, in batches, enqueuing classify for each thread but with a lower priority so live mail is never behind history. It paces Gmail through the same limiter on a smaller budget (`--rate`, default 60 units a second, about a quarter of the per-user quota) and waits out rate limits instead of failing.
 
@@ -95,7 +95,7 @@ Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the cur
 - Prompt: a fixed system prompt (bucket, urgency and screening definitions) marked for prompt caching, then a user message with sender facts (domain, prior decision, counts across accounts), subject, first 2k chars of text, headers like list-unsubscribe and precedence, the enabled rules, and up to 5 similar recent corrections (same sender or domain first, then same subject words) as examples.
 - Output in one call: probabilities for inbox, news, paper_trail and receipts (normalized to sum to 1, top one is the bucket), urgency 1-5, human written probability, if sender is unknown legit new sender probability, and a one-line summary for the list, in the mail's own language. The raw output and model id go to `classifications`, the summary to the thread. A new message in a known thread queues the same call in summary-only mode, which never moves the bucket; the list shows the snippet until the summary catches up, and News always keeps the snippet. `pnpm summarize` fills summaries for threads imported before them, paced in calls per minute. Errors and 429s throw with SDK retries off, so the job runner's backoff retries.
 - Thresholds in `lib/classify/thresholds.ts`, per bucket. Above threshold: apply and set bucket source ai. Thresholds sit a notch above what a calibrated classifier would need, since the model reports its own confidence. Below: apply the top bucket but mark as suggested and show the `--info` inline note. Unknown sender below the legit threshold: bucket triage.
-- Second opinion (`lib/classify/confirm.ts`): an AI placement below threshold (not promoted, not held in triage) is asked once more of Jev, with one Choice over the four buckets on sender, subject, list-unsubscribe and the first 1,500 characters. When Jev picks the same bucket with confidence 0.9 or more, the placement is applied without the suggested note. The bucket itself never changes. Jev's answer is kept in the classification's raw response; a Jev error or a missing `JEV_API_KEY` leaves the suggestion as it was. Checked against production history on 2026-09-29: `pnpm confirm` cleared 166 of 403 live suggestions, and none of the 18 threads the user had corrected would have been auto-applied. Failed CI runs go to inbox and paid bookings (flights, hotels, car rentals, itineraries) to receipts, in both Claude's and Jev's definitions. `pnpm confirm [--limit n] [--dry-run]` applies it to threads classified before it existed.
+- Second opinion (`lib/classify/confirm.ts`): an AI placement below threshold (not promoted, not held in triage) is asked once more of Jev, with one Choice over the four buckets on sender, subject, list-unsubscribe and the first 1,500 characters. When Jev picks the same bucket with confidence 0.9 or more, the placement is applied without the suggested note. The bucket itself never changes. Jev's answer is kept in the classification's raw response; a Jev error or a missing `JEV_API_KEY` leaves the suggestion as it was. Failed CI runs go to inbox and paid bookings (flights, hotels, car rentals, itineraries) to receipts, in both Claude's and Jev's definitions. `pnpm confirm [--limit n] [--dry-run]` applies it to threads classified before it existed.
 - Urgency 4 or higher on a paper_trail or receipts result promotes to inbox. This is the failed-payment rule.
 - Participation (`lib/classify/participation.ts`): ingest runs it on every thread with an outbound message, classify again after a triage call. Undecided inbound senders become allowed by ai, a triage thread whose first sender is now allowed moves to inbox (source ai), all logged in `actions_log` as `participation` under one batch, the move enqueuing writeback. Senders whose AI let-in was undone (an open `undoAiAllow` row) are skipped. `pnpm participation [--dry-run]` applied it once to mail synced before the rule.
 
@@ -180,6 +180,8 @@ LOGIN_REDIRECT_URI    optional, defaults to /api/auth/login/callback on GOOGLE_R
 AUTH_DISABLED         dev only, 1 skips the login gate, ignored in production
 ```
 
+Optional settings (`CONNECTABLE_EMAILS`, `GOOGLE_TOKEN_LIFETIME_DAYS`, `DEPLOY_REGION`, `GMAIL_LABEL_PREFIX`, `MAIL_LOCALE`) keep their defaults when unset. [DEPLOY.md](DEPLOY.md) lists every variable.
+
 ## Login gate
 
 `proxy.ts` sits in front of every page, route handler and server action. Without a valid session, pages redirect to `/login` and everything else (API routes, server action posts) gets 401. Exempt: `/login`, `/api/auth/login/*`, `/api/sync` (bearer `SYNC_SECRET`) and static assets, manifest and icons. Connecting a Gmail account needs a session like any other page.
@@ -188,58 +190,15 @@ Login is Google sign-in on the same OAuth client with `openid email profile` onl
 
 ## Hosting
 
-Production: https://your-app.vercel.app, deployed 2026-09-24 under a Vercel team (Pro plan), linked to `onflow-studio/email-flow`. Node.js 24, functions in Frankfurt (`fra1`), alongside the Neon Marketplace database `superfer` (Free plan, Frankfurt). The app's Google login gate protects the production hostname; Vercel Standard Protection also protects preview and deployment-specific URLs.
+Same code locally and hosted; moving between them is configuration, not a rewrite. Node.js 24 (`.nvmrc`, `engines` in package.json).
 
-The move is configuration only: `vercel.ts`, its `@vercel/config` development dependency, and `.vercelignore` to exclude local environment files from uploads. No application changes or additional services. AI continues to use the existing Anthropic integration.
+- Locally: Docker Postgres, `pnpm dev`, and `pnpm sync` looping every 5 minutes.
+- Hosted: Vercel for the app and a managed Postgres such as Neon. `vercel.ts` schedules `GET /api/sync` every 5 minutes, and the route allows `maxDuration = 300`. Vercel cron sends `Authorization: Bearer <CRON_SECRET>`, so `CRON_SECRET` is set to the same value as `SYNC_SECRET`.
+- `DATABASE_URL` must be a direct (unpooled) connection. Sync holds session-level advisory locks on a reserved connection, and transaction pooling cannot keep them.
+- Migrations are applied by hand with `pnpm db:migrate` against the target database. The build does not run them.
+- Run one sync writer per database: the cron or `pnpm sync`, not both.
 
-### Database cutover
-
-Restored a full custom-format `pg_dump` from `superfer-postgres-1` into the empty Neon database with `pg_restore --no-owner --no-acl --exit-on-error --single-transaction`. This includes `drizzle.__drizzle_migrations`; migrations 0000–0009 were **not** rerun over the restored schema. Future migrations use `pnpm db:migrate` with the production URL explicitly supplied.
-
-All table counts matched before hosted sync started:
-
-| Table | Local and Neon rows |
-| --- | ---: |
-| drizzle.__drizzle_migrations | 10 |
-| accounts | 3 |
-| actions_log | 169 |
-| attachments | 2,112 |
-| classifications | 877 |
-| corrections | 28 |
-| jobs | 1,849 |
-| keybindings | 1 |
-| messages | 2,498 |
-| rules | 0 |
-| sender_accounts | 431 |
-| senders | 386 |
-| threads | 1,480 |
-
-Encrypted refresh tokens matched exactly, and `TOKEN_ENCRYPTION_KEY` was copied unchanged. No pending or running jobs existed at cutover. A private local backup is retained at `.vercel/pre-hosting.dump` (gitignored).
-
-**Use Neon's direct URL for production `DATABASE_URL`.** Marketplace initially supplies a pooled URL; it was overridden with `DATABASE_URL_UNPOOLED` because sync reserves a connection for session-level advisory locks. Transaction pooling cannot preserve those locks. No driver changes are needed.
-
-Local `.env` keeps `DATABASE_URL` pointed at Docker and stores the hosted direct URL separately as `PRODUCTION_DATABASE_URL`. The Mac sync loop is stopped and must stay stopped for normal use. The Docker database is now a development snapshot and diverges from production. Maintenance scripts (`backfill`, `summarize`, `participation`, `twins`) require an explicit production `DATABASE_URL` override; do not run two sync writers. The historical summarization batch has not been run as part of deployment.
-
-### Production environment and OAuth
-
-Production app variables: `DATABASE_URL`, `TOKEN_ENCRYPTION_KEY`, `SYNC_SECRET`, `CRON_SECRET`, `ANTHROPIC_API_KEY`, `JEV_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `LOGIN_REDIRECT_URI`, `ALLOWED_EMAILS`, `SESSION_SECRET`. `AUTH_DISABLED` is unset. Production credentials are not assigned to preview or development environments; Neon also supplies its standard connection aliases in production.
-
-The existing Google Cloud OAuth client has these authorized production redirects (in addition to localhost):
-
-- `https://your-app.vercel.app/api/auth/google/callback`
-- `https://your-app.vercel.app/api/auth/login/callback`
-
-Google's consent app remains in Testing. Gmail refresh tokens expire after seven days; accounts connected around September 23 may require reconnecting around **September 30, 2026**. Expiry warnings, palette reconnect, and a separate Internal OAuth project for Work1 Workspace accounts remain follow-ups, not part of this deployment.
-
-### Scheduled sync
-
-`vercel.ts` schedules `GET /api/sync` with `*/5 * * * *`. Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically; setting `CRON_SECRET` equal to `SYNC_SECRET` preserves the existing route's authentication without a code change. Rotate both together. The route retains `maxDuration = 300`; the Pro plan supports the five-minute schedule.
-
-The first authenticated hosted pass on September 24 at 14:05:27 UTC returned HTTP 200 in 8.579 seconds. All three accounts returned `ok`; two new messages generated two successful classification jobs and two successful Gmail write-back jobs, with no retries or failures.
-
-Inspect runs with `vercel logs --environment production --query '/api/sync' --since 1h --scope <team>`. Check account outcomes and `last_sync_error` as well as HTTP status: reconnect, busy, and throttled outcomes are not HTTP 500 errors.
-
-Custom domain, AI Gateway migration, and the real phone/PWA install check (#15) remain optional follow-ups.
+Step-by-step setup for a new deployment is in [DEPLOY.md](DEPLOY.md).
 
 ## Build order
 
