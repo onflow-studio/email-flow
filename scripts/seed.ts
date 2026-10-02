@@ -93,7 +93,7 @@ const THREADS: SeedThread[] = [
   },
   {
     account: "personal",
-    subject: "the school's class calendar 2026-27",
+    subject: "Class calendar 2026-27",
     bucket: "inbox",
     messages: [
       { from: { name: "Northside School", email: "office@school.example" }, minutesAgo: 4 * H, text: "Estimadas familias, adjuntamos el calendario escolar del curso 2026-27.", attachments: [{ filename: "calendario-2026-27.pdf", mimeType: "application/pdf", size: 402_112 }] },

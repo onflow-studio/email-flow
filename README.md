@@ -1,53 +1,127 @@
-# superfer
+<p align="center">
+  <img src="docs/readme/hero.png" alt="superfer: a dark, monospace mail client with a bucket rail, a thread list and an open thread" width="900">
+</p>
 
-A personal email client for one person. Aggregates three Gmail accounts into one keyboard-driven, dark-only web app with AI triage.
+<p align="center">
+  <b>Mail for exactly one person.</b><br>
+  Three Gmail inboxes, one keyboard, and an AI that learns how I sort.<br>
+  Built for me, by me and Claude. Not a product.
+</p>
 
-Think Superhuman's speed and HEY's screener, rebuilt as a cyberpunk terminal that grew up, with an AI layer that learns how you sort your mail and, later, answers questions about it.
+<p align="center">
+  <a href="#philosophy">Philosophy</a> ·
+  <a href="#a-tour">Tour</a> ·
+  <a href="#under-the-hood">Under the hood</a> ·
+  <a href="#make-it-yours">Make it yours</a>
+</p>
 
-## Status
+---
 
-Phase 1 built: sync, AI buckets and screener, actions with undo, compose, palette, backfill and rules, phone layout. See:
+## Why
 
-- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md): features, phases, scope
+I had three Gmail accounts open in three tabs: personal, and two companies. Every client I tried was built for millions of people, so it fit none of them well. Gmail can't be configured, has no AI over my own mail, no screener for strangers, and mixes newsletters with the email that actually needs me.
+
+So I stopped looking for the right client and built my own. The success criterion was simple: **close the Gmail tabs for two weeks and never reopen them.** They've stayed closed.
+
+## Philosophy
+
+**Software for one.** superfer has exactly one user. There's no onboarding, no settings for other people's problems, no growth loop. Every decision answers one question: does this make *my* mail better? That freedom is what makes it fast.
+
+**Make it yours, with AI.** Personalized software used to mean a team and a year. Now it's a conversation. This whole client was designed and built with Claude, feature by feature, the way I actually work. The future of software isn't one app for everyone. It's everyone with their own app.
+
+**AI sorts, you correct.** Every new thread lands in one of five buckets: Inbox, News, Paper Trail, Receipts or Triage. The AI suggests, and every correction becomes an example it learns from. Rules are plain language ("vercel failed payments go to inbox"), and nothing is hidden: every thread shows its bucket, and moving it is one key.
+
+**The keyboard is the interface.** Every action has a key, every key can be rebound, and triage never needs the mouse. A single command palette searches mail, runs actions, and previews bulk changes before they happen. A terminal that grew up.
+
+**Own the truth.** My database is the source of truth and Gmail is just the transport. Triage state, snoozes, decisions and rules live in my Postgres. Read, archive and spam sync back to Gmail, so the Gmail app on my phone still works as a fallback.
+
+## A tour
+
+### Triage: strangers wait at the door
+
+<img src="docs/readme/triage.png" alt="The triage view: a queue of new senders and a decision bar to let them in or keep them out" width="900">
+
+New senders don't get into my inbox until I say so. The AI lets in the obvious ones (someone replying to a thread I started, say) and holds everyone else in Triage. Let in or keep out is one key, and it decides for every new sender in the thread at once.
+
+### One palette for everything
+
+<img src="docs/readme/palette.png" alt="The command palette: thread search results on the left, bulk actions with thread counts on the right" width="900">
+
+`⌘K` searches every thread and lists the actions that apply to the results. Bulk actions show exactly which threads they'll touch before anything runs. Single-thread actions run at once and can be undone.
+
+### Write without leaving the thread
+
+<img src="docs/readme/compose.png" alt="A reply composing in a panel docked over the reading pane" width="900">
+
+Replies dock over the reading pane, so the thread stays readable while you write. Rich text, per-account signatures, and replies always leave from the account that received the mail.
+
+### Rules in plain language
+
+<img src="docs/readme/rules.png" alt="Settings, rules: four plain-language rules, each with the AI's parsed summary" width="900">
+
+Write a rule the way you'd say it, in English or Spanish. The AI parses it into literal conditions (sender, domain, account) and judgment calls ("failed payments"), and shows you what it understood.
+
+### Music while you work
+
+<img src="docs/readme/radio.png" alt="The station panel open above the status line, listing five focus stations" width="900">
+
+The status line has a radio. Hover it, pick a station, and focus music plays while you clear the inbox. It got so much use that it now also lives in the menu bar as [Flow Radio](https://github.com/f3r/flow-radio).
+
+### In your pocket
+
+<img src="docs/readme/phone.png" alt="superfer on a phone: bucket tabs and a one-line thread list" width="900">
+
+On the phone it's a home-screen web app for reading and quick replies. Heavy triage stays on the desktop.
+
+## And also
+
+- **Work.** A separate view for threads that need real effort, out of every bucket until they're done.
+- **Snooze with intent.** Snooze can also mark a thread as needing a reply, with a deadline. When it comes back it goes to the top, and a reply in the meantime brings it back early.
+- **Twins.** The same mail arriving in two accounts is grouped, and replies go out from the account it was addressed to.
+- **Remote images blocked** by default, per sender when you want them.
+- **Grouped machine mail.** Notifications from one service fold into a single row.
+
+## Under the hood
+
+| | |
+| --- | --- |
+| App | Next.js, React, TypeScript, Tailwind. Dark mode only, monospace only, every value from [DESIGN.md](DESIGN.md) |
+| Data | Postgres with pgvector, Drizzle |
+| AI | Claude: Haiku 4.5 classifies every thread, Sonnet for everything else. All calls go through `lib/ai` and `lib/classify` |
+| Sync | A five-minute loop over the Gmail API, with history IDs for changes and a resumable year-to-date backfill |
+| Editor | Tiptap. Palette: cmdk |
+
+It runs on my Mac today. Moving it to Vercel and a managed Postgres is meant to be a config change: no queues, no Redis, no Mac-only dependencies, secrets in env.
+
+The thinking behind it is written down:
+
+- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md): what to build and why, phases, what's out of scope
 - [docs/TECH-PLAN.md](docs/TECH-PLAN.md): stack, data model, pipelines, build order
-- [DESIGN.md](DESIGN.md): design system
+- [DESIGN.md](DESIGN.md): the design system
 
-## Core ideas
+## Make it yours
 
-- **Five buckets**: Inbox, News, Paper Trail, Receipts, Triage. AI sorts, you correct, it learns.
-- **AI-gated screener**: new senders are held in Triage unless the AI is confident they're legit.
-- **Own database is the truth**: Gmail becomes transport plus a rough mirror, so the Gmail app still works as a fallback.
-- **Keyboard first**: full triage without a mouse, command palette for search and actions.
-- **Mac first, hosted later**: Postgres in Docker now, Neon and Vercel later, with the move being config only.
+superfer is built around my three accounts and my habits, and that's the point. Don't use mine: fork it and have your AI make it yours. Change the buckets, the keys, the colours, the rules. It's the same conversation that built it.
 
-## Stack
+To run it you need Node 20.9+, pnpm, Docker, a Google Cloud OAuth client with the Gmail API enabled, and an Anthropic API key.
 
-Next.js, TypeScript, Postgres with pgvector, Drizzle, Claude (Haiku 4.5 classifies, Sonnet for the rest), Tailwind, Tiptap, cmdk.
-
-## Running
-
-Needs Node 20.9+ (Next.js 16), pnpm, and Docker.
-
-```
+```sh
 cp .env.example .env      # fill in, see below
 docker compose up -d      # postgres with pgvector on :5432
 pnpm install
 pnpm db:migrate
 pnpm dev                  # web on :3000
-pnpm sync                 # 5-minute sync loop, separate terminal
+pnpm sync                 # 5-minute sync loop, in a second terminal
 ```
 
-Then open `/settings` and connect each Gmail account. Once connected:
+Open `/settings` and connect each Gmail account, then import this year's mail with `pnpm backfill` (resumable; `--account <email>`, `--restart`, `--batch <n>`).
 
-```
-pnpm backfill             # year-to-date import, resumable; --account <email>, --restart, --batch <n>
-```
+Just want to look around? `pnpm seed` fills three fictional accounts with sample mail. Don't run it against a database with real mail.
 
-Without Gmail, `pnpm seed` fills three fake accounts with sample threads so the UI can be tried. It replaces only its own `seed-` threads, but do not run it against a database with real mail.
+<details>
+<summary><b>Environment variables</b></summary>
 
-### Environment
-
-All in `.env` (gitignored).
+All in `.env`, which is gitignored.
 
 | Variable | Needed for | Value |
 |---|---|---|
@@ -55,20 +129,34 @@ All in `.env` (gitignored).
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | connecting accounts | OAuth client (web application) in Google Cloud, Gmail API enabled |
 | `GOOGLE_REDIRECT_URI` | connecting accounts | `http://localhost:3000/api/auth/google/callback`, also listed on the OAuth client |
 | `TOKEN_ENCRYPTION_KEY` | storing OAuth tokens | `openssl rand -base64 32` |
-| `ANTHROPIC_API_KEY` | classification and parsing rules (Claude) | Anthropic API key |
-| `SYNC_SECRET` | `POST /api/sync` (cron later) | any long random string, sent as `Authorization: Bearer <secret>` |
+| `ANTHROPIC_API_KEY` | classification and rules | Anthropic API key |
+| `ALLOWED_EMAILS` | logging in | comma-separated Google accounts allowed in |
+| `SESSION_SECRET` | logging in | at least 32 characters, `openssl rand -base64 48` |
+| `SYNC_SECRET` | `POST /api/sync` | any long random string, sent as `Authorization: Bearer <secret>` |
 
-### Checks
+</details>
 
-```
+<details>
+<summary><b>Checks</b></summary>
+
+```sh
 pnpm typecheck
 pnpm lint
 pnpm test                 # unit tests, lib/classify and lib/sync only
 pnpm build
 ```
 
-### Phone
+</details>
 
-Open the app from the phone's browser and add it to the home screen: it runs standalone from the web manifest. On the Mac setup the dev server already listens on the local network, so use `http://<mac-ip>:3000`. iOS adds plain-HTTP sites to the home screen; Android's install prompt needs HTTPS, which comes with hosting. Connect Gmail accounts from the desktop browser, since the OAuth redirect points at localhost.
+<details>
+<summary><b>On the phone</b></summary>
 
-Single user, private. Not a product.
+Open the app in the phone's browser and add it to the home screen; it runs standalone from the web manifest. On the Mac setup the dev server already listens on the local network, so use `http://<mac-ip>:3000`. iOS adds plain-HTTP sites to the home screen; Android's install prompt needs HTTPS, which comes with hosting. Connect Gmail accounts from the desktop browser, since the OAuth redirect points at localhost.
+
+</details>
+
+## Where it's going
+
+Phase 1, replacing the Gmail tabs, is done: sync, AI buckets and screener, actions with undo, compose, the palette, rules and the phone layout.
+
+Next is **an AI that knows the mail.** That means semantic search over the full history, questions in plain language ("what happened in the website relaunch project last year?"), a picture of the people, projects and companies in my mail, and a daily digest. Later, replies drafted in my own voice, and channels beyond email.
