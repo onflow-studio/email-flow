@@ -22,13 +22,21 @@ export const SPAM_LABEL = "SPAM";
 
 export type LabelledBucket = "inbox" | "news" | "paper_trail" | "receipts" | "triage";
 
-export const BUCKET_LABELS: Record<LabelledBucket, string> = {
-  inbox: "superfer/inbox",
-  news: "superfer/news",
-  paper_trail: "superfer/paper-trail",
-  receipts: "superfer/receipts",
-  triage: "superfer/triage",
-};
+export const DEFAULT_LABEL_PREFIX = "superfer";
+
+// Gmail label names for our buckets, under GMAIL_LABEL_PREFIX. Changing the prefix on a live
+// instance creates a fresh set of labels; the old ones stay in Gmail untouched.
+export function bucketLabels(
+  prefix = process.env.GMAIL_LABEL_PREFIX?.trim() || DEFAULT_LABEL_PREFIX,
+): Record<LabelledBucket, string> {
+  return {
+    inbox: `${prefix}/inbox`,
+    news: `${prefix}/news`,
+    paper_trail: `${prefix}/paper-trail`,
+    receipts: `${prefix}/receipts`,
+    triage: `${prefix}/triage`,
+  };
+}
 
 export type LabelIds = Record<LabelledBucket, string>;
 
@@ -47,7 +55,7 @@ export async function ensureLabels(accountId: string, gmail: GmailLabelsPort): P
 
   const existing = new Map((await gmail.listLabels()).map((l) => [l.name, l.id]));
   const ids = {} as LabelIds;
-  for (const [bucket, name] of Object.entries(BUCKET_LABELS) as [LabelledBucket, string][]) {
+  for (const [bucket, name] of Object.entries(bucketLabels()) as [LabelledBucket, string][]) {
     ids[bucket] = existing.get(name) ?? (await gmail.createLabel(name)).id;
   }
   labelCache.set(accountId, ids);
