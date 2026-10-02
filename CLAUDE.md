@@ -1,4 +1,4 @@
-# superfer
+# email-flow
 
 Personal email client for one user, three Gmail accounts. Read these before any work:
 

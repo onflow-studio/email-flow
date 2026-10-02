@@ -1,4 +1,4 @@
-# superfer — Tech Plan
+# email-flow — Tech Plan
 
 Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
 
@@ -33,7 +33,7 @@ Companion to REQUIREMENTS.md and DESIGN.md. Decided 2026-09-23.
 ## Repo layout
 
 ```
-superfer/
+email-flow/
   app/                    Next.js routes and UI
     (mail)/               three-pane shell, buckets, thread, compose
     api/sync/route.ts     POST triggers one sync pass, used by cron later
@@ -188,7 +188,7 @@ Login is Google sign-in on the same OAuth client with `openid email profile` onl
 
 ## Hosting
 
-Production: https://your-app.vercel.app, deployed 2026-09-24 under a Vercel team (Pro plan), linked to `f3r/superfer`. Node.js 24, functions in Frankfurt (`fra1`), alongside the Neon Marketplace database `superfer` (Free plan, Frankfurt). The app's Google login gate protects the production hostname; Vercel Standard Protection also protects preview and deployment-specific URLs.
+Production: https://your-app.vercel.app, deployed 2026-09-24 under a Vercel team (Pro plan), linked to `f3r/email-flow`. Node.js 24, functions in Frankfurt (`fra1`), alongside the Neon Marketplace database `superfer` (Free plan, Frankfurt). The app's Google login gate protects the production hostname; Vercel Standard Protection also protects preview and deployment-specific URLs.
 
 The move is configuration only: `vercel.ts`, its `@vercel/config` development dependency, and `.vercelignore` to exclude local environment files from uploads. No application changes or additional services. AI continues to use the existing Anthropic integration.
 

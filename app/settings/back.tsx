@@ -41,7 +41,7 @@ function LeaveButton({ className }: { className?: string }) {
   );
 }
 
-/** `>_ superfer / settings`: the logo half goes back like esc does. */
+/** `>_ email-flow / settings`: the logo half goes back like esc does. */
 export function SettingsPath() {
   const router = useRouter();
   return (
@@ -55,7 +55,7 @@ export function SettingsPath() {
         className="flex items-center gap-2 rounded-sm text-text-muted outline-none transition-colors duration-80 ease-snap hover:text-text focus-visible:text-text"
       >
         <span className="text-accent">&gt;<span className="cursor-blink">_</span></span>
-        superfer
+        email-flow
       </Link>
       <span className="text-text-dim">/</span>
       <span className="text-text">settings</span>

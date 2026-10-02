@@ -344,7 +344,7 @@ export const actionsLog = pgTable(
   (t) => [index().on(t.threadId), index().on(t.batchId), index().on(t.createdAt)],
 );
 
-// Unsent messages. Each is a Gmail draft in its account; superfer writes them from compose and
+// Unsent messages. Each is a Gmail draft in its account; email-flow writes them from compose and
 // sync reads the ones written elsewhere. See lib/sync/drafts.ts.
 export const drafts = pgTable(
   "drafts",

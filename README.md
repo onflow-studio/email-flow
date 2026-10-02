@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/readme/hero.png" alt="superfer: a dark, monospace mail client with a bucket rail, a thread list and an open thread" width="900">
+  <img src="docs/readme/hero.png" alt="email-flow: a dark, monospace mail client with a bucket rail, a thread list and an open thread" width="900">
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@ So I stopped looking for the right client and built my own. The success criterio
 
 ## Philosophy
 
-**Software for one.** superfer has exactly one user. There's no onboarding, no settings for other people's problems, no growth loop. Every decision answers one question: does this make *my* mail better? That freedom is what makes it fast.
+**Software for one.** email-flow has exactly one user. There's no onboarding, no settings for other people's problems, no growth loop. Every decision answers one question: does this make *my* mail better? That freedom is what makes it fast.
 
 **Make it yours, with AI.** Personalized software used to mean a team and a year. Now it's a conversation. This whole client was designed and built with Claude, feature by feature, the way I actually work. The future of software isn't one app for everyone. It's everyone with their own app.
 
@@ -69,7 +69,7 @@ The status line has a radio. Hover it, pick a station, and focus music plays whi
 
 ### In your pocket
 
-<img src="docs/readme/phone.png" alt="superfer on a phone: bucket tabs and a one-line thread list" width="900">
+<img src="docs/readme/phone.png" alt="email-flow on a phone: bucket tabs and a one-line thread list" width="900">
 
 On the phone it's a home-screen web app for reading and quick replies. Heavy triage stays on the desktop.
 
@@ -101,7 +101,7 @@ The thinking behind it is written down:
 
 ## Make it yours
 
-superfer is built around my three accounts and my habits, and that's the point. Don't use mine: fork it and have your AI make it yours. Change the buckets, the keys, the colours, the rules. It's the same conversation that built it.
+email-flow is built around my three accounts and my habits, and that's the point. Don't use mine: fork it and have your AI make it yours. Change the buckets, the keys, the colours, the rules. It's the same conversation that built it.
 
 To run it you need Node 20.9+, pnpm, Docker, a Google Cloud OAuth client with the Gmail API enabled, and an Anthropic API key.
 

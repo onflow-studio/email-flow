@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 // Colors repeat DESIGN.md --bg and --accent: the manifest cannot read CSS variables.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "superfer",
-    short_name: "superfer",
+    name: "email-flow",
+    short_name: "email-flow",
     description: "Personal mail client",
     start_url: "/inbox",
     scope: "/",

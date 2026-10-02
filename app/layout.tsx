@@ -12,10 +12,10 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "superfer",
+  title: "email-flow",
   description: "Personal mail client",
-  applicationName: "superfer",
-  appleWebApp: { capable: true, title: "superfer", statusBarStyle: "black" },
+  applicationName: "email-flow",
+  appleWebApp: { capable: true, title: "email-flow", statusBarStyle: "black" },
 };
 
 // themeColor is DESIGN.md --bg; metadata cannot read CSS variables.
