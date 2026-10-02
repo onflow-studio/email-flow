@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, notInArray, sql } from "drizzle-orm";
 
 import { applyParticipation } from "@/lib/classify/participation";
 import { wantsSummary } from "@/lib/classify/summary";
@@ -195,6 +195,7 @@ export async function ingestThread(
     }
 
     let inserted = 0;
+    let insertedInbound = 0;
     for (const { m, inbound } of parsed) {
       const files = m.attachments.map((a) => ({ ...a, id: randomUUID() }));
       const byContentId = new Map(
@@ -225,6 +226,7 @@ export async function ingestThread(
         .onConflictDoNothing()
         .returning({ id: messages.id });
       if (row) inserted++;
+      if (row && inbound) insertedInbound++;
       if (row && files.length > 0) {
         await tx.insert(attachments).values(files.map((f) => ({ ...f, messageId: row.id })));
       }
@@ -286,6 +288,12 @@ export async function ingestThread(
     const reconciled =
       link?.linked && link.groupId ? await reconcileGroup(tx, link.groupId, { joining: created ? [threadId] : [], now }) : null;
     const joined = created && !!reconciled && reconciled.source !== threadId;
+
+    // A reply ends a snooze early: the thread resurfaces where it would at the snooze's end, on every copy.
+    if (existing && insertedInbound > 0) {
+      const copies = link?.groupId ? eq(threads.groupId, link.groupId) : eq(threads.id, threadId);
+      await tx.update(threads).set({ snoozedUntil: now }).where(and(copies, gt(threads.snoozedUntil, now)));
+    }
 
     const classify = created && !joined && derived.hasInbound && !mirror.trashed && !mirror.spam;
     if (classify) await enqueueClassify(tx, { id: threadId, accountId: account.id }, classifyPriority);
