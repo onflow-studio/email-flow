@@ -87,11 +87,11 @@ On the phone it's a home-screen web app for reading and quick replies. Heavy tri
 | --- | --- |
 | App | Next.js, React, TypeScript, Tailwind. Dark mode only, monospace only, every value from [DESIGN.md](DESIGN.md) |
 | Data | Postgres with pgvector, Drizzle |
-| AI | Claude: Haiku 4.5 classifies every thread, Sonnet for everything else. All calls go through `lib/ai` and `lib/classify` |
+| AI | Claude: Haiku 4.5 classifies every thread, Sonnet for everything else. Optional second opinion from TypeSafe's Jev. All calls go through `lib/ai` and `lib/classify` |
 | Sync | A five-minute loop over the Gmail API, with history IDs for changes and a resumable year-to-date backfill |
 | Editor | Tiptap. Palette: cmdk |
 
-It runs on my Mac today. Moving it to Vercel and a managed Postgres is meant to be a config change: no queues, no Redis, no Mac-only dependencies, secrets in env.
+It runs locally with Docker, or on Vercel with a managed Postgres, and moving between the two is a config change: no queues, no Redis, no machine-specific dependencies, secrets in env. See [docs/DEPLOY.md](docs/DEPLOY.md) for a fresh deploy.
 
 The thinking behind it is written down:
 
@@ -103,7 +103,13 @@ The thinking behind it is written down:
 
 email-flow is built around my three accounts and my habits, and that's the point. Don't use mine: fork it and have your AI make it yours. Change the buckets, the keys, the colours, the rules. It's the same conversation that built it.
 
-To run it you need Node 20.9+, pnpm, Docker, a Google Cloud OAuth client with the Gmail API enabled, and an Anthropic API key.
+### One instance, one person
+
+email-flow is single-tenant on purpose. There is no user column anywhere: one deployment holds one person's mail, from as many Gmail accounts as they connect. Everyone who can sign in sees every connected account. So `ALLOWED_EMAILS` should list only your own sign-in addresses, never a colleague's or a partner's. If two people want email-flow, run two instances with two databases.
+
+### Run it
+
+To run it you need Node 20.9+, pnpm, Docker, a Google Cloud OAuth client with the Gmail API enabled ([step by step](docs/GOOGLE-OAUTH.md)), and an Anthropic API key.
 
 ```sh
 cp .env.example .env      # fill in, see below
@@ -118,21 +124,60 @@ Open `/settings` and connect each Gmail account, then import this year's mail wi
 
 Just want to look around? `pnpm seed` fills three fictional accounts with sample mail. Don't run it against a database with real mail.
 
+To put it online, [docs/DEPLOY.md](docs/DEPLOY.md) walks through a fresh Vercel and Neon deploy.
+
+### Testing mode: reconnect every 7 days
+
+The Gmail scopes email-flow needs are restricted, and publishing an OAuth app with restricted scopes takes a paid security assessment. A personal instance stays in Google's Testing mode instead, where refresh tokens expire after 7 days. In practice: about once a week, open `/settings` and reconnect each account. The app warns you before a connection expires. The details are in [docs/GOOGLE-OAUTH.md](docs/GOOGLE-OAUTH.md#testing-mode-and-the-7-day-reconnect).
+
+### What leaves your instance
+
+Your mail lives in your Postgres. These are the only outside services the app talks to:
+
+- **Gmail API** (Google): sync, sending, and writing read, archive, spam and bucket labels back.
+- **Anthropic API**: thread contents go to Claude for classification, rule parsing and summaries.
+- **TypeSafe Jev**, optional and off unless `JEV_API_KEY` is set: a second-opinion classifier. It is asked to confirm Claude's bucket suggestions (when it confidently agrees, the thread stops being marked as a suggestion), and once per new sender whether the mail comes from a person or a machine (for grouped machine mail). Each call sends the sender, subject and the first 1500 characters of the body to TypeSafe's API, which TypeSafe bills per use. Without the key nothing is sent: suggestions stay marked for you to check, and only senders that are obviously automated get grouped.
+- **YouTube IFrame API**: the radio loads it from youtube.com the first time you press play. Until then nothing is requested.
+- **Remote images** in mail are blocked by default. When you allow them for a sender, your browser fetches them from that sender's servers.
+
+The font is bundled at build time, and there is no analytics or telemetry.
+
 <details>
 <summary><b>Environment variables</b></summary>
 
-All in `.env`, which is gitignored.
+All in `.env`, which is gitignored; on Vercel, in the project's environment variables. [.env.example](.env.example) has the same list with comments.
 
-| Variable | Needed for | Value |
+Required:
+
+| Variable | Purpose | Value |
 |---|---|---|
-| `DATABASE_URL` | everything | `postgres://superfer:superfer@localhost:5432/superfer` with the compose file |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | connecting accounts | OAuth client (web application) in Google Cloud, Gmail API enabled |
-| `GOOGLE_REDIRECT_URI` | connecting accounts | `http://localhost:3000/api/auth/google/callback`, also listed on the OAuth client |
-| `TOKEN_ENCRYPTION_KEY` | storing OAuth tokens | `openssl rand -base64 32` |
-| `ANTHROPIC_API_KEY` | classification and rules | Anthropic API key |
-| `ALLOWED_EMAILS` | logging in | comma-separated Google accounts allowed in |
-| `SESSION_SECRET` | logging in | at least 32 characters, `openssl rand -base64 48` |
-| `SYNC_SECRET` | `POST /api/sync` | any long random string, sent as `Authorization: Bearer <secret>` |
+| `DATABASE_URL` | Postgres with pgvector | `postgres://superfer:superfer@localhost:5432/superfer` with the compose file |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | signing in and connecting accounts | OAuth client (web application), see [docs/GOOGLE-OAUTH.md](docs/GOOGLE-OAUTH.md) |
+| `GOOGLE_REDIRECT_URI` | connecting accounts | `http://localhost:3000/api/auth/google/callback`. Register it on the OAuth client together with `/api/auth/login/callback` on the same origin |
+| `TOKEN_ENCRYPTION_KEY` | encrypting stored OAuth tokens | `openssl rand -base64 32` |
+| `ANTHROPIC_API_KEY` | classification, rules, summaries | Anthropic API key |
+| `ALLOWED_EMAILS` | signing in | comma-separated Google addresses allowed in. Only your own: everyone listed sees all mail from every connected account |
+| `SESSION_SECRET` | signing the session cookie | at least 32 characters, `openssl rand -base64 48` |
+| `SYNC_SECRET` | `/api/sync` | any long random string, sent as `Authorization: Bearer <secret>`. Needed when sync runs over HTTP (Vercel cron); `pnpm sync` doesn't use it |
+
+Required on Vercel:
+
+| Variable | Purpose | Value |
+|---|---|---|
+| `CRON_SECRET` | the five-minute sync cron | Vercel cron sends it as the bearer token. Set it to the same value as `SYNC_SECRET` |
+
+Optional (unset keeps the default):
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `LOGIN_REDIRECT_URI` | sign-in callback | `/api/auth/login/callback` on `GOOGLE_REDIRECT_URI`'s origin |
+| `AUTH_DISABLED` | `1` skips the login gate in development | off. Ignored in production |
+| `CONNECTABLE_EMAILS` | comma-separated Gmail addresses that may be connected as accounts | any address |
+| `GOOGLE_TOKEN_LIFETIME_DAYS` | days before a connection must be renewed, for the expiry warning | `7` (Testing mode). `0` turns the warnings off, for a published consent screen |
+| `DEPLOY_REGION` | Vercel functions region, for example `iad1` | Vercel's default |
+| `GMAIL_LABEL_PREFIX` | prefix of the bucket labels written to Gmail | `superfer/` |
+| `MAIL_LOCALE` | locale for dates in quoted and forwarded headers | `en-US` |
+| `JEV_API_KEY` | TypeSafe Jev second opinion, see [What leaves your instance](#what-leaves-your-instance) | unset: never called |
 
 </details>
 
@@ -151,7 +196,7 @@ pnpm build
 <details>
 <summary><b>On the phone</b></summary>
 
-Open the app in the phone's browser and add it to the home screen; it runs standalone from the web manifest. On the Mac setup the dev server already listens on the local network, so use `http://<mac-ip>:3000`. iOS adds plain-HTTP sites to the home screen; Android's install prompt needs HTTPS, which comes with hosting. Connect Gmail accounts from the desktop browser, since the OAuth redirect points at localhost.
+Open the app in the phone's browser and add it to the home screen; it runs standalone from the web manifest. Running locally, the dev server already listens on the local network, so use `http://<computer-ip>:3000`. iOS adds plain-HTTP sites to the home screen; Android's install prompt needs HTTPS, which comes with hosting. Locally, connect Gmail accounts from the desktop browser, since the OAuth redirect points at localhost.
 
 </details>
 
@@ -160,3 +205,7 @@ Open the app in the phone's browser and add it to the home screen; it runs stand
 Phase 1, replacing the Gmail tabs, is done: sync, AI buckets and screener, actions with undo, compose, the palette, rules and the phone layout.
 
 Next is **an AI that knows the mail.** That means semantic search over the full history, questions in plain language ("what happened in the website relaunch project last year?"), a picture of the people, projects and companies in my mail, and a daily digest. Later, replies drafted in my own voice, and channels beyond email.
+
+## License and contributing
+
+MIT, see [LICENSE](LICENSE). It's a personal project, so read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and report security issues as described in [SECURITY.md](SECURITY.md).
