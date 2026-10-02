@@ -58,3 +58,11 @@ export function retryAfterMs(error: unknown, now: number): number | null {
   const at = Date.parse(message.match(/retry after (\S+)/i)?.[1]?.replace(/[.,;]$/, "") ?? "");
   return Number.isFinite(at) ? Math.max(0, at - now) : null;
 }
+
+// Refresh token expired or revoked: Google answers a refresh with `invalid_grant`. Only a new OAuth
+// consent fixes it.
+export function isInvalidGrant(error: unknown): boolean {
+  const data = (error as { response?: { data?: { error?: string } } })?.response?.data;
+  if (data?.error === "invalid_grant") return true;
+  return /\binvalid_grant\b/.test(error instanceof Error ? error.message : "");
+}

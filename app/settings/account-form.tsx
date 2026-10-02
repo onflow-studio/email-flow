@@ -5,6 +5,8 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Account } from "@/lib/db/schema";
 import { ACCOUNT_COLORS } from "@/lib/gmail/colors";
+import { needsReconnect, reconnectHref } from "@/lib/gmail/status";
+import { expiryText } from "@/lib/sync/expiry";
 
 import { saveAccount } from "./actions";
 
@@ -13,8 +15,11 @@ const input =
 
 type Props = Pick<Account, "id" | "email" | "label" | "color" | "signatureHtml" | "lastSyncError">;
 
-export function AccountForm({ account }: { account: Props }) {
+type AccessExpiry = { state: "expiring" | "expired"; expiresAt: string } | null;
+
+export function AccountForm({ account, accessExpiry }: { account: Props; accessExpiry: AccessExpiry }) {
   const [state, action, pending] = useActionState(saveAccount, null);
+  const reconnectNeeded = needsReconnect(account.lastSyncError) || accessExpiry !== null;
 
   return (
     <form action={action} className="flex flex-col gap-3 border-b border-border py-4 last:border-b-0">
@@ -24,10 +29,18 @@ export function AccountForm({ account }: { account: Props }) {
         <span className="min-w-0 flex-1 truncate font-medium">{account.email}</span>
         {account.lastSyncError ? (
           <span className="text-11 text-warning">{account.lastSyncError}</span>
+        ) : accessExpiry ? (
+          <span className="text-11 text-warning" suppressHydrationWarning>
+            {expiryText(accessExpiry)}
+          </span>
         ) : null}
         <a
-          href={`/api/auth/google/start?hint=${encodeURIComponent(account.email)}`}
-          className="text-text-muted transition-colors duration-80 ease-snap hover:text-text"
+          href={reconnectHref(account.email)}
+          className={
+            reconnectNeeded
+              ? "text-warning underline decoration-warning underline-offset-2 transition-colors duration-80 ease-snap hover:text-text"
+              : "text-text-muted transition-colors duration-80 ease-snap hover:text-text"
+          }
         >
           reconnect
         </a>
