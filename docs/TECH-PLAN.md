@@ -203,7 +203,7 @@ Step-by-step setup for a new deployment is in [DEPLOY.md](DEPLOY.md).
 ## Build order
 
 1. Scaffold: Next.js, Tailwind, shadcn, Drizzle, Docker compose, env, DESIGN.md tokens as CSS variables.
-2. Accounts: OAuth flow, token storage, three accounts connected.
+2. Accounts: OAuth flow, token storage, multiple accounts connected.
 3. Sync: history polling, message storage, sanitize, `pnpm sync` loop, refresh route.
 4. Shell: three panes, bucket rail, thread list, reading pane, status line, keyboard nav. Static buckets from Gmail labels at first.
 5. Classify: Claude call, thresholds, corrections, inline notes, triage bucket, write back.

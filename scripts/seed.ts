@@ -87,7 +87,7 @@ const THREADS: SeedThread[] = [
     bucket: "inbox",
     messages: [
       { from: { name: "Hugo Lind", email: "hugo@agency.example" }, minutesAgo: 5 * D, text: "Buenos días Alex, ¿podemos agendar una reunión para revisar el alcance de la fase 2?" },
-      { from: "me", minutesAgo: 4 * D, text: "Claro Javier, ¿te viene bien el jueves a las 10:00?" },
+      { from: "me", minutesAgo: 4 * D, text: "Claro Hugo, ¿te viene bien el jueves a las 10:00?" },
       { from: { name: "Hugo Lind", email: "hugo@agency.example" }, minutesAgo: 90, text: "Perfecto, el jueves a las 10:00. Te envío la invitación. Adjunto el documento de alcance actualizado.", attachments: [{ filename: "alcance-fase-2.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: 54_000 }] },
     ],
   },
@@ -217,7 +217,7 @@ const THREADS: SeedThread[] = [
     subject: "Intro: Rafa from Studio North",
     bucket: "inbox",
     aiAllowed: true,
-    messages: [{ from: { name: "Rafa Cole", email: "rafa@studio.example" }, minutesAgo: 3 * H, text: "Hola Alex, Ana me pasó tu contacto. Estamos montando un programa de formación en IA para pymes y me encantaría hablar contigo." }],
+    messages: [{ from: { name: "Rafa Cole", email: "rafa@studio.example" }, minutesAgo: 3 * H, text: "Hola Alex, Sofia me pasó tu contacto. Estamos montando un programa de formación en IA para pymes y me encantaría hablar contigo." }],
   },
   {
     account: "personal",
