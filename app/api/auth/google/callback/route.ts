@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
+import { isConnectable } from "@/lib/gmail/allowlist";
 import { tokenColumns } from "@/lib/gmail/client";
 import { defaultAccountStyle, exchangeCode } from "@/lib/gmail/oauth";
 
@@ -28,6 +29,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const { email, tokens } = await exchangeCode(code);
+    if (!isConnectable(email)) {
+      return back(request, { error: `${email} is not allowed to connect, add it to CONNECTABLE_EMAILS` });
+    }
     const columns = tokenColumns(tokens);
     const [existing] = await db
       .select({ id: accounts.id, refreshTokenEnc: accounts.refreshTokenEnc })
