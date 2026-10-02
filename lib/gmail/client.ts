@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 
 import { decryptToken, encryptToken } from "./crypto";
+import { isInvalidGrant } from "./errors";
 import { createOAuthClient } from "./oauth";
 import { gmailLimiter } from "./quota";
 import { REAUTH_MESSAGE } from "./status";
@@ -21,16 +22,14 @@ export class ReauthRequiredError extends Error {
 // Refresh this early so a sync pass never starts with a token about to die.
 const REFRESH_MARGIN_MS = 60_000;
 
-function isInvalidGrant(error: unknown): boolean {
-  const data = (error as { response?: { data?: { error?: string } } })?.response?.data;
-  return data?.error === "invalid_grant";
-}
-
 export function tokenColumns(tokens: Credentials) {
   return {
     ...(tokens.access_token ? { accessTokenEnc: encryptToken(tokens.access_token) } : {}),
     // Google omits the refresh token on refresh and sometimes on reconnect. Keep the stored one.
-    ...(tokens.refresh_token ? { refreshTokenEnc: encryptToken(tokens.refresh_token) } : {}),
+    // A new refresh token restarts the clock on its expiry (see lib/sync/expiry.ts).
+    ...(tokens.refresh_token
+      ? { refreshTokenEnc: encryptToken(tokens.refresh_token), refreshTokenIssuedAt: new Date() }
+      : {}),
     ...(tokens.expiry_date ? { tokenExpiresAt: new Date(tokens.expiry_date) } : {}),
     ...(tokens.scope ? { scope: tokens.scope } : {}),
   };
@@ -42,7 +41,7 @@ async function persistTokens(accountId: string, tokens: Credentials) {
   await db.update(accounts).set(columns).where(eq(accounts.id, accountId));
 }
 
-async function markReauthRequired(accountId: string) {
+export async function markReauthRequired(accountId: string) {
   await db
     .update(accounts)
     .set({ lastSyncError: REAUTH_MESSAGE })

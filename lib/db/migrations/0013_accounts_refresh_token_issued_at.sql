@@ -1,0 +1,1 @@
+ALTER TABLE "accounts" ADD COLUMN "refresh_token_issued_at" timestamp with time zone;
