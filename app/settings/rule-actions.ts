@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 
 import { parseRule, type RuleStructure } from "@/lib/ai/rules";
 import { db } from "@/lib/db";
-import { rules } from "@/lib/db/schema";
+import { accounts, rules } from "@/lib/db/schema";
 
 export type RuleState = { ok: boolean; message: string } | null;
 
@@ -14,7 +14,8 @@ const MAX_RULE = 500;
 
 async function tryParse(text: string): Promise<RuleStructure | null> {
   try {
-    return await parseRule(text);
+    const owned = await db.select({ email: accounts.email, label: accounts.label }).from(accounts);
+    return await parseRule(text, owned);
   } catch (error) {
     console.error("rule parse failed", error);
     return null;

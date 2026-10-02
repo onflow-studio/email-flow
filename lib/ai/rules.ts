@@ -49,14 +49,16 @@ A company name like "Vercel" means its domain (vercel.com) when the domain is ob
 Split the condition: literal facts (sender address, sender display name, domain, receiving account, words the subject contains) go in
 match; anything that needs reading the mail to judge (e.g. "failed payments", "security alerts",
 "newsletters") goes in semantic, not in subjectKeywords.
-The user's accounts: me@personal.example (personal), me@work2.example (work2),
-me@work1.example (work1).
 Rules may be in English or Spanish.`;
 
-export async function parseRule(text: string): Promise<RuleStructure> {
+/** The user's receiving accounts, so a rule naming one by label or address lands in match.accounts. */
+export type RuleAccount = { email: string; label: string };
+
+export async function parseRule(text: string, accounts: RuleAccount[]): Promise<RuleStructure> {
+  const owned = accounts.map((a) => `${a.email} (${a.label})`).join(", ");
   const { output } = await generateText({
     model: claude(),
-    system: INSTRUCTIONS,
+    system: owned ? `${INSTRUCTIONS}\nThe user's accounts: ${owned}.` : INSTRUCTIONS,
     prompt: `Rule: ${text}`,
     output: Output.object({ schema: ruleStructureSchema, name: "rule" }),
   });

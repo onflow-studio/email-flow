@@ -53,10 +53,14 @@ export async function exchangeCode(
   return { email: payload.email.toLowerCase(), tokens };
 }
 
+// DESIGN.md's account hues: --account-personal, then the two work hues.
+const ACCOUNT_HUES = ["#39FF9E", "#EDE95C", "#C792EA"];
+
+/** A new account's label and hue until changed in settings: `personal` for Gmail, else the domain's name. */
 export function defaultAccountStyle(email: string): { label: string; color: string } {
   const domain = email.split("@")[1] ?? "";
-  if (domain === "work1.example") return { label: "work1", color: "#EDE95C" };
-  if (domain === "work2.example") return { label: "work2", color: "#C792EA" };
-  if (domain === "gmail.com") return { label: "personal", color: "#39FF9E" };
-  return { label: domain.split(".")[0] || email, color: "#39FF9E" };
+  if (domain === "gmail.com") return { label: "personal", color: ACCOUNT_HUES[0] };
+  // The same domain always gets the same work hue.
+  const hash = [...domain].reduce((sum, c) => sum + c.charCodeAt(0), 0);
+  return { label: domain.split(".")[0] || email, color: ACCOUNT_HUES[1 + (hash % 2)] };
 }
