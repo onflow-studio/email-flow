@@ -1,6 +1,7 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { refreshSync } from "@/app/(mail)/actions";
@@ -58,18 +59,25 @@ export function StatusLine({ accounts }: { accounts: SyncAccount[] }) {
   else if (syncing) state = "syncing";
   else if (error) state = <span className="text-warning">{error}</span>;
   else if (reconnect.length || retry.length || expiring.length) {
+    // One account gets its own line and link; several fold into a count, so the line never runs under the radio.
+    const attention = [...reconnect, ...expiring];
     const notes: React.ReactNode[] = [
-      ...reconnect.map((a) => (
-        <span key={a.id}>
-          {a.label}: gmail access expired, <ReconnectLink email={a.email} />
-        </span>
-      )),
+      ...(attention.length > 1
+        ? [
+            <span key="attention">
+              {attention.length} accounts need reconnecting,{" "}
+              <Link href="/settings/accounts" className="underline decoration-warning underline-offset-2 hover:text-text">
+                settings
+              </Link>
+            </span>,
+          ]
+        : attention.map((a) => (
+            <span key={a.id} suppressHydrationWarning>
+              {a.label}: {reconnect.includes(a) ? "gmail access expired" : expiryText(a.accessExpiry!)},{" "}
+              <ReconnectLink email={a.email} />
+            </span>
+          ))),
       ...(retry.length ? [<span key="retry">sync failed for {retry.map((a) => a.label).join(", ")}, retry</span>] : []),
-      ...expiring.map((a) => (
-        <span key={a.id} suppressHydrationWarning>
-          {a.label}: {expiryText(a.accessExpiry!)}, <ReconnectLink email={a.email} />
-        </span>
-      )),
     ];
     state = <span className="text-warning">{notes.flatMap((n, i) => (i ? ["; ", n] : [n]))}</span>;
   }

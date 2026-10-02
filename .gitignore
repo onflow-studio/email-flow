@@ -26,3 +26,6 @@ next-env.d.ts
 # debug
 npm-debug.log*
 .pnpm-debug.log*
+
+# agent worktrees
+/.claude/worktrees/
