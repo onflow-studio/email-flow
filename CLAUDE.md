@@ -1,8 +1,8 @@
 # email-flow
 
-Personal email client for one user, three Gmail accounts. Read these before any work:
+Personal email client over any number of Gmail accounts. One instance serves one person; anyone can run their own. Read these before any work:
 
-- `docs/REQUIREMENTS.md`: what to build and why, phases, what is out of scope
+- `docs/REQUIREMENTS.md`: the original requirements, kept as design history: what to build and why, phases, what is out of scope
 - `docs/TECH-PLAN.md`: stack, data model, pipelines, build order
 - `DESIGN.md`: visual tokens and rules, every UI value comes from here
 
@@ -15,7 +15,8 @@ Personal email client for one user, three Gmail accounts. Read these before any 
 - Remote images blocked by default.
 - Dark mode only. Monospace only. No value outside DESIGN.md without adding it there first.
 - Tests only on `lib/classify` and `lib/sync`.
-- Keep the Mac-to-Vercel move config-only: no Redis, no queues, no worker services, no Mac-only dependencies, secrets in env.
+- Never assume a number of accounts, an owner's name, or anything else about one person's setup. Read accounts from the database.
+- Keep moving between a local machine and Vercel config-only: no Redis, no queues, no worker services, no OS-specific dependencies, secrets in env.
 - Package manager: pnpm. Add files to git individually, never `git add .`.
 - Secrets live in `.env`, which is gitignored. Never commit keys.
 

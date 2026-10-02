@@ -68,7 +68,7 @@ export function AccountForm({ account }: { account: Props }) {
           defaultValue={account.signatureHtml ?? ""}
           rows={4}
           spellCheck={false}
-          placeholder="<p>-- fer</p>"
+          placeholder="<p>-- your name</p>"
           className={`${input} resize-y py-2 leading-prose placeholder:text-text-dim`}
         />
       </label>
