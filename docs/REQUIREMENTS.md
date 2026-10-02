@@ -1,14 +1,16 @@
 # email-flow — Requirements
 
-Personal email client for one user. Aggregates three Gmail accounts, adds HEY-style triage, Superhuman-style keyboard speed, and AI that knows the mail. Decided 2026-09-22.
+> Design history. This records the original owner's requirements as decided when the project started: the goals, phases and trade-offs behind the current build. If you run your own instance, read it for the reasoning; your accounts, volume and priorities may differ.
+
+Personal email client for one person. Aggregates several Gmail accounts, adds HEY-style triage, Superhuman-style keyboard speed, and AI that knows the mail. Decided 2026-09-22.
 
 ## Context
 
-- Accounts: me@personal.example (personal), me@work2.example, me@work1.example. All Google Workspace / Gmail.
+- Accounts: several Gmail accounts. All Google Workspace / Gmail.
 - Volume: under 100 emails/day, very few need action.
 - Today: Gmail in separate tabs. Frustrations: no configurability, no AI over mail, no screener, no reliable categorization, no newsletter separation.
 - Motivation: make it mine, integrate AI. Inspired by Superhuman (speed) and HEY (triage model), own terminology.
-- Single user forever, for now.
+- One instance serves one person. Each person who wants it runs their own copy.
 
 ## Success criterion
 
@@ -78,7 +80,7 @@ AI-gated:
 ## Semantic layer (phase 1.5)
 
 - AI-built knowledge over people, projects, companies, inferred from data, may ask questions.
-- All history across all three accounts, size unknown.
+- All history across all connected accounts, size unknown.
 - Attachments: metadata only (filename, type, sender). No content extraction.
 - Minimal sender card on each thread: name, which accounts they email, thread count, last contact, screener decision (editable).
 - Retrieval architecture: hybrid full-text plus vector search with metadata filters, inspired by tobi/qmd but not a dependency (file-only ingestion, local-only models).
@@ -117,7 +119,7 @@ Every shortcut has a default and can be rebound in settings (keyboard): single k
 ## Phases
 
 ### Phase 1: replace the Gmail tabs
-1. Three accounts synced, unified thread list, account indicator
+1. All connected accounts synced, unified thread list, account indicator
 2. AI buckets with learn-from-corrections and NL rules
 3. AI-gated screener
 4. Reply all, forward, snooze-with-flag, work
