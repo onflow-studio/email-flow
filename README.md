@@ -174,7 +174,6 @@ Optional (unset keeps the default):
 | `AUTH_DISABLED` | `1` skips the login gate in development | off. Ignored in production |
 | `CONNECTABLE_EMAILS` | comma-separated Gmail addresses that may be connected as accounts | any address |
 | `GOOGLE_TOKEN_LIFETIME_DAYS` | days before a connection must be renewed, for the expiry warning | `7` (Testing mode). `0` turns the warnings off, for a published consent screen |
-| `DEPLOY_REGION` | Vercel functions region, for example `iad1` | Vercel's default |
 | `GMAIL_LABEL_PREFIX` | prefix of the bucket labels written to Gmail | `superfer` (labels `superfer/inbox`, `superfer/news`, …) |
 | `MAIL_LOCALE` | locale for dates in quoted and forwarded headers | `en-US` |
 | `JEV_API_KEY` | TypeSafe Jev second opinion, see [What leaves your instance](#what-leaves-your-instance) | unset: never called |
