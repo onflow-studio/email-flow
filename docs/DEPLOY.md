@@ -69,11 +69,12 @@ Optional:
 | --- | --- |
 | `LOGIN_REDIRECT_URI` | Sign-in callback. Unset, it is `/api/auth/login/callback` on `GOOGLE_REDIRECT_URI`'s origin |
 | `JEV_API_KEY` | TypeSafe Jev key for a second opinion on doubtful classifications. Unset, suggestions stay suggestions |
-| `CONNECTABLE_EMAILS` | Optional. Unset keeps the default |
-| `GOOGLE_TOKEN_LIFETIME_DAYS` | Optional. Unset keeps the default |
-| `DEPLOY_REGION` | Optional. Unset keeps the default |
-| `GMAIL_LABEL_PREFIX` | Optional. Unset keeps the default |
-| `MAIL_LOCALE` | Optional. Unset keeps the default |
+| `CONNECTABLE_EMAILS` | Comma-separated Gmail addresses that may be connected. Unset, any address |
+| `GOOGLE_TOKEN_LIFETIME_DAYS` | Days before a reconnect warning. Unset, 7 (Testing mode); 0 turns warnings off |
+| `GMAIL_LABEL_PREFIX` | Prefix of the bucket labels written to Gmail. Unset, `superfer` |
+| `MAIL_LOCALE` | Locale for dates in quoted and forwarded headers. Unset, `en-US` |
+
+**Function region:** set it in the Vercel project under Settings, Functions, to the region closest to your database. Sync makes many small queries, so distance to the database matters more than distance to you.
 
 Do not set `AUTH_DISABLED`. It only works outside production anyway: it is ignored when `NODE_ENV` is `production`.
 

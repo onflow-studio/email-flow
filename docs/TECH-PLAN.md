@@ -180,7 +180,7 @@ LOGIN_REDIRECT_URI    optional, defaults to /api/auth/login/callback on GOOGLE_R
 AUTH_DISABLED         dev only, 1 skips the login gate, ignored in production
 ```
 
-Optional settings (`CONNECTABLE_EMAILS`, `GOOGLE_TOKEN_LIFETIME_DAYS`, `DEPLOY_REGION`, `GMAIL_LABEL_PREFIX`, `MAIL_LOCALE`) keep their defaults when unset. [DEPLOY.md](DEPLOY.md) lists every variable.
+Optional settings (`CONNECTABLE_EMAILS`, `GOOGLE_TOKEN_LIFETIME_DAYS`, `GMAIL_LABEL_PREFIX`, `MAIL_LOCALE`) keep their defaults when unset. [DEPLOY.md](DEPLOY.md) lists every variable.
 
 ## Login gate
 
