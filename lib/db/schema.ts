@@ -92,6 +92,8 @@ export const accounts = pgTable("accounts", {
   // AES-GCM ciphertext, key from TOKEN_ENCRYPTION_KEY. Never store plaintext.
   accessTokenEnc: text(),
   refreshTokenEnc: text(),
+  // When Google issued the stored refresh token. Null when unknown (connected before this was kept).
+  refreshTokenIssuedAt: timestamp({ withTimezone: true }),
   tokenExpiresAt: timestamp({ withTimezone: true }),
   scope: text(),
   historyId: text(),

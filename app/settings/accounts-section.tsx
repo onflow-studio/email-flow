@@ -3,6 +3,7 @@ import { asc } from "drizzle-orm";
 import { buttonVariants } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
+import { accessExpiryFromEnv } from "@/lib/sync/expiry";
 
 import { AccountForm } from "./account-form";
 
@@ -16,6 +17,8 @@ export async function AccountsSection() {
       color: accounts.color,
       signatureHtml: accounts.signatureHtml,
       lastSyncError: accounts.lastSyncError,
+      lastSyncAt: accounts.lastSyncAt,
+      refreshTokenIssuedAt: accounts.refreshTokenIssuedAt,
     })
     .from(accounts)
     .orderBy(asc(accounts.createdAt));
@@ -41,7 +44,16 @@ export async function AccountsSection() {
         {rows.length === 0 ? (
           <p className="py-4 text-text-muted">no accounts connected</p>
         ) : (
-          rows.map((account) => <AccountForm key={account.id} account={account} />)
+          rows.map(({ lastSyncAt, refreshTokenIssuedAt, ...account }) => {
+            const expiry = accessExpiryFromEnv({ lastSyncAt, refreshTokenIssuedAt });
+            return (
+              <AccountForm
+                key={account.id}
+                account={account}
+                accessExpiry={expiry ? { state: expiry.state, expiresAt: expiry.expiresAt.toISOString() } : null}
+              />
+            );
+          })
         )}
       </div>
     </section>

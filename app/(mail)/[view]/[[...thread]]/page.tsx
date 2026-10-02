@@ -19,6 +19,7 @@ import { ThreadList } from "@/components/mail/thread-list";
 import { TriageQueue } from "@/components/mail/triage-queue";
 import { UnreadDot } from "@/components/mail/unread-dot";
 import { findView, mailHref, VIEWS, type ViewSlug } from "@/components/mail/views";
+import { accessExpiryFromEnv } from "@/lib/sync/expiry";
 import { cn } from "@/lib/utils";
 
 import { accountsOff, accountsOn } from "../../_lib/account-filter";
@@ -187,15 +188,20 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
             </div>
 
             <StatusLine
-              accounts={accounts.map((a) => ({
-                id: a.id,
-                label: a.label,
-                color: a.color,
-                lastSyncAt: a.lastSyncAt?.toISOString() ?? null,
-                lastSyncError: a.lastSyncError,
-                catchingUp: a.catchingUp,
-                on: isOn(a.id),
-              }))}
+              accounts={accounts.map((a) => {
+                const expiry = accessExpiryFromEnv(a);
+                return {
+                  id: a.id,
+                  email: a.email,
+                  label: a.label,
+                  color: a.color,
+                  lastSyncAt: a.lastSyncAt?.toISOString() ?? null,
+                  lastSyncError: a.lastSyncError,
+                  accessExpiry: expiry ? { state: expiry.state, expiresAt: expiry.expiresAt.toISOString() } : null,
+                  catchingUp: a.catchingUp,
+                  on: isOn(a.id),
+                };
+              })}
             />
           </div>
         </PaletteProvider>
