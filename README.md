@@ -4,7 +4,7 @@
 
 <p align="center">
   <b>Mail for exactly one person.</b><br>
-  Three Gmail inboxes, one keyboard, and an AI that learns how I sort.<br>
+  Multiple Gmail inboxes, one keyboard, and an AI that learns how I sort.<br>
   Built for me, by me and Claude. Not a product.
 </p>
 
@@ -19,7 +19,7 @@
 
 ## Why
 
-I had three Gmail accounts open in three tabs: personal, and two companies. Every client I tried was built for millions of people, so it fit none of them well. Gmail can't be configured, has no AI over my own mail, no screener for strangers, and mixes newsletters with the email that actually needs me.
+I had several Gmail accounts open in as many tabs, personal and work. Every client I tried was built for millions of people, so it fit none of them well. Gmail can't be configured, has no AI over my own mail, no screener for strangers, and mixes newsletters with the email that actually needs me.
 
 So I stopped looking for the right client and built my own. The success criterion was simple: **close the Gmail tabs for two weeks and never reopen them.** They've stayed closed.
 
@@ -101,7 +101,7 @@ The thinking behind it is written down:
 
 ## Make it yours
 
-email-flow is built around my three accounts and my habits, and that's the point. Don't use mine: fork it and have your AI make it yours. Change the buckets, the keys, the colours, the rules. It's the same conversation that built it.
+email-flow is built around my accounts and my habits, and that's the point. Don't use mine: fork it and have your AI make it yours. Change the buckets, the keys, the colours, the rules. It's the same conversation that built it.
 
 ### One instance, one person
 
