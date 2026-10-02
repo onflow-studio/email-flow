@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { initialBucket, isInbound, mirrorState, nextSeenAt } from "./mirror";
+import { bucketLabels } from "./writeback";
 
 describe("mirrorState", () => {
   it("inbox thread still in Gmail's inbox is not archived", () => {
@@ -23,7 +24,7 @@ describe("mirrorState", () => {
   it.each(["news", "paper_trail", "triage", "out"] as const)(
     "%s: missing INBOX is our own writeback, archive state untouched",
     (bucket) => {
-      expect(mirrorState([["superfer/news"]], bucket)).not.toHaveProperty("archived");
+      expect(mirrorState([[bucketLabels().news]], bucket)).not.toHaveProperty("archived");
     },
   );
 

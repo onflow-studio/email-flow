@@ -49,7 +49,7 @@ A company name like "Vercel" means its domain (vercel.com) when the domain is ob
 Split the condition: literal facts (sender address, sender display name, domain, receiving account, words the subject contains) go in
 match; anything that needs reading the mail to judge (e.g. "failed payments", "security alerts",
 "newsletters") goes in semantic, not in subjectKeywords.
-Rules may be in English or Spanish.`;
+Rules may be in any language.`;
 
 /** The user's receiving accounts, so a rule naming one by label or address lands in match.accounts. */
 export type RuleAccount = { email: string; label: string };

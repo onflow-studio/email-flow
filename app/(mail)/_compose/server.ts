@@ -139,8 +139,19 @@ export function escapeHtml(value: string): string {
 
 const formatAddress = (a: Address) => (a.name ? `${a.name} <${a.email}>` : a.email);
 
+// MAIL_LOCALE sets the date format in quote and forward headers; an unknown tag falls back to en-US.
+function mailLocale(): string {
+  const wanted = process.env.MAIL_LOCALE?.trim();
+  if (!wanted) return "en-US";
+  try {
+    return Intl.DateTimeFormat.supportedLocalesOf(wanted)[0] ?? "en-US";
+  } catch {
+    return "en-US";
+  }
+}
+
 function formatDate(date: Date): string {
-  return date.toLocaleString("en-US", {
+  return date.toLocaleString(mailLocale(), {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -183,7 +194,7 @@ export function signatureBlock(signatureHtml: string | null): string {
 /** `laura, 25 sep` */
 export function quotingLabel(target: Target): string {
   const who = target.isInbound ? target.fromName || target.fromEmail : "me";
-  const when = target.date.toLocaleDateString("en-US", { day: "numeric", month: "short" }).toLowerCase();
+  const when = target.date.toLocaleDateString(mailLocale(), { day: "numeric", month: "short" }).toLowerCase();
   return `${who}, ${when}`;
 }
 
