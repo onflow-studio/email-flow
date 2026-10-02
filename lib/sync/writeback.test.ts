@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  BUCKET_LABELS,
+  bucketLabels,
   INBOX_LABEL,
   clearLabelCache,
   ensureLabels,
@@ -27,7 +27,11 @@ function mockGmail(existing: { id: string; name: string }[] = []) {
   } satisfies GmailLabelsPort;
 }
 
-beforeEach(() => clearLabelCache());
+beforeEach(() => {
+  clearLabelCache();
+  vi.stubEnv("GMAIL_LABEL_PREFIX", "");
+});
+afterEach(() => vi.unstubAllEnvs());
 
 describe("labelChange", () => {
   it("inbox: sets its label, removes the others, keeps INBOX", () => {
@@ -58,9 +62,9 @@ describe("labelChange", () => {
 });
 
 describe("ensureLabels", () => {
-  it("creates only the missing superfer labels and caches per account", async () => {
+  it("creates only the missing bucket labels and caches per account", async () => {
     const gmail = mockGmail([
-      { id: "L_in", name: BUCKET_LABELS.inbox },
+      { id: "L_in", name: bucketLabels().inbox },
       { id: "Other", name: "Receipts" },
     ]);
     const first = await ensureLabels("acc1", gmail);
@@ -74,11 +78,35 @@ describe("ensureLabels", () => {
     await ensureLabels("acc1", gmail);
     expect(gmail.listLabels).toHaveBeenCalledTimes(1);
   });
+
+  it("uses GMAIL_LABEL_PREFIX when set", async () => {
+    vi.stubEnv("GMAIL_LABEL_PREFIX", "mail");
+    const gmail = mockGmail([{ id: "Old", name: "superfer/inbox" }]);
+    await ensureLabels("acc1", gmail);
+    expect(gmail.createLabel.mock.calls.map((c) => c[0])).toEqual([
+      "mail/inbox",
+      "mail/news",
+      "mail/paper-trail",
+      "mail/receipts",
+      "mail/triage",
+    ]);
+  });
+});
+
+describe("bucketLabels", () => {
+  it("defaults to the original prefix when unset or blank", () => {
+    vi.stubEnv("GMAIL_LABEL_PREFIX", "  ");
+    expect(bucketLabels().paper_trail).toBe("superfer/paper-trail");
+  });
+
+  it("takes a custom prefix", () => {
+    expect(bucketLabels("team").receipts).toBe("team/receipts");
+  });
 });
 
 describe("writeBucket", () => {
   it("modifies the Gmail thread with the bucket's label change", async () => {
-    const gmail = mockGmail(Object.entries(BUCKET_LABELS).map(([b, name]) => ({ id: ids[b as keyof LabelIds], name })));
+    const gmail = mockGmail(Object.entries(bucketLabels()).map(([b, name]) => ({ id: ids[b as keyof LabelIds], name })));
     await writeBucket({ accountId: "acc1", gmailThreadId: "g1", bucket: "news", archived: false }, gmail);
     expect(gmail.modifyThread).toHaveBeenCalledWith("g1", labelChange("news", false, ids));
   });
@@ -128,7 +156,7 @@ describe("mirrorChange", () => {
 
 describe("writeThread", () => {
   it("modifies the Gmail thread with the full mirrored state", async () => {
-    const gmail = mockGmail(Object.entries(BUCKET_LABELS).map(([b, name]) => ({ id: ids[b as keyof LabelIds], name })));
+    const gmail = mockGmail(Object.entries(bucketLabels()).map(([b, name]) => ({ id: ids[b as keyof LabelIds], name })));
     const state = { bucket: "news" as const, archived: true, seen: false, trashed: false, spam: false };
     await writeThread({ accountId: "acc1", gmailThreadId: "g1", ...state }, gmail);
     expect(gmail.modifyThread).toHaveBeenCalledWith("g1", mirrorChange(state, ids));
