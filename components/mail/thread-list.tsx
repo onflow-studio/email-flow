@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ThreadListItem } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
 
+import { AccountSquare } from "./account-square";
 import { Glider } from "./glider";
 import { useListScroll, useMailSelection } from "./selection";
 import { fullTime, Time } from "./time";
@@ -106,9 +107,9 @@ export function ThreadList({
   const picking = selected.size > 0;
   const ordered = sel.allIds.flatMap((id) => byId.get(id) ?? []);
   const work = sel.view === "work";
-  // Inbox and Work set rows by who wrote: people get two lines, machines one. The other buckets are
-  // nearly all machine mail, where the subject is the content, so they keep two lines.
+  // Inbox and Work light a person's sender even once seen; the other buckets are nearly all machine mail.
   const byKind = sel.view === "inbox" || work;
+  const accountSlots = Object.keys(accountColors).length;
 
   // Rows come in blocks: a thread alone, or a group of machine mail from one source.
   type Block = { key: string; cluster: { key: string; label: string } | null; threads: ThreadListItem[] };
@@ -141,6 +142,7 @@ export function ThreadList({
       <ThreadRow
         thread={t}
         accountColors={t.accountIds.map((id) => accountColors[id])}
+        accountSlots={accountSlots}
         accountNames={t.accountIds.map((id) => accountNames[id] ?? "unknown account")}
         focused={t.id === sel.focusedId}
         selected={selected.has(t.id)}
@@ -190,7 +192,7 @@ export function ThreadList({
               threads={b.threads}
               collapsed={collapsed}
               accountColors={accountIds.map((id) => accountColors[id])}
-              accountNames={accountIds.map((id) => accountNames[id] ?? "unknown account")}
+              accountSlots={accountSlots}
               focused={collapsed && head.id === sel.focusedId}
               open={collapsed && head.id === sel.openId}
               onToggle={() => {
@@ -209,15 +211,15 @@ export function ThreadList({
 }
 
 /**
- * A group of machine mail from one source. Collapsed it is one line standing for all of them, the
- * keyboard's stop, with a deck edge under it; expanded it is a slim header over its threads.
+ * A group of machine mail from one source. Collapsed it is one row standing for all of them, the
+ * keyboard's stop, in the same columns as a thread row; expanded it is a slim header over its threads.
  */
 function ClusterRow({
   label,
   threads,
   collapsed,
   accountColors,
-  accountNames,
+  accountSlots,
   focused,
   open,
   onToggle,
@@ -226,7 +228,7 @@ function ClusterRow({
   threads: ThreadListItem[];
   collapsed: boolean;
   accountColors: (string | undefined)[];
-  accountNames: string[];
+  accountSlots: number;
   focused: boolean;
   open: boolean;
   onToggle: () => void;
@@ -234,15 +236,6 @@ function ClusterRow({
   const head = threads[0];
   const fresh = threads.filter((t) => t.unseen).length;
   const Chevron = collapsed ? ChevronRight : ChevronDown;
-  const names = (
-    <span aria-hidden title={accountNames.join(", ")} className="flex max-w-[35%] min-w-0 shrink-0 gap-1 overflow-hidden whitespace-nowrap text-11">
-      {accountNames.map((name, i) => (
-        <span key={i} className="shrink-0" style={{ color: accountColors[i] ? `color-mix(in srgb, ${accountColors[i]} 40%, var(--text-muted))` : "var(--text-muted)" }}>
-          {name}
-        </span>
-      ))}
-    </span>
-  );
 
   if (!collapsed) {
     return (
@@ -260,7 +253,7 @@ function ClusterRow({
   }
 
   return (
-    <div data-group-ids={threads.map((t) => t.id).join(" ")} className="relative pb-1.5">
+    <div data-group-ids={threads.map((t) => t.id).join(" ")} className="relative after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border">
       <button
         type="button"
         onClick={onToggle}
@@ -269,26 +262,36 @@ function ClusterRow({
         data-thread-id={head.id}
         title={head.subject}
         className={cn(
-          "relative z-10 flex h-touch w-full min-w-0 items-center gap-2 border-l-2 bg-surface pr-3 pl-6 text-left leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised md:h-row",
+          "relative z-10 flex h-touch w-full min-w-0 items-center gap-2 border-l-2 pr-3 pl-6 text-left leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised md:h-row",
           focused ? "border-transparent bg-surface-raised" : "border-transparent hover:bg-surface-raised/50",
         )}
       >
         <span className="sr-only">group of {threads.length} threads, {fresh} unseen, newest {head.subject}; </span>
-        <Chevron aria-hidden className="-ml-4 size-3 shrink-0 text-text-muted" strokeWidth={1.5} />
-        {fresh ? <UnreadDot /> : null}
-        <span className={cn("max-w-[40%] min-w-0 shrink-0 truncate font-medium", fresh ? "text-text" : "text-text-muted")}>{label}</span>
-        <span aria-hidden>
-          <Badge className={fresh ? "text-text" : undefined}>{fresh ? `${fresh} new · ${threads.length}` : `${threads.length} threads`}</Badge>
+        <Chevron aria-hidden className="absolute left-2 size-3 text-text-muted" strokeWidth={1.5} />
+        <AccountSlot colors={accountColors} slots={accountSlots} />
+        <span className={cn("w-sender shrink-0 truncate @min-[560px]:w-judged", fresh ? "font-medium text-text" : "text-text-muted")}>
+          {label} <span className="font-normal text-text-dim tabular-nums">{threads.length}</span>
         </span>
-        <span aria-hidden className="hidden min-w-0 flex-1 truncate text-text-dim @min-[320px]:block">{head.subject}</span>
+        <span aria-hidden className={cn("hidden min-w-0 flex-1 truncate @min-[320px]:block", fresh ? "text-text" : "text-text-muted")}>{head.subject}</span>
         <span className="flex-1 @min-[320px]:hidden" />
-        {names}
-        <Time iso={head.lastMessageAt} className="shrink-0 text-11 tabular-nums text-text-muted" />
+        <Time iso={head.lastMessageAt} className="min-w-time shrink-0 text-right text-11 tabular-nums text-text-muted" />
       </button>
-      {/* The deck: two edges peeking under the row, one per thread it stands on. */}
-      <span aria-hidden className="absolute inset-x-3 bottom-[3px] h-px bg-text-dim/70" />
-      <span aria-hidden className="absolute inset-x-6 bottom-0 h-px bg-text-dim/40" />
     </div>
+  );
+}
+
+/**
+ * The account column: one square per account the conversation reached, in a slot sized for every
+ * account the user has, so the sender column starts at the same place on every row.
+ */
+function AccountSlot({ colors, slots }: { colors: (string | undefined)[]; slots: number }) {
+  if (slots < 2) return null;
+  return (
+    <span aria-hidden className="flex shrink-0 gap-0.5" style={{ width: `calc(var(--spacing) * ${slots * 2.5 - 0.5})` }}>
+      {colors.map((c, i) => (
+        <AccountSquare key={i} color={c} />
+      ))}
+    </span>
   );
 }
 
@@ -329,6 +332,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 function ThreadRow({
   thread: t,
   accountColors,
+  accountSlots,
   accountNames,
   focused,
   selected,
@@ -341,8 +345,9 @@ function ThreadRow({
   nested = false,
 }: {
   thread: ThreadListItem;
-  /** One per account the conversation reached: twins show each name by the date. */
+  /** One per account the conversation reached: twins show a square for each. */
   accountColors: (string | undefined)[];
+  accountSlots: number;
   accountNames: string[];
   focused: boolean;
   /** In the shift+arrows range. */
@@ -353,7 +358,7 @@ function ThreadRow({
   showSnooze: boolean;
   /** Work rows show the deadline and needs reply, and mark an unread reply with the dot. */
   work: boolean;
-  /** Rows set by who wrote: people two lines, machines one, whose turn it is on the sender. */
+  /** Rows set by who wrote: a person's sender stays lit, whose turn it is on the sender. */
   byKind: boolean;
   /** Inside an open group: indented past the group's guide line. */
   nested?: boolean;
@@ -361,7 +366,6 @@ function ThreadRow({
   const [now] = useState(() => Date.now());
   const overdue = !!t.deadlineAt && new Date(t.deadlineAt).getTime() < now;
   const status = [t.resurfaced && "back", t.needsReply && "needs reply", overdue && "overdue", work && t.deadlineAt && !overdue && `due ${fullTime(t.deadlineAt)}`].filter(Boolean);
-  const machine = byKind && t.kind === "machine";
   const person = byKind && t.kind === "person";
   // The user wrote last: the next move is theirs, so the row steps back.
   const theirTurn = person && t.lastFromMe && !t.unseen;
@@ -369,22 +373,8 @@ function ThreadRow({
   const today = new Date(t.lastMessageAt).toDateString() === new Date(now).toDateString();
   const lit = t.unseen || (person && !theirTurn);
   const time = showSnooze && t.snoozedUntil ? t.snoozedUntil : t.lastMessageAt;
+  const preview = (t.summary || t.snippet)?.trim();
 
-  const names = (
-    <span aria-hidden title={accountNames.join(", ")} className="flex max-w-[35%] min-w-0 shrink-0 gap-1 overflow-hidden whitespace-nowrap text-11">
-      {accountNames.map((name, i) => (
-        <span key={i} className="shrink-0" style={{ color: accountColors[i] ? `color-mix(in srgb, ${accountColors[i]} 40%, var(--text-muted))` : "var(--text-muted)" }}>
-          {name}
-        </span>
-      ))}
-    </span>
-  );
-  const badges = (
-    <span className="flex shrink-0 items-center gap-1" aria-hidden>
-      {t.needsReply ? <Badge className="bg-signal/15 text-signal">reply</Badge> : null}
-      {overdue ? <Badge className="text-warning">overdue</Badge> : work && t.deadlineAt ? <Badge>due <Time iso={t.deadlineAt} /></Badge> : null}
-    </span>
-  );
   const label = (
     <span className="sr-only">
       {selected ? "selected; " : ""}
@@ -394,40 +384,6 @@ function ThreadRow({
       {status.length ? `; ${status.join(", ")}` : ""};{" "}
     </span>
   );
-  const rowClass = cn(
-    nested ? "pl-8" : "pl-6",
-    "flex min-w-0 border-l-2 pr-3 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised",
-    focused
-      ? "border-transparent bg-surface-raised"
-      : selected
-        ? "border-transparent bg-accent-dim/40"
-        : "border-transparent hover:bg-surface-raised/50",
-  );
-
-  if (machine) {
-    return (
-      <Link
-        href={href}
-        scroll={false}
-        aria-current={open ? "page" : undefined}
-        data-selected={selected || undefined}
-        data-thread-id={t.id}
-        onClick={onSelect}
-        title={t.summary || t.snippet || t.subject}
-        className={cn(rowClass, "h-touch items-center gap-2 md:h-row")}
-      >
-        {label}
-        {t.unseen ? <UnreadDot /> : null}
-        <span className={cn("max-w-[40%] min-w-0 shrink-0 truncate", t.unseen ? "text-text" : "text-text-muted")}>{t.sender}</span>
-        {t.resurfaced ? <span aria-hidden><Badge>back</Badge></span> : null}
-        <span className={cn("hidden min-w-0 flex-1 truncate @min-[320px]:block", t.unseen ? "text-text-muted" : "text-text-dim")}>{t.subject}</span>
-        <span className="flex-1 @min-[320px]:hidden" />
-        {badges}
-        {names}
-        <Time iso={time} className="shrink-0 text-11 tabular-nums text-text-muted" />
-      </Link>
-    );
-  }
 
   return (
     <Link
@@ -437,27 +393,38 @@ function ThreadRow({
       data-selected={selected || undefined}
       data-thread-id={t.id}
       onClick={onSelect}
-      className={cn(rowClass, "min-h-mail-row flex-col justify-center gap-1")}
+      title={preview || t.subject}
+      className={cn(
+        nested ? "pl-8" : "pl-6",
+        "flex h-touch min-w-0 items-center gap-2 border-l-2 pr-3 leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised md:h-row",
+        focused
+          ? "border-transparent bg-surface-raised"
+          : selected
+            ? "border-transparent bg-accent-dim/40"
+            : "border-transparent hover:bg-surface-raised/50",
+      )}
     >
       {label}
-      <span className="flex w-full min-w-0 items-center gap-2">
-        {t.unseen ? <UnreadDot /> : null}
-        <span className={cn("min-w-0 flex-1 truncate font-medium", lit ? "text-text" : "text-text-muted")}>
+      <AccountSlot colors={accountColors} slots={accountSlots} />
+      <span className={cn("flex w-sender shrink-0 items-center gap-1 @min-[560px]:w-judged", t.unseen && "font-medium", lit ? "text-text" : "text-text-muted")}>
+        {work && t.unseen ? <UnreadDot /> : null}
+        <span className="min-w-0 truncate">
           {theirTurn ? <span className="font-normal text-text-dim">{others ? "you, " : "you"}</span> : null}
           {others}
         </span>
-        {t.messageCount > 1 ? <span className="shrink-0 text-11 text-text-dim">{t.messageCount}</span> : null}
-        {t.resurfaced ? <span aria-hidden><Badge>back</Badge></span> : null}
-        {names}
-        <Time iso={time} className={cn("shrink-0 text-11 tabular-nums", person && lit && today ? "text-text" : "text-text-muted")} />
+        {t.messageCount > 1 ? <span className="shrink-0 font-normal text-text-dim tabular-nums">{t.messageCount}</span> : null}
       </span>
-      <span className="flex w-full min-w-0 items-center gap-2">
-        <span className="min-w-0 flex-1 truncate">
-          <span className={t.unseen ? "text-text" : "text-text-muted"}>{t.subject}</span>
-          {t.summary || t.snippet ? <span className={t.unseen ? "text-text-muted" : "text-text-dim"}> · {t.summary ?? t.snippet}</span> : null}
-        </span>
-        {badges}
+      {t.resurfaced ? <span aria-hidden><Badge>back</Badge></span> : null}
+      <span className="hidden min-w-0 flex-1 truncate @min-[320px]:block">
+        <span className={t.unseen ? "font-medium text-text" : "text-text-muted"}>{t.subject}</span>
+        {preview ? <span className="text-text-dim"> · {preview}</span> : null}
       </span>
+      <span className="flex-1 @min-[320px]:hidden" />
+      <span className="flex shrink-0 items-center gap-1" aria-hidden>
+        {t.needsReply ? <Badge className="bg-signal/15 text-signal">reply</Badge> : null}
+        {overdue ? <Badge className="text-warning">overdue</Badge> : work && t.deadlineAt ? <Badge>due <Time iso={t.deadlineAt} /></Badge> : null}
+      </span>
+      <Time iso={time} className={cn("min-w-time shrink-0 text-right text-11 tabular-nums", person && lit && today ? "text-text" : "text-text-muted")} />
     </Link>
   );
 }

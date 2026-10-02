@@ -124,6 +124,7 @@
   --spacing-palette-top: 15vh;
   --spacing-rail-icons: 48px;
   --spacing-sender: 112px;
+  --spacing-time: 6ch;
   /* Sender names on let in / keep out and the triage meta line, truncated past this. */
   --spacing-judged: 160px;
   --spacing-label: 56px;
