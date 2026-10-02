@@ -1,5 +1,7 @@
 import { OAuth2Client, type Credentials } from "google-auth-library";
 
+import { ACCOUNT_COLORS } from "./colors";
+
 // gmail.modify covers read, labels on messages and threads, archive, trash.
 // gmail.labels adds label create and edit, gmail.send covers compose.
 export const GMAIL_SCOPES = [
@@ -53,14 +55,34 @@ export async function exchangeCode(
   return { email: payload.email.toLowerCase(), tokens };
 }
 
-// DESIGN.md's account hues: --account-personal, then the two work hues.
-const ACCOUNT_HUES = ["#39FF9E", "#EDE95C", "#C792EA"];
+type AccountStyle = { label: string; color: string };
 
-/** A new account's label and hue until changed in settings: `personal` for Gmail, else the domain's name. */
-export function defaultAccountStyle(email: string): { label: string; color: string } {
-  const domain = email.split("@")[1] ?? "";
-  if (domain === "gmail.com") return { label: "personal", color: ACCOUNT_HUES[0] };
-  // The same domain always gets the same work hue.
+// Settings caps labels at this length.
+const LABEL_MAX = 32;
+
+/**
+ * A new account's label and hue until changed in settings. Gmail gets `personal`, any other domain its
+ * name. A label already taken falls back to the address's local part, then a numbered one. The hue
+ * avoids those already in use while any of DESIGN.md's account hues are left.
+ */
+export function defaultAccountStyle(email: string, existing: AccountStyle[] = []): AccountStyle {
+  const [local = email, domain = ""] = email.split("@");
+  const hues = ACCOUNT_COLORS.map((c) => c.hex as string);
+  const isGmail = domain === "gmail.com";
+  // The same domain always prefers the same work hue.
   const hash = [...domain].reduce((sum, c) => sum + c.charCodeAt(0), 0);
-  return { label: domain.split(".")[0] || email, color: ACCOUNT_HUES[1 + (hash % 2)] };
+  const preferred = isGmail ? hues[0] : hues[1 + (hash % 2)];
+  const usedHues = new Set(existing.map((a) => a.color.toUpperCase()));
+  const color = [preferred, ...hues].find((hex) => !usedHues.has(hex)) ?? preferred;
+
+  const usedLabels = new Set(existing.map((a) => a.label.toLowerCase()));
+  const free = (label: string) => !usedLabels.has(label.toLowerCase());
+  const name = local.slice(0, LABEL_MAX);
+  let label = [isGmail ? "personal" : (domain.split(".")[0] || name).slice(0, LABEL_MAX), name].find(free);
+  for (let n = 2; !label; n++) {
+    const suffix = String(n);
+    const numbered = name.slice(0, LABEL_MAX - suffix.length) + suffix;
+    if (free(numbered)) label = numbered;
+  }
+  return { label, color };
 }

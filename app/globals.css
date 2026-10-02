@@ -41,6 +41,11 @@
   --account-personal: #39ff9e;
   --account-work1: #ede95c;
   --account-work2: #c792ea;
+  --account-lime: #a6e22e;
+  --account-peach: #f5a97f;
+  --account-rose: #ff9cc2;
+  --account-sand: #d8c8a0;
+  --account-slate: #a9b8c2;
 
   /* Pane widths. --rail-w and --list-w are overridden on <html> by the stored drag widths. */
   --rail-w: 200px;

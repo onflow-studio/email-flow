@@ -76,7 +76,7 @@ const THREADS: SeedThread[] = [
     subject: "Cohort 14 schedule, final version?",
     bucket: "inbox",
     messages: [
-      { from: { name: "Lena Park", email: "lena@work2.example" }, minutesAgo: 3 * D, text: "Hi Fer, attaching the draft schedule for cohort 14. Can you check the AI module dates?", attachments: [{ filename: "cohort-14-schedule.pdf", mimeType: "application/pdf", size: 184_320 }] },
+      { from: { name: "Lena Park", email: "lena@work2.example" }, minutesAgo: 3 * D, text: "Hi Alex, attaching the draft schedule for cohort 14. Can you check the AI module dates?", attachments: [{ filename: "cohort-14-schedule.pdf", mimeType: "application/pdf", size: 184_320 }] },
       { from: "me", minutesAgo: 2 * D, text: "Looks good. Can we move the AI module one week later? I am travelling that week." },
       { from: { name: "Lena Park", email: "lena@work2.example" }, minutesAgo: 25, text: "Done, moved it. Sending the final version now, please confirm before Friday so we can publish it.", attachments: [{ filename: "cohort-14-schedule-v2.pdf", mimeType: "application/pdf", size: 190_004 }, { filename: "room-plan.png", mimeType: "image/png", size: 88_210 }] },
     ],
@@ -86,7 +86,7 @@ const THREADS: SeedThread[] = [
     subject: "Re: website relaunch project, next steps",
     bucket: "inbox",
     messages: [
-      { from: { name: "Hugo Lind", email: "hugo@agency.example" }, minutesAgo: 5 * D, text: "Buenos días Fer, ¿podemos agendar una reunión para revisar el alcance de la fase 2?" },
+      { from: { name: "Hugo Lind", email: "hugo@agency.example" }, minutesAgo: 5 * D, text: "Buenos días Alex, ¿podemos agendar una reunión para revisar el alcance de la fase 2?" },
       { from: "me", minutesAgo: 4 * D, text: "Claro Javier, ¿te viene bien el jueves a las 10:00?" },
       { from: { name: "Hugo Lind", email: "hugo@agency.example" }, minutesAgo: 90, text: "Perfecto, el jueves a las 10:00. Te envío la invitación. Adjunto el documento de alcance actualizado.", attachments: [{ filename: "alcance-fase-2.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: 54_000 }] },
     ],
@@ -136,10 +136,10 @@ const THREADS: SeedThread[] = [
   },
   {
     account: "personal",
-    subject: "Your flight to Madrid is confirmed",
+    subject: "Your flight is confirmed",
     bucket: "inbox",
     seen: true,
-    messages: [{ from: { name: "Skyline Air", email: "noreply@airline.example" }, minutesAgo: 6 * D, text: "Booking ABC123. LIS to BER, 14 Oct 08:15.", attachments: [{ filename: "boarding-pass.pdf", mimeType: "application/pdf", size: 61_200 }] }],
+    messages: [{ from: { name: "Skyline Air", email: "noreply@airline.example" }, minutesAgo: 6 * D, text: "Booking ABC123. Departs 14 Oct 08:15, gate opens 07:30.", attachments: [{ filename: "boarding-pass.pdf", mimeType: "application/pdf", size: 61_200 }] }],
   },
   {
     account: "personal",
@@ -175,10 +175,10 @@ const THREADS: SeedThread[] = [
   },
   {
     account: "personal",
-    subject: "Your Amazon.es order has shipped",
+    subject: "Your order has shipped",
     bucket: "paper_trail",
     seen: true,
-    messages: [{ from: { name: "Amazon.es", email: "envios@amazon.es" }, minutesAgo: 1 * D, text: "Your order 402-555 has shipped and arrives Thursday." }],
+    messages: [{ from: { name: "Corner Shop", email: "orders@shop.example" }, minutesAgo: 1 * D, text: "Your order 402-555 has shipped and arrives Thursday." }],
   },
   {
     account: "work1",
@@ -189,10 +189,10 @@ const THREADS: SeedThread[] = [
   },
   {
     account: "work2",
-    subject: "Factura Holded F-2026-311",
+    subject: "Factura Ledgerly F-2026-311",
     bucket: "paper_trail",
     seen: true,
-    messages: [{ from: { name: "Holded", email: "no-reply@holded.com" }, minutesAgo: 8 * D, text: "Adjuntamos la factura F-2026-311.", attachments: [{ filename: "F-2026-311.pdf", mimeType: "application/pdf", size: 44_800 }] }],
+    messages: [{ from: { name: "Ledgerly", email: "no-reply@ledgerly.example" }, minutesAgo: 8 * D, text: "Adjuntamos la factura F-2026-311.", attachments: [{ filename: "F-2026-311.pdf", mimeType: "application/pdf", size: 44_800 }] }],
   },
   {
     account: "personal",
@@ -208,16 +208,16 @@ const THREADS: SeedThread[] = [
   },
   {
     account: "work2",
-    subject: "Speaker invitation: Codemotion Madrid",
+    subject: "Speaker invitation: DevSummit",
     bucket: "triage",
-    messages: [{ from: { name: "Codemotion", email: "speakers@codemotion.com" }, minutesAgo: 1 * D, text: "We would love to have you speak about AI in education at Codemotion Madrid in November." }],
+    messages: [{ from: { name: "DevSummit", email: "speakers@devsummit.example" }, minutesAgo: 1 * D, text: "We would love to have you speak about AI in education at DevSummit in November." }],
   },
   {
     account: "work1",
     subject: "Intro: Rafa from Studio North",
     bucket: "inbox",
     aiAllowed: true,
-    messages: [{ from: { name: "Rafa Cole", email: "rafa@studio.example" }, minutesAgo: 3 * H, text: "Hola Fer, Ana me pasó tu contacto. Estamos montando un programa de formación en IA para pymes y me encantaría hablar contigo." }],
+    messages: [{ from: { name: "Rafa Cole", email: "rafa@studio.example" }, minutesAgo: 3 * H, text: "Hola Alex, Ana me pasó tu contacto. Estamos montando un programa de formación en IA para pymes y me encantaría hablar contigo." }],
   },
   {
     account: "personal",
@@ -244,11 +244,11 @@ const THREADS: SeedThread[] = [
   },
   {
     account: "personal",
-    subject: "Recipe: papas arrugadas with mojo",
+    subject: "Recipe: lentil soup",
     bucket: "inbox",
     seen: true,
     work: true,
-    messages: [{ from: { name: "Mum", email: "mum@example.net" }, minutesAgo: 9 * D, text: "Como me pediste: papas pequeñas, mucha sal, y el mojo con comino, ajo, pimienta palmera y vinagre." }],
+    messages: [{ from: { name: "Mum", email: "mum@example.net" }, minutesAgo: 9 * D, text: "Como me pediste: lentejas, zanahoria, cebolla, ajo, comino y un chorro de vinagre al final." }],
   },
 ];
 
@@ -340,7 +340,7 @@ async function main() {
       .returning({ id: threads.id });
 
     for (const [j, m] of t.messages.entries()) {
-      const from = m.from === "me" ? { name: "Fer Martin", email: account.email } : m.from;
+      const from = m.from === "me" ? { name: "Alex Rivera", email: account.email } : m.from;
       const [msg] = await db
         .insert(messages)
         .values({
@@ -350,7 +350,7 @@ async function main() {
           senderId: m.from === "me" ? null : await senderId(from),
           fromEmail: from.email,
           fromName: from.name,
-          to: [m.from === "me" ? { name: first.name, email: first.email } : { name: "Fer Martin", email: account.email }],
+          to: [m.from === "me" ? { name: first.name, email: first.email } : { name: "Alex Rivera", email: account.email }],
           subject: j === 0 ? t.subject : `Re: ${t.subject}`,
           date: new Date(now - m.minutesAgo * 60_000),
           snippet: m.text.slice(0, 140),
