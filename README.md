@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <b>Mail for exactly one person.</b><br>
+  <b>Email that works your way.</b><br>
   Multiple Gmail inboxes, one keyboard, and an AI that learns how I sort.<br>
   Built for me, by me and Claude. Not a product.
 </p>
@@ -25,7 +25,7 @@ So I stopped looking for the right client and built my own. The success criterio
 
 ## Philosophy
 
-**Software for one.** email-flow has exactly one user. There's no onboarding, no settings for other people's problems, no growth loop. Every decision answers one question: does this make *my* mail better? That freedom is what makes it fast.
+**It works your way.** Software should bend to how you work, not train you to work for it. email-flow has no onboarding, no settings for other people's problems, no growth loop. Every decision answers one question: does this make *my* mail better? That freedom is what makes it fast, and it's why you should make your copy work your way too.
 
 **Make it yours, with AI.** Personalized software used to mean a team and a year. Now it's a conversation. This whole client was designed and built with Claude, feature by feature, the way I actually work. The future of software isn't one app for everyone. It's everyone with their own app.
 
