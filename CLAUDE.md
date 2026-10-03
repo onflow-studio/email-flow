@@ -20,6 +20,20 @@ Personal email client over any number of Gmail accounts. One instance serves one
 - Package manager: pnpm. Add files to git individually, never `git add .`.
 - Secrets live in `.env`, which is gitignored. Never commit keys.
 
+- No personal info in the repo, issues, commits or images: no real names, addresses, companies or places. Sample data is fictional (Alex Rivera, `*.example`, accounts personal / work1 / work2).
+- Copy voice: "email that works your way", sentence case, no hype. Never "for one person".
+- Some internal identifiers keep the app's former name on purpose: Gmail labels (`GMAIL_LABEL_PREFIX` default), cookies, localStorage keys, lock names, Docker and database names. Renaming them would orphan Gmail labels, log people out or reset settings.
+
+## Deploying
+
+- Production runs on Vercel from `master`; Postgres must use the direct (unpooled) URL. Migrations are not part of the build: apply them by hand to the production database before pushing code that needs them. See `docs/DEPLOY.md`.
+- The functions region is a Vercel project setting, not `vercel.ts` (it's compiled before env vars exist).
+- After pushing, confirm the deploy started; some pushes don't trigger one.
+
+## Screenshots
+
+README and website images come from a separate demo database seeded with `pnpm seed`, never real mail. Run a copy of the app against that database on another port, capture with a headless browser at 2x, and frame with the cyan → periwinkle gradient.
+
 ## Running
 
 ```
