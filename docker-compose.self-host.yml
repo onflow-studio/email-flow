@@ -1,0 +1,74 @@
+# Production self-hosting: Postgres, migrations, the web app and the sync loop.
+# docker compose -f docker-compose.self-host.yml up -d --build
+# Settings come from .env next to this file. See docs/SELF-HOST.md.
+# docker-compose.yml is the separate local-development database.
+
+name: email-flow
+
+x-app: &app
+  env_file: .env
+  environment:
+    # The bundled database. Comment this out to use DATABASE_URL from .env instead.
+    DATABASE_URL: postgres://emailflow:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/emailflow
+  restart: unless-stopped
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: emailflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: emailflow
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emailflow -d emailflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    <<: *app
+    build:
+      context: .
+      target: tools
+    image: email-flow-tools
+    command: ["pnpm", "db:migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    build:
+      context: .
+      target: web
+    image: email-flow-web
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/login || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # The five-minute sync loop. Run one sync writer per database: not this and a Vercel cron at once.
+  sync:
+    <<: *app
+    build:
+      context: .
+      target: tools
+    image: email-flow-tools
+    command: ["pnpm", "sync"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  db:

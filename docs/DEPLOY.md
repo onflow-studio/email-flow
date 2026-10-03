@@ -1,5 +1,16 @@
 # Deploy
 
+email-flow runs anywhere Node 24 and Postgres 16 run. There are two documented ways to host your own copy:
+
+| Option | What runs where | Guide |
+| --- | --- | --- |
+| Self-host | Docker Compose on a VPS, a home server or your own computer: Postgres, the web app and the sync loop on one machine. Or the same without Docker, on any Node 24 host with Postgres | [SELF-HOST.md](SELF-HOST.md) |
+| Vercel + Neon | The web app on Vercel, sync as a Vercel cron, Postgres on Neon | This page, below |
+
+Both use the same code, the same environment variables and the same Google OAuth client ([GOOGLE-OAUTH.md](GOOGLE-OAUTH.md)). Moving between them is a database dump, a restore and a change of URLs.
+
+## Vercel + Neon
+
 How to run your own copy of email-flow on Vercel with a Neon Postgres database. Any Postgres 16 that gives you a direct connection works; Neon is what this guide uses.
 
 You need:
@@ -11,7 +22,7 @@ You need:
 - An Anthropic API key
 - Node 24 and pnpm locally, to run migrations and the backfill
 
-## 1. Database
+### 1. Database
 
 Create a Neon project and database, either directly in Neon or through the Vercel Marketplace integration.
 
@@ -28,7 +39,7 @@ Migrations are applied by hand. The Vercel build does not run them. When you pul
 
 A variable set in your shell wins over `.env`, so a local `.env` pointing at Docker stays untouched.
 
-## 2. Secrets
+### 2. Secrets
 
 Generate these once and keep a copy somewhere safe:
 
@@ -40,13 +51,13 @@ openssl rand -base64 32   # SYNC_SECRET, also used as CRON_SECRET
 
 `TOKEN_ENCRYPTION_KEY` encrypts the Gmail refresh tokens in the database. If you lose or change it, every account has to be reconnected.
 
-## 3. Vercel project
+### 3. Vercel project
 
 In Vercel, create a new project and import your fork. The framework preset is Next.js; the build command and output need no changes. `vercel.ts` holds the project config (cron and region).
 
 Set the environment variables below for the Production environment, then deploy.
 
-### Environment variables
+#### Environment variables
 
 Required:
 
@@ -82,7 +93,7 @@ Do not set `AUTH_DISABLED`. It only works outside production anyway: it is ignor
 
 Keep production credentials out of the Preview and Development environments unless you want previews to read and write real mail.
 
-## 4. Google OAuth redirect URIs
+### 4. Google OAuth redirect URIs
 
 Add both production callbacks to the OAuth client's authorized redirect URIs in Google Cloud, next to the localhost ones:
 
@@ -91,7 +102,7 @@ Add both production callbacks to the OAuth client's authorized redirect URIs in 
 
 [GOOGLE-OAUTH.md](GOOGLE-OAUTH.md) covers creating the client, scopes and the consent screen.
 
-## 5. Scheduled sync
+### 5. Scheduled sync
 
 `vercel.ts` schedules `GET /api/sync` every 5 minutes, and `app/api/sync/route.ts` sets `maxDuration = 300` so a first sync can pull a couple of weeks of mail. Both need the Vercel **Pro** plan: Hobby only allows cron jobs that run once a day, and a five-minute schedule fails the deployment. Check Vercel's current plan limits if in doubt.
 
@@ -105,7 +116,7 @@ The route accepts GET and POST with the same bearer token, runs one pass over al
 
 Run one sync writer per database: either the hosted cron or a local `pnpm sync` pointed at the same database, not both.
 
-## 6. First run
+### 6. First run
 
 1. Open `https://<your-domain>` and sign in with an address from `ALLOWED_EMAILS`.
 2. Go to `/settings` and connect each Gmail account.
@@ -124,11 +135,11 @@ Run one sync writer per database: either the hosted cron or a local `pnpm sync` 
 
 The other maintenance scripts (`pnpm summarize`, `pnpm participation`, `pnpm twins`, `pnpm confirm`) take the same environment.
 
-## Google consent screen in Testing mode
+### Google consent screen in Testing mode
 
 While the OAuth consent screen is in **Testing**, Google expires Gmail refresh tokens after 7 days. Each connected account then has to be reconnected from `/settings`. Publishing the app (or using an Internal app for Google Workspace accounts) removes the limit; see [GOOGLE-OAUTH.md](GOOGLE-OAUTH.md).
 
-## Checking that it works
+### Checking that it works
 
 - Vercel's Logs for `/api/sync`, or `vercel logs --environment production --query '/api/sync'`.
 - The JSON outcome per account: `ok`, `reauth` (reconnect in `/settings`), `busy`, `throttled` or `error`. Only `error` makes the response an HTTP 500, so check the outcomes as well as the status code.

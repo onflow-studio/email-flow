@@ -27,6 +27,7 @@ Personal email client over any number of Gmail accounts. One instance serves one
 ## Deploying
 
 - Production runs on Vercel from `master`; Postgres must use the direct (unpooled) URL. Migrations are not part of the build: apply them by hand to the production database before pushing code that needs them. See `docs/DEPLOY.md`.
+- Self-hosting is the other supported path: `Dockerfile` and `docker-compose.self-host.yml`, see `docs/SELF-HOST.md`. Changes to env, scripts or migrations must keep both working.
 - The functions region is a Vercel project setting, not `vercel.ts` (it's compiled before env vars exist).
 - After pushing, confirm the deploy started; some pushes don't trigger one.
 
