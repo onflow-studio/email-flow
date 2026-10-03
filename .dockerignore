@@ -1,0 +1,29 @@
+# Dependencies and build output are recreated inside the image.
+node_modules
+.next
+out
+build
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# Secrets: compose passes them at runtime, never bake them into an image.
+.env
+.env.*
+!.env.example
+*.pem
+
+# Repository and tooling, not needed to build or run.
+.git
+.github
+.vercel
+.claude
+.agents
+skills-lock.json
+docs/readme
+Dockerfile
+.dockerignore
+docker-compose*.yml
+compose*.yaml
+*.log
+.DS_Store

@@ -11,6 +11,7 @@
 <p align="center">
   <a href="#philosophy">Philosophy</a> ·
   <a href="#a-tour">Tour</a> ·
+  <a href="#stack">Stack</a> ·
   <a href="#under-the-hood">Under the hood</a> ·
   <a href="#make-it-yours">Make it yours</a>
 </p>
@@ -81,17 +82,26 @@ On the phone it's a home-screen web app for reading and quick replies. Heavy tri
 - **Remote images blocked** by default, per sender when you want them.
 - **Grouped machine mail.** Notifications from one service fold into a single row.
 
+## Stack
+
+```text
+>_ email-flow --stack
+lang       TypeScript 97% · CSS 2%
+stack      Next.js 16 · React 19 · Tailwind 4 · Drizzle · Tiptap · cmdk
+data       Postgres 16 · pgvector image, ready for semantic search
+ai         Claude Haiku 4.5   sorts every thread and writes its summary
+           Claude Sonnet 5    turns plain-language rules into conditions
+           TypeSafe Jev       optional second opinion, person or machine
+talks to   Gmail API · Anthropic · TypeSafe (optional)
+stores     your mail, buckets and rules, in your own Postgres
+self-host  Docker Compose, any Node 24 host + Postgres, or Vercel + Neon
+```
+
 ## Under the hood
 
-| | |
-| --- | --- |
-| App | Next.js, React, TypeScript, Tailwind. Dark mode only, monospace only, every value from [DESIGN.md](DESIGN.md) |
-| Data | Postgres with pgvector, Drizzle |
-| AI | Claude: Haiku 4.5 classifies every thread, Sonnet for everything else. Optional second opinion from TypeSafe's Jev. All calls go through `lib/ai` and `lib/classify` |
-| Sync | A five-minute loop over the Gmail API, with history IDs for changes and a resumable year-to-date backfill |
-| Editor | Tiptap. Palette: cmdk |
+Dark mode only and monospace only, with every value from [DESIGN.md](DESIGN.md). All AI calls go through `lib/ai` and `lib/classify`. Sync is a five-minute loop over the Gmail API, with history IDs for changes and a resumable year-to-date backfill.
 
-It runs locally with Docker, or on Vercel with a managed Postgres, and moving between the two is a config change: no queues, no Redis, no machine-specific dependencies, secrets in env. See [docs/DEPLOY.md](docs/DEPLOY.md) for a fresh deploy.
+It's self-hostable with Docker Compose on a VPS or your own computer, or runs on Vercel with Neon, and moving between them is a config change: no queues, no Redis, no machine-specific dependencies, secrets in env. See [docs/SELF-HOST.md](docs/SELF-HOST.md) and [docs/DEPLOY.md](docs/DEPLOY.md).
 
 The thinking behind it is written down:
 
@@ -124,7 +134,9 @@ Open `/settings` and connect each Gmail account, then import this year's mail wi
 
 Just want to look around? `pnpm seed` fills three fictional accounts with sample mail. Don't run it against a database with real mail.
 
-To put it online, [docs/DEPLOY.md](docs/DEPLOY.md) walks through a fresh Vercel and Neon deploy.
+### Host it
+
+email-flow is self-hostable. [docs/SELF-HOST.md](docs/SELF-HOST.md) runs the whole thing with Docker Compose (Postgres, the web app and the sync loop) on a VPS, a home server or your Mac, or without Docker on any Node 24 host with Postgres. If you'd rather not run a server, [docs/DEPLOY.md](docs/DEPLOY.md) walks through a fresh Vercel and Neon deploy.
 
 ### Testing mode: reconnect every 7 days
 
