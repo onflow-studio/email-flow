@@ -85,11 +85,17 @@ export function isValidEmail(email: string): boolean {
   return EMAIL.test(email);
 }
 
-/** Typed recipients, e.g. `ana@x.com, "Ana B" <ana@y.com>`. Parts that are not addresses come back as `invalid`. */
+/**
+ * Typed recipients, e.g. `ana@x.com, "Ana B" <ana@y.com>`. Parts that are not addresses come back as `invalid`.
+ * An unquoted "Last, First <x@y>" is read as one recipient: a bare name joins the part after it.
+ */
 export function parseRecipients(value: string): { addresses: Address[]; invalid: string[] } {
   const addresses: Address[] = [];
   const invalid: string[] = [];
-  for (const part of splitList(value)) {
+  const parts = splitList(value);
+  for (let i = 0; i < parts.length; i++) {
+    let part = parts[i];
+    while (!/[@<]/.test(part) && i + 1 < parts.length) part = `${part}, ${parts[++i]}`;
     const address = parseAddress(part);
     if (address && isValidEmail(address.email)) addresses.push(address);
     else invalid.push(part);
@@ -97,6 +103,11 @@ export function parseRecipients(value: string): { addresses: Address[]; invalid:
   return { addresses, invalid };
 }
 
+// Names with commas, quotes or other specials are quoted, so the list splits back the same way.
+function formatName(name: string): string {
+  return /[",;:<>()@\\[\]]/.test(name) ? `"${name.replace(/["\\]/g, "\\$&")}"` : name;
+}
+
 export function formatAddressList(list: Address[]): string {
-  return list.map((a) => (a.name ? `${a.name} <${a.email}>` : a.email)).join(", ");
+  return list.map((a) => (a.name ? `${formatName(a.name)} <${a.email}>` : a.email)).join(", ");
 }
