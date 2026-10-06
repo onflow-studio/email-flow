@@ -2,18 +2,20 @@
   <img src="docs/readme/hero.png" alt="email-flow: a dark, monospace mail client with a bucket rail, a thread list and an open thread" width="900">
 </p>
 
+<h1 align="center">email-flow</h1>
+
 <p align="center">
   <b>Email that works your way.</b><br>
-  Multiple Gmail inboxes, one keyboard, and an AI that learns how I sort.<br>
-  Built for me, by me and Claude. Not a product.
+  Multiple Gmail inboxes, one keyboard, and an AI that learns how you sort.<br>
+  Built with Claude, self-hosted, and meant to be forked and made yours.
 </p>
 
 <p align="center">
-  <a href="#philosophy">Philosophy</a> ·
+  <a href="#run-it"><b>Run it</b></a> ·
+  <a href="docs/SELF-HOST.md"><b>Self-host it</b></a> ·
   <a href="#a-tour">Tour</a> ·
-  <a href="#stack">Stack</a> ·
-  <a href="#under-the-hood">Under the hood</a> ·
-  <a href="#make-it-yours">Make it yours</a>
+  <a href="#philosophy">Philosophy</a> ·
+  <a href="#stack">Stack</a>
 </p>
 
 ---
