@@ -2,6 +2,7 @@
 
 import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
+import { Fragment, Slice } from "@tiptap/pm/model";
 import { EditorContent, Extension, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useRef, useState } from "react";
@@ -89,6 +90,17 @@ export function useComposeEditor({
     ],
     editorProps: {
       attributes: { "aria-label": "message body", class: "outline-none" },
+      // One paragraph per line, blank lines kept. ProseMirror's default folds runs of newlines into one.
+      clipboardTextParser: (text, $context, _plain, view) => {
+        const { schema } = view.state;
+        const marks = $context.marks();
+        const lines = text.replace(/\r\n?/g, "\n").replace(/^\n+|\s+$/g, "").split("\n");
+        const paragraphs = lines.map((line) => {
+          const clean = line.trimEnd();
+          return schema.nodes.paragraph.create(null, clean ? schema.text(clean, marks) : null);
+        });
+        return new Slice(Fragment.from(paragraphs), 1, 1);
+      },
       handlePaste: (view, event): boolean => {
         const files = Array.from(event.clipboardData?.files ?? []);
         return files.length ? insertFiles(editorRef.current!, files) : false;
