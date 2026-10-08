@@ -3,6 +3,7 @@
 import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
 import { Fragment, Slice } from "@tiptap/pm/model";
+import { Plugin, TextSelection } from "@tiptap/pm/state";
 import { EditorContent, Extension, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useRef, useState } from "react";
@@ -73,6 +74,28 @@ export function useComposeEditor({
       Placeholder.configure({ placeholder }),
       // HardBreak claims mod+enter and the base keymap claims escape, so the
       // global compose keys never see them from inside the body. Route them here.
+      // Deleting everything leaves the first block's type behind (a pasted h1, say), and with it
+      // the next paragraph you type. Clearing the body drops back to a plain paragraph; choosing
+      // a heading on an already empty body still works, since nothing was deleted.
+      Extension.create({
+        name: "clearToParagraph",
+        addProseMirrorPlugins: () => [
+          new Plugin({
+            appendTransaction: (trs, oldState, newState) => {
+              if (!trs.some((tr) => tr.docChanged) || oldState.doc.textContent === "") return null;
+              const { doc, schema } = newState;
+              // An empty heading keeps a trailing empty paragraph after it.
+              let blank = true;
+              doc.forEach((node) => {
+                blank &&= node.isTextblock && node.content.size === 0;
+              });
+              if (!blank || doc.firstChild?.type === schema.nodes.paragraph) return null;
+              const tr = newState.tr.replaceWith(0, doc.content.size, schema.nodes.paragraph.create());
+              return tr.setSelection(TextSelection.create(tr.doc, 1)).setStoredMarks([]);
+            },
+          }),
+        ],
+      }),
       Extension.create({
         name: "composeKeys",
         priority: 1000,
