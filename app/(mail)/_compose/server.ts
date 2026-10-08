@@ -187,6 +187,18 @@ export function forwardBlock(target: Target): string {
   return `<div class="gmail_quote"><div dir="ltr" class="gmail_attr">${lines.map(escapeHtml).join("<br>")}<br></div><br>${originalBody(target)}</div>`;
 }
 
+/**
+ * The editor's body in Gmail's shape: one margin-free div per line, `<div><br></div>` for a
+ * blank one. Paragraph margins would space every line apart and collapse the blank ones.
+ */
+export function bodyBlock(html: string): string {
+  return html
+    .replace(/<p><\/p>/g, "<div><br></div>")
+    .replace(/<p(\s[^>]*)?>/g, "<div$1>")
+    .replace(/<\/p>/g, "</div>")
+    .replace(/<h([1-3])>/g, '<h$1 style="margin:0">');
+}
+
 export function signatureBlock(signatureHtml: string | null): string {
   return signatureHtml ? `<br><div class="gmail_signature">${signatureHtml}</div>` : "";
 }

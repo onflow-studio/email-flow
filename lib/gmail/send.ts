@@ -69,7 +69,10 @@ export function htmlToPlainText(html: string): string {
       { selector: "h3", options: { uppercase: false } },
       { selector: "blockquote", format: "blockquote", options: { trimEmptyLines: true } },
     ],
-  }).trim();
+  })
+    // A `<div><br></div>` blank line comes out as two or three.
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 const DATA_IMAGE = /src="data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=]+)"/g;
