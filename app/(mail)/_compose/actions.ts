@@ -21,6 +21,7 @@ import { getGmailSyncAdapter } from "@/lib/sync/gmail";
 import { ingestThread } from "@/lib/sync/store";
 
 import {
+  bodyBlock,
   composeSubject,
   findRecipients,
   forwardBlock,
@@ -163,7 +164,7 @@ async function assemble(data: Input, recipients: [Address[], Address[], Address[
       .from(accounts)
       .where(eq(accounts.id, data.accountId));
     if (!account) return "account not found, reload";
-    const html = composed ? `${data.html}${signatureBlock(account.signatureHtml)}` : data.html;
+    const html = composed ? `${bodyBlock(data.html)}${signatureBlock(account.signatureHtml)}` : data.html;
     return {
       accountId: account.id,
       accountLabel: account.label,
@@ -188,7 +189,7 @@ async function assemble(data: Input, recipients: [Address[], Address[], Address[
     ? { inReplyTo: messageId, references: references ? `${references} ${messageId}` : messageId }
     : {};
 
-  const html = composed ? `${data.html}${signatureBlock(ctx.account.signatureHtml)}${tail ? `<br>${tail}` : ""}` : data.html;
+  const html = composed ? `${bodyBlock(data.html)}${signatureBlock(ctx.account.signatureHtml)}${tail ? `<br>${tail}` : ""}` : data.html;
   return {
     // Replies and forwards always leave from the account that holds the thread.
     accountId: ctx.account.id,
