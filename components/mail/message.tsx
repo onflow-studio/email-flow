@@ -1,12 +1,13 @@
 "use client";
 
-import { Paperclip } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, Paperclip } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
 import type { Address } from "@/lib/db/schema";
 import { splitTextQuote } from "@/lib/mail/quote";
 import { attachmentUrl, opensInline } from "@/lib/mail/remote";
+import { cn } from "@/lib/utils";
 
 import { EmailFrame } from "./email-frame";
 import { QuoteFold } from "./quote-fold";
@@ -23,12 +24,13 @@ export function MessageContent({ message: m, quoteLabel = null }: { message: Mes
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-w-0 flex-col">
-        <div className="flex min-w-0 items-baseline gap-2">
+        <div className="group/header flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate font-medium text-text">{displayName(m)}</span>
           {m.fromName || !m.isInbound ? (
             <span className="hidden min-w-0 shrink-2 truncate text-12 text-text-muted md:inline">{m.fromEmail}</span>
           ) : null}
-          <Time iso={m.date} format="full" className="ml-auto shrink-0 text-12 text-text-muted" />
+          <CopyBody text={m.text ?? ""} />
+          <Time iso={m.date} format="full" className="shrink-0 text-12 text-text-muted" />
         </div>
         <span className="truncate text-11 text-text-muted">
           to {formatAddresses(m.to)}
@@ -64,6 +66,39 @@ export function MessageContent({ message: m, quoteLabel = null }: { message: Mes
         </ul>
       ) : null}
     </div>
+  );
+}
+
+/** Copies the message's own text, without the quoted history. Shown on hover of the header line. */
+function CopyBody({ text }: { text: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  useEffect(() => {
+    if (state === "idle") return;
+    const timer = setTimeout(() => setState("idle"), 1500);
+    return () => clearTimeout(timer);
+  }, [state]);
+
+  const copy = () => {
+    navigator.clipboard.writeText(splitTextQuote(text).body.trim()).then(
+      () => setState("copied"),
+      () => setState("failed"),
+    );
+  };
+
+  const Icon = state === "copied" ? Check : Copy;
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={state === "failed" ? "copy failed" : state === "copied" ? "copied" : "copy text"}
+      aria-label="copy text"
+      className={cn(
+        "ml-auto flex size-4 shrink-0 items-center justify-center self-center rounded-sm outline-none transition-[color,opacity] duration-80 ease-snap focus-visible:text-accent focus-visible:opacity-100 hover:text-text md:group-hover/header:opacity-100",
+        state === "idle" ? "text-text-muted md:opacity-0" : state === "copied" ? "text-success" : "text-danger",
+      )}
+    >
+      <Icon aria-hidden className="size-3" strokeWidth={1.5} />
+    </button>
   );
 }
 
