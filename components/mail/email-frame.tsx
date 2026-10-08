@@ -80,6 +80,27 @@ function copyAppFont(doc: Document) {
   doc.documentElement.style.setProperty("--app-font", getComputedStyle(document.body).fontFamily);
 }
 
+const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+const EMBEDDED_URL = /https?:\/{1,2}[^\s"'<>]+$/i;
+
+/**
+ * A relative link resolves against the app, so it would open one of the app's own pages. Senders'
+ * clients sometimes paste a local file path with the real URL inside it; keep that URL, else drop the link.
+ */
+function fixRelativeLinks(doc: Document) {
+  for (const a of Array.from(doc.querySelectorAll<HTMLAnchorElement>("a[href]"))) {
+    const href = (a.getAttribute("href") ?? "").trim();
+    if (SCHEME.test(href) || href.startsWith("#")) continue;
+    let decoded = href;
+    try {
+      decoded = decodeURI(href);
+    } catch {}
+    const url = decoded.match(EMBEDDED_URL)?.[0].replace(/^(https?:)\/+/i, "$1//");
+    if (url) a.setAttribute("href", url);
+    else a.removeAttribute("href");
+  }
+}
+
 // CSP does not govern navigation; a refresh would load a remote page in the frame.
 const META_REFRESH = /<meta[^>]+http-equiv\s*=\s*["']?refresh[^>]*>/gi;
 
@@ -181,6 +202,7 @@ export function EmailFrame({
   const onLoad = useCallback(() => {
     const doc = ref.current?.contentDocument;
     if (!doc?.body) return;
+    fixRelativeLinks(doc);
     if (plain) copyAppFont(doc);
     if (quoteLabel !== null) {
       setHasQuote(markQuote(doc));
