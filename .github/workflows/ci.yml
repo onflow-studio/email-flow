@@ -13,7 +13,10 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # Pushes and pull requests from this repository run on the org's own ci-flow runner (a
+    # fresh container per job). A fork's pull request never does: it runs on GitHub-hosted
+    # Ubuntu, after an owner approves it.
+    runs-on: ${{ (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "email-flow"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
