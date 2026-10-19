@@ -101,7 +101,7 @@ self-host  Docker Compose, any Node 24 host + Postgres, or Vercel + Neon
 
 ## Under the hood
 
-Dark mode only and monospace only, with every value from [DESIGN.md](DESIGN.md). All AI calls go through `lib/ai` and `lib/classify`. Sync is a five-minute loop over the Gmail API, with history IDs for changes and a resumable year-to-date backfill.
+Dark mode only and monospace only, with every value from [DESIGN.md](DESIGN.md). All AI calls go through `lib/ai` and `lib/classify`. Sync is a loop over the Gmail API (every 5 minutes locally, every 10 on Vercel), with history IDs for changes and a resumable year-to-date backfill.
 
 It's self-hostable with Docker Compose on a VPS or your own computer, or runs on Vercel with Neon, and moving between them is a config change: no queues, no Redis, no machine-specific dependencies, secrets in env. See [docs/SELF-HOST.md](docs/SELF-HOST.md) and [docs/DEPLOY.md](docs/DEPLOY.md).
 
@@ -178,7 +178,7 @@ Required on Vercel:
 
 | Variable | Purpose | Value |
 |---|---|---|
-| `CRON_SECRET` | the five-minute sync cron | Vercel cron sends it as the bearer token. Set it to the same value as `SYNC_SECRET` |
+| `CRON_SECRET` | the ten-minute sync cron | Vercel cron sends it as the bearer token. Set it to the same value as `SYNC_SECRET` |
 
 Optional (unset keeps the default):
 

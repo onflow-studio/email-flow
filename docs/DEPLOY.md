@@ -16,7 +16,7 @@ How to run your own copy of email-flow on Vercel with a Neon Postgres database. 
 You need:
 
 - A fork of this repository on GitHub
-- A Vercel account (Pro for the built-in five-minute sync, see [Scheduled sync](#5-scheduled-sync))
+- A Vercel account (Pro for the built-in ten-minute sync, see [Scheduled sync](#5-scheduled-sync))
 - A Neon account, or another hosted Postgres
 - A Google Cloud OAuth client with the Gmail API enabled ([GOOGLE-OAUTH.md](GOOGLE-OAUTH.md))
 - An Anthropic API key
@@ -104,7 +104,7 @@ Add both production callbacks to the OAuth client's authorized redirect URIs in 
 
 ### 5. Scheduled sync
 
-`vercel.ts` schedules `GET /api/sync` every 5 minutes, and `app/api/sync/route.ts` sets `maxDuration = 300` so a first sync can pull a couple of weeks of mail. Both need the Vercel **Pro** plan: Hobby only allows cron jobs that run once a day, and a five-minute schedule fails the deployment. Check Vercel's current plan limits if in doubt.
+`vercel.ts` schedules `GET /api/sync` every 10 minutes, and `app/api/sync/route.ts` sets `maxDuration = 300` so a first sync can pull a couple of weeks of mail. Both need the Vercel **Pro** plan: Hobby only allows cron jobs that run once a day, and a ten-minute schedule fails the deployment. Ten minutes rather than five lets a Neon compute scale to zero between passes: its default is to suspend after 5 idle minutes, so a five-minute cron keeps it awake around the clock. Check Vercel's current plan limits if in doubt.
 
 **On Hobby**, change the schedule in `vercel.ts` to once a day (or remove the `crons` entry) and trigger sync from an external scheduler instead, such as a GitHub Actions `schedule` workflow or any cron service:
 
