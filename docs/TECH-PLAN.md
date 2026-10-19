@@ -120,7 +120,7 @@ Every user action goes through `lib/actions`. It writes the local change, logs t
 
 ## Command palette
 
-cmdk with three sources: navigation (buckets, accounts, settings), thread search, and actions. Phase 1 search is Postgres full-text over subject, sender, and text with a tsvector column and a GIN index, with simple filters parsed from the query: `from:`, `account:`, `before:`, `after:`. Actions on results show the preview count in `--info` and execute after Enter.
+cmdk with three sources: navigation (buckets, accounts, settings), thread search, and actions. Phase 1 search is Postgres full-text over subject, sender, recipients, and text with a tsvector column and a GIN index, accent-insensitive through `unaccent`, with simple filters parsed from the query: `from:`, `account:`, `before:`, `after:`. Actions on results show the preview count in `--info` and execute after Enter.
 
 ## Keyboard
 

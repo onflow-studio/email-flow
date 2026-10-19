@@ -2,11 +2,21 @@ import { MATCH_END, MATCH_START } from "@/lib/search/query";
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Marks word-prefix matches of the query words in `--accent`. */
+/** Drops accents one UTF-16 unit at a time, so indexes still line up with `s`. */
+const fold = (s: string) =>
+  Array.from({ length: s.length }, (_, i) => s[i].normalize("NFD").replace(/\p{M}/gu, "")[0] ?? s[i]).join("");
+
+/** Marks word-prefix matches of the query words in `--accent`, accents ignored as search does. */
 export function Highlight({ text, words }: { text: string; words: string[] }) {
   if (!words.length) return <>{text}</>;
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(${words.map(escapeRegExp).join("|")})`, "giu");
-  const parts = text.split(pattern);
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${words.map((w) => escapeRegExp(fold(w))).join("|")})`, "giu");
+  const parts: string[] = [];
+  let last = 0;
+  for (const m of fold(text).matchAll(pattern)) {
+    parts.push(text.slice(last, m.index), text.slice(m.index, m.index + m[0].length));
+    last = m.index + m[0].length;
+  }
+  parts.push(text.slice(last));
   return (
     <>
       {parts.map((part, i) =>
