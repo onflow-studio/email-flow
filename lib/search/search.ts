@@ -25,6 +25,9 @@ export type SearchResult = { query: ParsedQuery; hits: SearchHit[]; total: numbe
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
+/** Text search config of `messages.search`: 'simple' plus unaccent, see the schema. */
+const SEARCH_CONFIG = "simple_unaccent";
+
 /** `accountIds` limits results to the accounts toggled on; null searches all. */
 export type SearchScope = { accountIds?: string[] | null };
 
@@ -34,7 +37,7 @@ function where(q: ParsedQuery, tsq: SQL | null, scope: SearchScope): SQL | undef
     scope.accountIds ? inArray(threads.accountId, scope.accountIds) : undefined,
     eq(threads.spam, false),
     tsq ? sql`${messages.search} @@ ${tsq}` : undefined,
-    ...q.from.map((f) => or(ilike(messages.fromEmail, `%${escapeLike(f)}%`), ilike(messages.fromName, `%${escapeLike(f)}%`))),
+    ...q.from.map((f) => or(ilike(messages.fromEmail, `%${escapeLike(f)}%`), sql`unaccent(${messages.fromName}) ilike unaccent(${`%${escapeLike(f)}%`})`)),
     q.account.length
       ? or(...q.account.map((a) => or(ilike(accounts.label, escapeLike(a)), ilike(accounts.email, `${escapeLike(a)}%`))))
       : undefined,
@@ -43,16 +46,16 @@ function where(q: ParsedQuery, tsq: SQL | null, scope: SearchScope): SQL | undef
   );
 }
 
-const tsqueryOf = (q: ParsedQuery) => (q.tsquery ? sql`to_tsquery('simple', ${q.tsquery})` : null);
+const tsqueryOf = (q: ParsedQuery) => (q.tsquery ? sql`to_tsquery(${SEARCH_CONFIG}::regconfig, ${q.tsquery})` : null);
 
 /** Ranking only: keep prefix matching in WHERE so typing never loses broader hits. */
 function relevanceTier(q: ParsedQuery): SQL<number> {
   if (!q.tsquery) return sql<number>`0`;
-  // The parser emits only words and operators. Removing prefix markers keeps
+  // The parser emits only words, addresses and operators. Removing prefix markers keeps
   // quoted phrase order while requiring complete words, using the same config.
-  const exact = sql`to_tsquery('simple', ${q.tsquery.replace(/:\*/g, "")})`;
-  const phrase = sql`to_tsquery('simple', ${q.words.join(" <-> ")})`;
-  const subject = sql`to_tsvector('simple', coalesce(${threads.subject}, ''))`;
+  const exact = sql`to_tsquery(${SEARCH_CONFIG}::regconfig, ${q.tsquery.replace(/:\*/g, "")})`;
+  const phrase = sql`to_tsquery(${SEARCH_CONFIG}::regconfig, ${q.words.join(" <-> ")})`;
+  const subject = sql`to_tsvector(${SEARCH_CONFIG}::regconfig, coalesce(${threads.subject}, ''))`;
   return sql<number>`case
     when ${subject} @@ ${phrase} then 3
     when ${subject} @@ ${exact} then 2
@@ -111,7 +114,7 @@ export async function searchThreads(db: Db, input: string, scope: SearchScope = 
     .selectDistinctOn([messages.threadId], {
       threadId: messages.threadId,
       snippet: tsq
-        ? sql<string>`ts_headline('simple', coalesce(${messages.text}, ${messages.snippet}, ''), ${tsq}, ${options})`
+        ? sql<string>`ts_headline(${SEARCH_CONFIG}::regconfig, coalesce(${messages.text}, ${messages.snippet}, ''), ${tsq}, ${options})`
         : sql<string>`coalesce(${messages.snippet}, '')`,
     })
     .from(messages)

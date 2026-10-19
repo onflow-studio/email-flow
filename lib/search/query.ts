@@ -20,6 +20,9 @@ export type ParsedQuery = {
 
 const TOKEN = /(\w+):("[^"]*"?|\S+)|"([^"]*)"?|(\S+)/g;
 const WORD = /[\p{L}\p{N}]+/gu;
+// Postgres keeps an address in body text as one token, so a typed address also
+// matches it whole; header addresses are indexed split as well.
+const ADDRESS = /^[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(\.[\p{L}\p{N}-]+)+$/u;
 
 const words = (text: string) => (text.toLowerCase().match(WORD) ?? []).slice(0, 12);
 
@@ -58,7 +61,9 @@ export function parseQuery(input: string): ParsedQuery {
     if (!w.length) continue;
     parsed.words.push(...w);
     // A phrase keeps word order; the last word is still a prefix.
-    clauses.push(phrase !== undefined ? w.map((x, i) => (i === w.length - 1 ? `${x}:*` : x)).join(" <-> ") : w.map((x) => `${x}:*`).join(" & "));
+    if (phrase !== undefined) clauses.push(w.map((x, i) => (i === w.length - 1 ? `${x}:*` : x)).join(" <-> "));
+    else if (bare && ADDRESS.test(bare)) clauses.push(`(${w.map((x) => `${x}:*`).join(" & ")} | ${bare.toLowerCase()}:*)`);
+    else clauses.push(w.map((x) => `${x}:*`).join(" & "));
   }
 
   parsed.tsquery = clauses.length ? clauses.join(" & ") : null;

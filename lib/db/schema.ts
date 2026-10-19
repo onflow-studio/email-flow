@@ -223,9 +223,11 @@ export const messages = pgTable(
     isInbound: boolean().notNull(),
     gmailLabels: text().array().notNull().default([]),
     headers: jsonb().$type<MessageHeaders>().notNull().default({}),
-    // 'simple' config: mail is mixed English and Spanish, no stemming either way.
+    // SEARCH_CONFIG: 'simple' plus unaccent; mail is mixed English and Spanish, no stemming either
+    // way. Recipients count as Gmail does, and addresses are also split at @ and dots so a
+    // typed address or domain matches word by word.
     search: tsvector().generatedAlwaysAs(
-      sql`to_tsvector('simple', coalesce(subject, '') || ' ' || coalesce(from_name, '') || ' ' || from_email || ' ' || coalesce(text, ''))`,
+      sql`to_tsvector('simple_unaccent', coalesce(subject, '') || ' ' || coalesce(from_name, '') || ' ' || from_email || ' ' || translate(from_email, '@.', '  ') || ' ' || jsonb_path_query_array("to" || cc || bcc, '$[*].name ? (@ != null)')::text || ' ' || translate(jsonb_path_query_array("to" || cc || bcc, '$[*].email')::text, '@.', '  ') || ' ' || coalesce(text, ''))`,
     ),
     createdAt: createdAt(),
   },

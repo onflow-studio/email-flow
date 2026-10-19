@@ -99,6 +99,13 @@
       "when": 1790953990927,
       "tag": "0013_accounts_refresh_token_issued_at",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792430744016,
+      "tag": "0014_search_recipients_unaccent",
+      "breakpoints": true
     }
   ]
 }
