@@ -193,7 +193,7 @@ Login is Google sign-in on the same OAuth client with `openid email profile` onl
 Same code locally and hosted; moving between them is configuration, not a rewrite. Node.js 24 (`.nvmrc`, `engines` in package.json).
 
 - Locally: Docker Postgres, `pnpm dev`, and `pnpm sync` looping every 5 minutes.
-- Hosted: Vercel for the app and a managed Postgres such as Neon. `vercel.ts` schedules `GET /api/sync` every 5 minutes, and the route allows `maxDuration = 300`. Vercel cron sends `Authorization: Bearer <CRON_SECRET>`, so `CRON_SECRET` is set to the same value as `SYNC_SECRET`.
+- Hosted: Vercel for the app and a managed Postgres such as Neon. `vercel.ts` schedules `GET /api/sync` every 10 minutes, so a Neon compute can scale to zero between passes, and the route allows `maxDuration = 300`. Vercel cron sends `Authorization: Bearer <CRON_SECRET>`, so `CRON_SECRET` is set to the same value as `SYNC_SECRET`.
 - `DATABASE_URL` must be a direct (unpooled) connection. Sync holds session-level advisory locks on a reserved connection, and transaction pooling cannot keep them.
 - Migrations are applied by hand with `pnpm db:migrate` against the target database. The build does not run them.
 - Run one sync writer per database: the cron or `pnpm sync`, not both.
