@@ -138,7 +138,7 @@ While the OAuth consent screen is in Testing, Google expires Gmail refresh token
 
 ## Using your own Postgres
 
-To use a database you already run, remove the `DATABASE_URL` line under `x-app` in `docker-compose.self-host.yml`, set `DATABASE_URL` in `.env`, and drop the `db` service and the `migrate` dependency on it. Use Postgres 16 or later with a direct connection, not a transaction-mode pooler: sync holds session-level advisory locks. The pgvector image is used so planned semantic search can arrive without a database change; no migration needs the extension yet.
+To use a database you already run, remove the `DATABASE_URL` line under `x-app` in `docker-compose.self-host.yml`, set `DATABASE_URL` in `.env`, and drop the `db` service and the `migrate` dependency on it. Use Postgres 16 or later with a direct connection, not a transaction-mode pooler: sync holds session-level advisory locks. Search needs the `unaccent` extension, which ships with standard Postgres. The pgvector image is used so planned semantic search can arrive without a database change; no migration needs the extension yet.
 
 ## Without Docker
 
