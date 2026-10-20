@@ -22,6 +22,7 @@ type SeedThread = {
   seen?: boolean;
   snoozedHours?: number;
   work?: boolean;
+  starred?: boolean;
   suggested?: boolean;
   /** Sender let in by the AI screener instead of the user. Triage senders are undecided. */
   aiAllowed?: boolean;
@@ -139,6 +140,7 @@ const THREADS: SeedThread[] = [
     subject: "Your flight is confirmed",
     bucket: "inbox",
     seen: true,
+    starred: true,
     messages: [{ from: { name: "Skyline Air", email: "noreply@airline.example" }, minutesAgo: 6 * D, text: "Booking ABC123. Departs 14 Oct 08:15, gate opens 07:30.", attachments: [{ filename: "boarding-pass.pdf", mimeType: "application/pdf", size: 61_200 }] }],
   },
   {
@@ -333,6 +335,8 @@ async function main() {
         seenAt: t.seen ? lastAt : null,
         snoozedUntil: t.snoozedHours ? new Date(now + t.snoozedHours * 3_600_000) : null,
         workAt: t.work ? lastAt : null,
+        starredAt: t.starred ? lastAt : null,
+        starredFrom: t.starred ? "bucket" : null,
         participantsSummary: [
           ...new Set(t.messages.map((m) => (m.from === "me" ? "me" : (m.from.name ?? m.from.email)))),
         ].join(", "),

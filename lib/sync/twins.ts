@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 
-import { before, touchesMirror } from "@/lib/actions/patch";
+import { before, patchFor, touchesMirror } from "@/lib/actions/patch";
 import { STATE_COLUMNS, type ThreadState } from "@/lib/actions/types";
 import type { Db } from "@/lib/db";
 import { actionsLog, messages, threads } from "@/lib/db/schema";
@@ -35,10 +35,10 @@ const snoozed = (c: ThreadState, now: Date) => c.snoozedUntil !== null && c.snoo
 
 /**
  * The copy a list shows when copies disagree: never hide mail. Live before archived or trashed, then
- * not snoozed, in Work, unseen, newest, id. SQL twin of this order: `showOrder`.
+ * starred, not snoozed, in Work, unseen, newest, id. SQL twin of this order: `showOrder`.
  */
 export function compareCopies(a: Copy, b: Copy, now = new Date()): number {
-  const rank = (c: Copy) => [live(c) ? 0 : 1, snoozed(c, now) ? 1 : 0, c.workAt ? 0 : 1, c.seenAt ? 1 : 0];
+  const rank = (c: Copy) => [live(c) ? 0 : 1, c.starredAt ? 0 : 1, snoozed(c, now) ? 1 : 0, c.workAt ? 0 : 1, c.seenAt ? 1 : 0];
   const ra = rank(a);
   const rb = rank(b);
   for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return ra[i] - rb[i];
@@ -48,7 +48,7 @@ export function compareCopies(a: Copy, b: Copy, now = new Date()): number {
 /** `compareCopies` as an ORDER BY over a `threads` alias. */
 export function showOrder(t: string): SQL {
   const c = (col: string) => sql.raw(`${t}.${col}`);
-  return sql`(${c("archived")} or ${c("trashed")} or ${c("spam")}), coalesce(${c("snoozed_until")} > now(), false), ${c("pinned_at")} is null, ${c("seen_at")} is not null, ${c("last_message_at")} desc, ${c("id")}`;
+  return sql`(${c("archived")} or ${c("trashed")} or ${c("spam")}), ${c("starred_at")} is null, coalesce(${c("snoozed_until")} > now(), false), ${c("pinned_at")} is null, ${c("seen_at")} is not null, ${c("last_message_at")} desc, ${c("id")}`;
 }
 
 /**
@@ -195,6 +195,32 @@ export async function reconcileGroup(
     changed.push({ id: t.id, patch });
   }
   return { source: source.id, changed, batchId };
+}
+
+/**
+ * A star added or removed in Gmail on one copy, as every copy's change: a star on any copy stars
+ * the group, an unstar unstars it. Copies already there are left out.
+ */
+export function groupStarPatches<C extends ThreadState & { id: string }>(copies: C[], change: "star" | "unstar", now: Date) {
+  return copies.flatMap((c) => {
+    const patch = patchFor({ type: change }, c, now);
+    return patch ? [{ copy: c, patch }] : [];
+  });
+}
+
+/** Apply a star or unstar read from Gmail to the thread and its twins, writing back every copy changed. */
+export async function starGroup(tx: Conn, threadId: string, change: "star" | "unstar", now = new Date()) {
+  const copies = await tx
+    .select({ id: threads.id, accountId: threads.accountId, ...stateColumns })
+    .from(threads)
+    .where(inArray(threads.id, await withTwins(tx, [threadId])));
+  const changed = groupStarPatches(copies, change, now);
+  for (const { copy, patch } of changed) {
+    await tx.update(threads).set(patch).where(eq(threads.id, copy.id));
+    // Brings Gmail along: the star on the other copies, the inbox label on every one.
+    await enqueueWriteback(tx, copy);
+  }
+  return changed.length;
 }
 
 /** Dedupe a merged timeline: one message per Message-ID, the first copy given wins, oldest first. */
