@@ -41,6 +41,7 @@ export const COMMANDS = [
   go("triage", "triage", ["g t"]),
   go("inbox", "inbox", ["g i"]),
   go("work", "work", ["g w"]),
+  go("starred", "starred"),
   go("snoozed", "snoozed"),
   go("news", "news", ["g n"]),
   go("paper-trail", "paper trail", ["g p"]),
@@ -53,6 +54,8 @@ export const COMMANDS = [
   { id: "archive", label: "archive", group: "act on a thread", scope: "mail", keys: ["e"] },
   { id: "snooze", label: "snooze", group: "act on a thread", scope: "mail", keys: ["s"] },
   { id: "work", label: "work / done", group: "act on a thread", scope: "mail", keys: ["w"] },
+  // Gmail's `s` is snooze here.
+  { id: "star", label: "star / unstar", group: "act on a thread", scope: "mail", keys: ["*"] },
   { id: "delete", label: "delete", group: "act on a thread", scope: "mail", keys: ["#"] },
   { id: "spam", label: "mark spam", group: "act on a thread", scope: "mail", keys: ["!"] },
   { id: "unread", label: "mark unread", group: "act on a thread", scope: "mail", keys: ["U"] },

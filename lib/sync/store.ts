@@ -19,8 +19,8 @@ import { rewriteCidImages } from "@/lib/mail/remote";
 
 import type { GmailSyncPort } from "./gmail";
 import { PRIORITY_LIVE, enqueueClassify, enqueueSummary } from "./jobs";
-import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt } from "./mirror";
-import { linkTwins, reconcileGroup } from "./twins";
+import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt, starChange } from "./mirror";
+import { linkTwins, reconcileGroup, starGroup } from "./twins";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -116,7 +116,7 @@ export async function ingestThread(
   { classifyPriority = PRIORITY_LIVE }: { classifyPriority?: number } = {},
 ): Promise<IngestResult> {
   const [existing] = await db
-    .select({ id: threads.id, bucket: threads.bucket, seenAt: threads.seenAt })
+    .select({ id: threads.id, bucket: threads.bucket, seenAt: threads.seenAt, starredAt: threads.starredAt })
     .from(threads)
     .where(and(eq(threads.accountId, account.id), eq(threads.gmailThreadId, gmailThreadId)));
 
@@ -149,7 +149,10 @@ export async function ingestThread(
   const mirror = mirrorState(
     live.map((m) => m.labelIds),
     existing?.bucket ?? initialBucket(live.flatMap((m) => m.labelIds)),
+    !!existing?.starredAt,
   );
+  // Before the stored labels are updated below.
+  const star = starChange(existing ? local.map((m) => m.gmailLabels) : null, live.map((m) => m.labelIds));
 
   return db.transaction(async (tx) => {
     const parsed = fetched.map((m) => ({
@@ -259,8 +262,9 @@ export async function ingestThread(
       .where(eq(messages.threadId, threadId));
     const derived = deriveThreadFields(all);
 
+    const pending = !created && (await hasPendingWriteback(tx, threadId));
     const mirrored =
-      created || (await hasPendingWriteback(tx, threadId))
+      created || pending
         ? {}
         : {
             ...(mirror.archived === undefined ? {} : { archived: mirror.archived }),
@@ -294,6 +298,9 @@ export async function ingestThread(
       const copies = link?.groupId ? eq(threads.groupId, link.groupId) : eq(threads.id, threadId);
       await tx.update(threads).set({ snoozedUntil: now }).where(and(copies, gt(threads.snoozedUntil, now)));
     }
+
+    // A star added or removed in Gmail stars or unstars the whole group. Gmail never stars trash or spam here.
+    if (star && !pending && !(star === "star" && (mirror.trashed || mirror.spam))) await starGroup(tx, threadId, star, now);
 
     const classify = created && !joined && derived.hasInbound && !mirror.trashed && !mirror.spam;
     if (classify) await enqueueClassify(tx, { id: threadId, accountId: account.id }, classifyPriority);
