@@ -8,6 +8,7 @@ import {
   labelChange,
   mirrorChange,
   SPAM_LABEL,
+  STARRED_LABEL,
   TRASH_LABEL,
   UNREAD_LABEL,
   writeBucket,
@@ -123,13 +124,25 @@ describe("writeBucket", () => {
 });
 
 describe("mirrorChange", () => {
-  const base = { bucket: "inbox" as const, archived: false, seen: true, trashed: false, spam: false };
+  const base = { bucket: "inbox" as const, archived: false, seen: true, trashed: false, spam: false, starred: false };
 
   it("read inbox thread: bucket label and INBOX, clears unread, trash and spam", () => {
     expect(mirrorChange(base, ids)).toEqual({
       addLabelIds: ["L_in", INBOX_LABEL],
-      removeLabelIds: ["L_news", "L_pt", "L_rec", "L_tri", UNREAD_LABEL, TRASH_LABEL, SPAM_LABEL],
+      removeLabelIds: ["L_news", "L_pt", "L_rec", "L_tri", UNREAD_LABEL, TRASH_LABEL, SPAM_LABEL, STARRED_LABEL],
     });
+  });
+
+  it("starred: adds STARRED and leaves Gmail's inbox, as it left ours", () => {
+    const change = mirrorChange({ ...base, starred: true }, ids);
+    expect(change.addLabelIds).toEqual(["L_in", STARRED_LABEL]);
+    expect(change.removeLabelIds).toContain(INBOX_LABEL);
+  });
+
+  it("unstarred: removes STARRED and puts an inbox thread back in Gmail's inbox", () => {
+    const change = mirrorChange(base, ids);
+    expect(change.removeLabelIds).toContain(STARRED_LABEL);
+    expect(change.addLabelIds).toContain(INBOX_LABEL);
   });
 
   it("unseen thread gets UNREAD back", () => {
@@ -147,7 +160,7 @@ describe("mirrorChange", () => {
   });
 
   it("never adds and removes the same label", () => {
-    for (const flags of [base, { ...base, trashed: true, seen: false }, { ...base, spam: true, archived: true }]) {
+    for (const flags of [base, { ...base, trashed: true, seen: false }, { ...base, spam: true, archived: true }, { ...base, starred: true, trashed: true }]) {
       const { addLabelIds, removeLabelIds } = mirrorChange(flags, ids);
       expect(addLabelIds.filter((l) => removeLabelIds.includes(l))).toEqual([]);
     }
@@ -157,7 +170,7 @@ describe("mirrorChange", () => {
 describe("writeThread", () => {
   it("modifies the Gmail thread with the full mirrored state", async () => {
     const gmail = mockGmail(Object.entries(bucketLabels()).map(([b, name]) => ({ id: ids[b as keyof LabelIds], name })));
-    const state = { bucket: "news" as const, archived: true, seen: false, trashed: false, spam: false };
+    const state = { bucket: "news" as const, archived: true, seen: false, trashed: false, spam: false, starred: true };
     await writeThread({ accountId: "acc1", gmailThreadId: "g1", ...state }, gmail);
     expect(gmail.modifyThread).toHaveBeenCalledWith("g1", mirrorChange(state, ids));
   });
