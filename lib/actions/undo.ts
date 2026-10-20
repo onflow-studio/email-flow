@@ -8,7 +8,7 @@ import type { LogPayload } from "./apply";
 import { touchesMirror } from "./patch";
 import type { ThreadState } from "./types";
 
-const DATE_COLUMNS = new Set<keyof ThreadState>(["seenAt", "snoozedUntil", "deadlineAt", "workAt"]);
+const DATE_COLUMNS = new Set<keyof ThreadState>(["seenAt", "snoozedUntil", "deadlineAt", "workAt", "starredAt"]);
 
 // Payloads are JSON, so timestamps come back as strings.
 function revive(before: Partial<ThreadState>): Partial<ThreadState> {

@@ -22,6 +22,7 @@ export type ActionTarget = {
   bucket: Bucket;
   senderId: string | null;
   work: boolean;
+  starred: boolean;
   snoozedUntil: string | null;
   needsReply: boolean;
   deadlineAt: string | null;
@@ -34,6 +35,8 @@ type ThreadActions = {
   openDeadline: () => void;
   /** `w`: into Work, or done when already there. */
   toggleWork: (id?: string) => Promise<ActionResult | null>;
+  /** `*`: star, or unstar when every thread is starred already. */
+  toggleStar: (ids?: string[]) => Promise<ActionResult | null>;
   unsubscribe: (id?: string) => Promise<void>;
   target: ActionTarget | null;
 };
@@ -90,6 +93,10 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
       return `${n}moved to work`;
     case "done":
       return `${n}done`;
+    case "star":
+      return `${n}starred`;
+    case "unstar":
+      return `${n}unstarred`;
     case "flag":
       return flagLine(action, n);
     case "letIn":
@@ -111,11 +118,15 @@ function flagLine(action: Extract<ThreadAction, { type: "flag" }>, n: string) {
   return `${n}${parts.join(", ")}`;
 }
 
+const STAYS_STARRED = new Set<string>(["star", "read", "unread", "flag", "unsnooze", "unarchive", "restore", "letIn", "keepOut", "confirmAiAllow", "undoAiAllow"]);
+
 /** Whether the action takes the thread out of the current view. */
 function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
   const bucket = findView(view)?.bucket;
   // Sent keeps every thread written in, wherever it went, until it is deleted or marked spam.
   if (view === "sent") return action.type === "trash" || action.type === "spam";
+  // Whatever sends a starred thread somewhere takes it out of Starred; marks and screener moves leave it be.
+  if (view === "starred") return !STAYS_STARRED.has(action.type);
   switch (action.type) {
     case "trash":
       return true;
@@ -133,6 +144,9 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
     // Work threads leave every bucket view.
     case "work":
       return !!bucket || view === "snoozed" || view === "trash";
+    // Starred threads leave every view but Sent.
+    case "star":
+      return true;
     case "move":
       return !!bucket && bucket !== action.bucket;
     // Screener moves change the bucket only; work and snoozed cut across buckets.
@@ -206,6 +220,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
           putBack();
           if (kept) notify(`already in ${BUCKET_NAMES[kept]}`, "warning");
           else if (action.type === "work") notify("already in work", "warning");
+          else if (action.type === "star") notify("already starred", "warning");
         }
         return result;
       } catch {
@@ -286,6 +301,16 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     [sel.targetIds, sel.view, byId, run],
   );
 
+  const toggleStar = useCallback(
+    (ids?: string[]) => {
+      const threadIds = ids ?? sel.targetIds;
+      if (!threadIds.length) return Promise.resolve(null);
+      const starred = threadIds.every((t) => byId.get(t)?.starred);
+      return run({ type: starred ? "unstar" : "star" }, threadIds);
+    },
+    [sel.targetIds, byId, run],
+  );
+
   // The sent toast after a reply on a Work thread offers done through this.
   const compose = useCompose();
   useEffect(() => compose.onDone((id) => void run({ type: "done" }, [id])), [compose, run]);
@@ -301,6 +326,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     { id: "archive", when: () => !!target, run: () => void run({ type: "archive" }) },
     { id: "snooze", when: () => !!target, run: openSnooze },
     { id: "work", when: () => !!target, run: () => void toggleWork() },
+    { id: "star", when: () => !!target, run: () => void toggleStar() },
     move("inbox"),
     move("news"),
     move("paper_trail"),
@@ -315,8 +341,8 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   ]);
 
   const value = useMemo(
-    () => ({ run, runSender, openSnooze, openDeadline, toggleWork, unsubscribe, target }),
-    [run, runSender, openSnooze, openDeadline, toggleWork, unsubscribe, target],
+    () => ({ run, runSender, openSnooze, openDeadline, toggleWork, toggleStar, unsubscribe, target }),
+    [run, runSender, openSnooze, openDeadline, toggleWork, toggleStar, unsubscribe, target],
   );
 
   return (

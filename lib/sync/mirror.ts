@@ -8,6 +8,7 @@ export const LABEL = {
   spam: "SPAM",
   sent: "SENT",
   draft: "DRAFT",
+  starred: "STARRED",
 } as const;
 
 export type MirrorState = {
@@ -19,16 +20,29 @@ export type MirrorState = {
 
 // Thread state as Gmail sees it, from each message's labels. Drafts don't count.
 // `archived` only when the INBOX label means something: our writeback strips INBOX from every
-// bucket except inbox, so for news, paper trail, receipts, triage and out its absence is our own doing.
-export function mirrorState(messageLabels: string[][], bucket: Bucket): MirrorState {
+// bucket except inbox, and from every starred thread, so there its absence is our own doing.
+export function mirrorState(messageLabels: string[][], bucket: Bucket, starred = false): MirrorState {
   const live = messageLabels.filter((labels) => !labels.includes(LABEL.draft));
   const every = (label: string) => live.length > 0 && live.every((l) => l.includes(label));
   const some = (label: string) => live.some((l) => l.includes(label));
 
   const trashed = every(LABEL.trash);
   const state: MirrorState = { trashed, spam: every(LABEL.spam), unread: some(LABEL.unread) };
-  if (bucket === "inbox" && !trashed) state.archived = !some(LABEL.inbox);
+  if (bucket === "inbox" && !trashed && !starred) state.archived = !some(LABEL.inbox);
   return state;
+}
+
+const starredIn = (messageLabels: string[][]) =>
+  messageLabels.some((labels) => labels.includes(LABEL.starred) && !labels.includes(LABEL.draft));
+
+// A star added or removed in Gmail since the labels we last stored, null when there is none.
+// Read as a change, not a state: our own writeback, or a twin copy Gmail never starred, then
+// matches what we stored and never reads back as the user's. `before` is null for a new thread.
+export function starChange(before: string[][] | null, after: string[][]): "star" | "unstar" | null {
+  const now = starredIn(after);
+  const was = before ? starredIn(before) : false;
+  if (now === was) return null;
+  return now ? "star" : "unstar";
 }
 
 // Read state: Gmail unread clears seenAt, Gmail read keeps ours or stamps now.

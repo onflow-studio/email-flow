@@ -20,18 +20,22 @@ const snoozed = () => gt(threads.snoozedUntil, sql`now()`);
 const wroteIn = () => sql`exists (select 1 from ${messages} m where m.thread_id = ${threads.id} and not m.is_inbound)`;
 const lastSentAt = () => sql`(select max(m.date) from ${messages} m where m.thread_id = ${threads.id} and not m.is_inbound)`;
 
+// Starred threads leave every other view but Sent and Trash, whatever else they are.
+const unstarred = () => isNull(threads.starredAt);
+
 function viewFilter(view: View): SQL | undefined {
-  if (view.slug === "snoozed") return and(live(), snoozed());
+  if (view.slug === "starred") return and(live(), isNotNull(threads.starredAt));
+  if (view.slug === "snoozed") return and(live(), snoozed(), unstarred());
   if (view.slug === "sent") return and(eq(threads.trashed, false), eq(threads.spam, false), wroteIn());
   // Drafts are not threads; see listDrafts.
   if (view.slug === "drafts") return sql`false`;
   if (view.slug === "trash") return and(eq(threads.trashed, true), eq(threads.spam, false));
   // A snoozed Work thread hides until its snooze ends, then comes back here.
-  if (view.slug === "work") return and(live(), isNotNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
+  if (view.slug === "work") return and(live(), unstarred(), isNotNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
   // Work threads leave every bucket view.
   const inBucket = and(eq(threads.bucket, view.bucket!), isNull(threads.snoozedUntil), isNull(threads.workAt));
   // Resurfaced snoozes sit at the top of Inbox whatever their bucket.
-  return and(live(), view.bucket === "inbox" ? or(inBucket, and(isNull(threads.workAt), resurfaced())) : inBucket);
+  return and(live(), unstarred(), view.bucket === "inbox" ? or(inBucket, and(isNull(threads.workAt), resurfaced())) : inBucket);
 }
 
 /**
@@ -127,6 +131,7 @@ export async function listThreads(view: View, on: string[] | null) {
       needsReply: threads.needsReply,
       deadlineAt: threads.deadlineAt,
       workAt: threads.workAt,
+      starredAt: threads.starredAt,
       fromName: last.fromName,
       fromEmail: last.fromEmail,
       snippet: last.snippet,
@@ -150,7 +155,9 @@ export async function listThreads(view: View, on: string[] | null) {
     .orderBy(
       ...(view.slug === "work"
         ? workOrder()
-        : view.slug === "sent"
+        : view.slug === "starred"
+          ? [desc(threads.starredAt)]
+          : view.slug === "sent"
           ? [desc(lastSentAt())]
           : [
             desc(sql`coalesce(${resurfaced()}, false)`),
@@ -217,6 +224,7 @@ export async function listThreads(view: View, on: string[] | null) {
     needsReply: r.needsReply,
     deadlineAt: r.deadlineAt?.toISOString() ?? null,
     work: r.workAt !== null,
+    starred: r.starredAt !== null,
     messageCount: r.messageCount,
   }));
   const byId = new Map(items.map((t) => [t.id, t]));
@@ -352,6 +360,7 @@ export async function getThread(id: string) {
     needsReply: thread.needsReply,
     deadlineAt: thread.deadlineAt?.toISOString() ?? null,
     work: thread.workAt !== null,
+    starred: thread.starredAt !== null,
     trashed: thread.trashed,
     archived: thread.archived,
     spam: thread.spam,

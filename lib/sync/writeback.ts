@@ -19,6 +19,7 @@ export const INBOX_LABEL = "INBOX";
 export const UNREAD_LABEL = "UNREAD";
 export const TRASH_LABEL = "TRASH";
 export const SPAM_LABEL = "SPAM";
+export const STARRED_LABEL = "STARRED";
 
 export type LabelledBucket = "inbox" | "news" | "paper_trail" | "receipts" | "triage";
 
@@ -94,13 +95,15 @@ export type MirroredState = {
   seen: boolean;
   trashed: boolean;
   spam: boolean;
+  starred: boolean;
 };
 
-// Full mirrored state in one modify: bucket label, inbox, read, trash, spam.
+// Full mirrored state in one modify: bucket label, inbox, read, trash, spam, star.
+// A starred thread is out of our Inbox, so it leaves Gmail's too.
 export function mirrorChange(state: MirroredState, ids: LabelIds) {
   const { addLabelIds, removeLabelIds } = labelChange(state.bucket, state.archived, ids);
   const flag = (label: string, on: boolean) => (on ? addLabelIds : removeLabelIds).push(label);
-  if (state.trashed || state.spam) {
+  if (state.trashed || state.spam || state.starred) {
     const i = addLabelIds.indexOf(INBOX_LABEL);
     if (i >= 0) addLabelIds.splice(i, 1);
     if (!removeLabelIds.includes(INBOX_LABEL)) removeLabelIds.push(INBOX_LABEL);
@@ -108,6 +111,7 @@ export function mirrorChange(state: MirroredState, ids: LabelIds) {
   flag(UNREAD_LABEL, !state.seen);
   flag(TRASH_LABEL, state.trashed);
   flag(SPAM_LABEL, state.spam);
+  flag(STARRED_LABEL, state.starred);
   return { addLabelIds, removeLabelIds };
 }
 
@@ -134,6 +138,7 @@ async function loadThread(db: Db, threadId: string) {
       seenAt: threads.seenAt,
       trashed: threads.trashed,
       spam: threads.spam,
+      starredAt: threads.starredAt,
     })
     .from(threads)
     .where(eq(threads.id, threadId));
@@ -146,5 +151,5 @@ export async function writebackJob(job: Job, ctx: JobContext) {
   if (!threadId) throw new Error("writeback job without threadId");
   const thread = await loadThread(ctx.db, threadId);
   if (!thread) return;
-  await writeThread({ ...thread, seen: thread.seenAt !== null }, await ctx.gmail(thread.accountId));
+  await writeThread({ ...thread, seen: thread.seenAt !== null, starred: thread.starredAt !== null }, await ctx.gmail(thread.accountId));
 }
