@@ -1,5 +1,5 @@
 {
-  "id": "06572b7f-e6b9-46ba-8bfc-c7f8c4ae7c37",
+  "id": "1220bd57-d8e9-40aa-a1e1-d197d5fe498d",
   "prevId": "70be98d7-12d2-4509-b9e5-9adc566e069e",
   "version": "7",
   "dialect": "postgresql",
@@ -435,80 +435,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.compose_uploads": {
-      "name": "compose_uploads",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "part": {
-          "name": "part",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "filename": {
-          "name": "filename",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mime_type": {
-          "name": "mime_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "data": {
-          "name": "data",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "compose_uploads_created_at_index": {
-          "name": "compose_uploads_created_at_index",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "compose_uploads_id_part_pk": {
-          "name": "compose_uploads_id_part_pk",
-          "columns": [
-            "id",
-            "part"
-          ]
-        }
-      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -1670,6 +1596,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "starred_at": {
+          "name": "starred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "starred_from": {
+          "name": "starred_from",
+          "type": "starred_from",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "archived": {
           "name": "archived",
           "type": "boolean",
@@ -1932,6 +1871,16 @@
         "out_spam",
         "out_not_now",
         "none"
+      ]
+    },
+    "public.starred_from": {
+      "name": "starred_from",
+      "schema": "public",
+      "values": [
+        "bucket",
+        "archived",
+        "snoozed",
+        "work"
       ]
     }
   },

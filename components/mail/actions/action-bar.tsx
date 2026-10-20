@@ -107,6 +107,12 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
     keys: key("work"),
     run: () => void (view === "work" && thread.work ? toggleWork(thread.id) : run({ type: "work" }, ids)),
   };
+  const star: BarAction = {
+    id: "star",
+    label: thread.starred ? "unstar" : "star",
+    keys: key("star"),
+    run: () => void run({ type: thread.starred ? "unstar" : "star" }, ids),
+  };
   const needsReply: BarAction = thread.needsReply
     ? { id: "needs-reply", label: "no reply needed", run: () => void run({ type: "flag", needsReply: false }, ids) }
     : { id: "needs-reply", label: "needs reply", run: () => void run({ type: "flag", needsReply: true }, ids) };
@@ -147,6 +153,7 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
         run: () => void run({ type: "move", bucket: m.bucket }, ids),
       })),
       ...(!thread.work ? [work] : []),
+      ...(!thread.starred ? [{ ...star, label: "starred" }] : []),
     ],
   };
 
@@ -158,19 +165,21 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
 
   switch (view) {
     case "triage":
-      return pick([letIn, keepOut], [archive, unsub, del], [snooze, work, reply, replyAll, forward, unread, spam]);
+      return pick([letIn, keepOut], [archive, unsub, del], [snooze, work, star, reply, replyAll, forward, unread, spam]);
     case "news":
     case "paper-trail":
     case "receipts":
-      return pick([archive], [unsub, moveTo, del], [reply, replyAll, forward, snooze, unread, kind, spam]);
+      return pick([archive], [unsub, moveTo, del], [reply, replyAll, forward, snooze, star, unread, kind, spam]);
     case "snoozed":
-      return pick([reply, archive, snooze], [unsnooze, del], [replyAll, forward, work, unsub, unread, kind, spam]);
+      return pick([reply, archive, snooze], [unsnooze, del], [replyAll, forward, work, star, unsub, unread, kind, spam]);
     case "work":
-      return pick([work, reply], [snooze, del], [replyAll, forward, needsReply, deadline, unsnooze, unsub, unread, kind, spam]);
+      return pick([work, reply], [snooze, del], [replyAll, forward, star, needsReply, deadline, unsnooze, unsub, unread, kind, spam]);
+    case "starred":
+      return pick([reply, star], [archive, del], [replyAll, forward, snooze, work, unsub, unread, kind, spam]);
     case "trash":
       return pick([del], [], [work, reply, forward, spam]);
     default:
-      return pick([reply, archive, snooze], [work, del], [replyAll, forward, unsub, unread, kind, spam]);
+      return pick([reply, archive, snooze], [work, del], [replyAll, forward, star, unsub, unread, kind, spam]);
   }
 }
 

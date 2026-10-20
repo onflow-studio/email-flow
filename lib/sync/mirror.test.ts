@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { initialBucket, isInbound, mirrorState, nextSeenAt } from "./mirror";
+import { initialBucket, isInbound, mirrorState, nextSeenAt, starChange } from "./mirror";
 import { bucketLabels } from "./writeback";
 
 describe("mirrorState", () => {
@@ -34,9 +34,41 @@ describe("mirrorState", () => {
     expect(mirrorState([["SPAM", "UNREAD"]], "inbox")).toMatchObject({ spam: true, unread: true });
   });
 
+  it("starred: missing INBOX is our own writeback, archive state untouched", () => {
+    expect(mirrorState([["STARRED"]], "inbox", true)).not.toHaveProperty("archived");
+  });
+
   it("ignores drafts", () => {
     expect(mirrorState([["INBOX"], ["DRAFT"]], "inbox").archived).toBe(false);
     expect(mirrorState([["TRASH"], ["DRAFT", "UNREAD"]], "inbox")).toMatchObject({ trashed: true, unread: false });
+  });
+});
+
+describe("starChange", () => {
+  it("a star added in Gmail stars, a star removed unstars", () => {
+    expect(starChange([["INBOX"]], [["INBOX", "STARRED"]])).toBe("star");
+    expect(starChange([["STARRED"], []], [[], []])).toBe("unstar");
+  });
+
+  it("a new thread starred in Gmail stars; unstarred, nothing", () => {
+    expect(starChange(null, [["STARRED"]])).toBe("star");
+    expect(starChange(null, [["INBOX"]])).toBeNull();
+  });
+
+  it("our own writeback reads back as no change", () => {
+    // We starred it: STARRED was already on what we stored once sync read our modify back.
+    expect(starChange([["STARRED"]], [["STARRED"]])).toBeNull();
+    // We unstarred it and stripped the label everywhere.
+    expect(starChange([[]], [[]])).toBeNull();
+  });
+
+  it("one starred message stars the thread; a new reply without the label keeps it", () => {
+    expect(starChange([["STARRED"]], [["STARRED"], ["INBOX", "UNREAD"]])).toBeNull();
+    expect(starChange([[]], [[], ["STARRED"]])).toBe("star");
+  });
+
+  it("a starred draft does not count", () => {
+    expect(starChange([[]], [[], ["DRAFT", "STARRED"]])).toBeNull();
   });
 });
 

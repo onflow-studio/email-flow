@@ -17,6 +17,10 @@ export type ThreadAction =
   | { type: "work" }
   /** Finishes a Work thread: out of Work and archived. */
   | { type: "done" }
+  /** Keeps the thread in Starred, out of every other view, remembering where it was. */
+  | { type: "star" }
+  /** Out of Starred, back to where it was when starred. */
+  | { type: "unstar" }
   /** Sets needs reply and the deadline without snoozing; a field left out keeps its value. */
   | { type: "flag"; needsReply?: boolean; deadline?: string | null };
 
@@ -47,6 +51,8 @@ export const STATE_COLUMNS = [
   "needsReply",
   "deadlineAt",
   "workAt",
+  "starredAt",
+  "starredFrom",
   "archived",
   "trashed",
   "spam",
@@ -55,7 +61,7 @@ export const STATE_COLUMNS = [
 export type ThreadState = Pick<Thread, (typeof STATE_COLUMNS)[number]>;
 
 /** Columns mirrored to Gmail; a change to any of them enqueues writeback. */
-export const MIRRORED_COLUMNS = new Set<keyof ThreadState>(["bucket", "archived", "seenAt", "trashed", "spam"]);
+export const MIRRORED_COLUMNS = new Set<keyof ThreadState>(["bucket", "archived", "seenAt", "trashed", "spam", "starredAt"]);
 
 export type ActionResult = {
   /** Undo token. Null when nothing changed. */
