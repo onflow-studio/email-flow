@@ -483,7 +483,7 @@ function ComposePanel({
           aria-hidden
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border border-dashed border-accent md:rounded-md"
         >
-          <span className="rounded-sm bg-surface-raised px-2 py-1 text-11 text-text">drop to attach, images on the body go inline</span>
+          <span className="rounded-sm bg-surface-raised px-2 py-1 text-11 text-text">drop to attach</span>
         </div>
       ) : null}
       <header className="flex h-touch shrink-0 items-center gap-3 border-b border-border px-3 md:h-row">

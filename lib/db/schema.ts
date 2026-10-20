@@ -229,9 +229,11 @@ export const messages = pgTable(
     isInbound: boolean().notNull(),
     gmailLabels: text().array().notNull().default([]),
     headers: jsonb().$type<MessageHeaders>().notNull().default({}),
-    // 'simple' config: mail is mixed English and Spanish, no stemming either way.
+    // SEARCH_CONFIG: 'simple' plus unaccent; mail is mixed English and Spanish, no stemming either
+    // way. Recipients count as Gmail does, and addresses are also split at @ and dots so a
+    // typed address or domain matches word by word.
     search: tsvector().generatedAlwaysAs(
-      sql`to_tsvector('simple', coalesce(subject, '') || ' ' || coalesce(from_name, '') || ' ' || from_email || ' ' || coalesce(text, ''))`,
+      sql`to_tsvector('simple_unaccent', coalesce(subject, '') || ' ' || coalesce(from_name, '') || ' ' || from_email || ' ' || translate(from_email, '@.', '  ') || ' ' || jsonb_path_query_array("to" || cc || bcc, '$[*].name ? (@ != null)')::text || ' ' || translate(jsonb_path_query_array("to" || cc || bcc, '$[*].email')::text, '@.', '  ') || ' ' || coalesce(text, ''))`,
     ),
     createdAt: createdAt(),
   },
@@ -384,6 +386,21 @@ export const drafts = pgTable(
   (t) => [uniqueIndex().on(t.accountId, t.gmailDraftId), index().on(t.threadId)],
 );
 
+// Files attached in compose, held until the message is sent. A file arrives in parts small enough for
+// one request on Vercel, which caps a body at 4.5 MB; send joins them. Leftovers expire after a day.
+export const composeUploads = pgTable(
+  "compose_uploads",
+  {
+    id: uuid().notNull(),
+    part: smallint().notNull(),
+    filename: text().notNull(),
+    mimeType: text().notNull(),
+    data: bytea().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.id, t.part] }), index().on(t.createdAt)],
+);
+
 export const accountsRelations = relations(accounts, ({ many }) => ({
   threads: many(threads),
   senderAccounts: many(senderAccounts),
@@ -483,21 +500,6 @@ export type Correction = typeof corrections.$inferSelect;
 export type NewCorrection = typeof corrections.$inferInsert;
 export type Rule = typeof rules.$inferSelect;
 export type NewRule = typeof rules.$inferInsert;
-// Files attached in compose, held until the message is sent. A file arrives in parts small enough for
-// one request on Vercel, which caps a body at 4.5 MB; send joins them. Leftovers expire after a day.
-export const composeUploads = pgTable(
-  "compose_uploads",
-  {
-    id: uuid().notNull(),
-    part: smallint().notNull(),
-    filename: text().notNull(),
-    mimeType: text().notNull(),
-    data: bytea().notNull(),
-    createdAt: createdAt(),
-  },
-  (t) => [primaryKey({ columns: [t.id, t.part] }), index().on(t.createdAt)],
-);
-
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type ActionLog = typeof actionsLog.$inferSelect;
