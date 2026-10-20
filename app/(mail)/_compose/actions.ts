@@ -1,16 +1,17 @@
 "use server";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { accounts, drafts, type Address, type Draft } from "@/lib/db/schema";
+import { accounts, composeUploads, drafts, type Address, type Draft } from "@/lib/db/schema";
 import { ReauthRequiredError } from "@/lib/gmail/client";
 import { deleteGmailDraft, saveGmailDraft } from "@/lib/gmail/drafts";
 import { httpStatus } from "@/lib/gmail/errors";
 import {
   fetchAttachment,
   fetchReplyHeaders,
+  MessageTooLargeError,
   sendMessage,
   type OutgoingAttachment,
   type OutgoingMessage,
@@ -131,6 +132,7 @@ const SendInput = z.object({
   subject: z.string().max(1_000),
   html: z.string(),
   attachmentIds: z.array(z.uuid()).max(100),
+  uploadIds: z.array(z.uuid()).max(100).default([]),
   draftId: z.uuid().nullable(),
 });
 type Input = z.infer<typeof SendInput>;
@@ -201,6 +203,23 @@ async function assemble(data: Input, recipients: [Address[], Address[], Address[
   };
 }
 
+/** Files attached in compose, joined from their parts in the order given. Null when one has expired. */
+async function loadUploads(ids: string[]): Promise<OutgoingAttachment[] | null> {
+  if (!ids.length) return [];
+  const rows = await db
+    .select()
+    .from(composeUploads)
+    .where(inArray(composeUploads.id, ids))
+    .orderBy(asc(composeUploads.part));
+  const files: OutgoingAttachment[] = [];
+  for (const id of ids) {
+    const parts = rows.filter((r) => r.id === id);
+    if (!parts.length) return null;
+    files.push({ filename: parts[0].filename, mimeType: parts[0].mimeType, data: Buffer.concat(parts.map((p) => p.data)) });
+  }
+  return files;
+}
+
 async function draftRow(draftId: string | null): Promise<Draft | null> {
   if (!draftId) return null;
   return (await db.query.drafts.findFirst({ where: eq(drafts.id, draftId) })) ?? null;
@@ -257,10 +276,14 @@ export async function sendCompose(input: ComposeSend): Promise<SendResult> {
     }
   }
 
+  const uploaded = await loadUploads(data.uploadIds);
+  if (!uploaded) return { ok: false, error: "an attached file expired, attach it again" };
+
   let sent: Awaited<ReturnType<typeof sendMessage>>;
   try {
-    sent = await sendMessage(accountId, { ...built.message, attachments: files }, built.gmailThreadId);
+    sent = await sendMessage(accountId, { ...built.message, attachments: [...files, ...uploaded] }, built.gmailThreadId);
   } catch (error) {
+    if (error instanceof MessageTooLargeError) return { ok: false, error: "over gmail's 35 mb limit, remove attachments" };
     console.error("compose: send failed", error);
     if (error instanceof ReauthRequiredError) {
       return { ok: false, error: `send failed, reconnect ${accountLabel} in settings` };
@@ -268,6 +291,12 @@ export async function sendCompose(input: ComposeSend): Promise<SendResult> {
     return { ok: false, error: `send failed for ${accountLabel}, retry` };
   }
 
+  if (data.uploadIds.length) {
+    await db
+      .delete(composeUploads)
+      .where(inArray(composeUploads.id, data.uploadIds))
+      .catch((error) => console.error("compose: could not remove sent uploads", error));
+  }
   // Stored now so the reply shows in its thread at once; otherwise the next sync brings it in.
   await storeSent(accountId, sent.gmailThreadId).catch((error) => console.error("compose: could not store sent message", error));
   if (draft) {
