@@ -8,6 +8,7 @@ import type { ThreadListItem } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
 
 import { AccountSquare } from "./account-square";
+import { StarToggle } from "./actions/star-toggle";
 import { Glider } from "./glider";
 import { useListScroll, useMailSelection } from "./selection";
 import { fullTime, Time } from "./time";
@@ -138,7 +139,7 @@ export function ThreadList({
 
   const row = (t: ThreadListItem, nested = false) => (
     // A hairline under every thread, so each one reads as its own box where it starts and ends.
-    <li key={t.id} className="relative after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border">
+    <li key={t.id} className="group/row relative after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border">
       <ThreadRow
         thread={t}
         accountColors={t.accountIds.map((id) => accountColors[id])}
@@ -157,7 +158,20 @@ export function ThreadList({
         byKind={byKind}
         nested={nested}
       />
-      {picking ? <PickBox checked={selected.has(t.id)} label={t.subject} onToggle={() => sel.toggleSelected(t.id)} /> : null}
+      {picking ? (
+        <PickBox checked={selected.has(t.id)} label={t.subject} onToggle={() => sel.toggleSelected(t.id)} />
+      ) : (
+        // The star shares the left gutter with the checkbox: always there when starred, on hover when not.
+        <StarToggle
+          id={t.id}
+          starred={t.starred}
+          label={t.subject}
+          className={cn(
+            "absolute inset-y-0 left-0 w-6",
+            !t.starred && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+          )}
+        />
+      )}
     </li>
   );
 

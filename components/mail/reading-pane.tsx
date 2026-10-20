@@ -9,6 +9,7 @@ import { useThreadActions } from "./actions/actions";
 import { AiNote } from "./actions/ai-note";
 import { ActionBar } from "./actions/action-bar";
 import { BucketBadge } from "./actions/bucket-badge";
+import { StarToggle } from "./actions/star-toggle";
 import { AccountSquare } from "./account-square";
 import { rememberAccount } from "./compose/last-account";
 import { useKeys } from "./keys/keymap";
@@ -105,6 +106,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
             </span>
           ))}
           <BucketBadge thread={thread} />
+          <StarToggle id={thread.id} starred={thread.starred} label="thread" className="h-4" />
           {thread.bucket === "triage" && thread.judged.length ? (
             // Who let in and keep out decide on.
             <span className="flex min-w-0 flex-wrap items-center gap-x-2">

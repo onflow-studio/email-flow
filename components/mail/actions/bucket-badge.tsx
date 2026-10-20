@@ -21,10 +21,13 @@ const NAMES: Record<ThreadDetail["bucket"], string> = {
   out: "out",
 };
 
-/** The move targets in rail order, each keyed by its `g` go-to letter. */
-const TARGETS: { destination: MovableBucket | "work"; key: string }[] = [
+type Destination = MovableBucket | "work" | "starred";
+
+/** The move targets in rail order, each keyed by its `g` go-to letter; starred by its star key. */
+const TARGETS: { destination: Destination; key: string }[] = [
   { destination: "inbox", key: "i" },
   { destination: "work", key: "w" },
+  { destination: "starred", key: "*" },
   { destination: "news", key: "n" },
   { destination: "paper_trail", key: "p" },
   { destination: "receipts", key: "r" },
@@ -45,8 +48,9 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
 
   const doubt = thread.bucketSuggested && thread.bucketSource === "ai";
   const pct = doubt && thread.bucketConfidence !== null ? `${Math.round(thread.bucketConfidence * 100)}%` : null;
+  const where: Destination | ThreadDetail["bucket"] = thread.starred ? "starred" : thread.work ? "work" : thread.bucket;
   const current = Math.max(
-    TARGETS.findIndex((t) => t.destination === (thread.work ? "work" : thread.bucket)),
+    TARGETS.findIndex((t) => t.destination === where),
     0,
   );
 
@@ -60,10 +64,13 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
     (returnTo.current ?? buttonRef.current)?.focus({ preventScroll: true });
   };
   // Same bucket confirms the placement as the user's own; another moves it. Both undoable.
-  const pick = (destination: MovableBucket | "work") => {
+  const pick = (destination: Destination) => {
     close();
     const ids = sel.selectedIds.includes(thread.id) ? sel.selectedIds : [thread.id];
-    void run(destination === "work" ? { type: "work" } : { type: "move", bucket: destination }, ids);
+    void run(
+      destination === "work" ? { type: "work" } : destination === "starred" ? { type: "star" } : { type: "move", bucket: destination },
+      ids,
+    );
   };
   const focusRow = (dir: 1 | -1) => {
     const n = TARGETS.length;
@@ -130,7 +137,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
           className="absolute top-full left-0 z-20 mt-2 flex flex-col rounded-md border border-border bg-surface-top py-1 text-13"
         >
           {TARGETS.map((t, i) => {
-            const here = t.destination === (thread.work ? "work" : thread.bucket);
+            const here = t.destination === where;
             return (
               <button
                 key={t.destination}
@@ -153,7 +160,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
                 <span className="flex size-3 items-center justify-center text-accent">
                   {here ? <Check aria-hidden className="size-3" strokeWidth={1.5} /> : null}
                 </span>
-                <span className="flex-1 pr-2">{t.destination === "work" ? "work" : NAMES[t.destination]}</span>
+                <span className="flex-1 pr-2">{t.destination === "work" || t.destination === "starred" ? t.destination : NAMES[t.destination]}</span>
                 <Kbd keys={t.key} />
               </button>
             );

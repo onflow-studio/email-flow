@@ -60,6 +60,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
     bucket: t.bucket,
     senderId: t.senderId,
     work: t.work,
+    starred: t.starred,
     snoozedUntil: t.snoozedUntil,
     needsReply: t.needsReply,
     deadlineAt: t.deadlineAt,
@@ -71,6 +72,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       bucket: detail.bucket,
       senderId: detail.senderId,
       work: detail.work,
+      starred: detail.starred,
       snoozedUntil: detail.snoozedUntil,
       needsReply: detail.needsReply,
       deadlineAt: detail.deadlineAt,
@@ -217,10 +219,12 @@ function homeView(t: {
   archived: boolean;
   spam: boolean;
   work: boolean;
+  starred: boolean;
   snoozedUntil: string | null;
 }): ViewSlug | null {
   if (t.trashed) return "trash";
   if (t.archived || t.spam) return null;
+  if (t.starred) return "starred";
   if (t.snoozedUntil && Date.parse(t.snoozedUntil) > Date.now()) return "snoozed";
   if (t.work) return "work";
   // A past-due snooze has resurfaced at the top of Inbox.
