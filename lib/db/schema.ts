@@ -22,6 +22,12 @@ const tsvector = customType<{ data: string }>({
   },
 });
 
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
 const id = () => uuid().primaryKey().defaultRandom();
 const createdAt = () => timestamp({ withTimezone: true }).notNull().defaultNow();
 const updatedAt = () =>
@@ -477,6 +483,21 @@ export type Correction = typeof corrections.$inferSelect;
 export type NewCorrection = typeof corrections.$inferInsert;
 export type Rule = typeof rules.$inferSelect;
 export type NewRule = typeof rules.$inferInsert;
+// Files attached in compose, held until the message is sent. A file arrives in parts small enough for
+// one request on Vercel, which caps a body at 4.5 MB; send joins them. Leftovers expire after a day.
+export const composeUploads = pgTable(
+  "compose_uploads",
+  {
+    id: uuid().notNull(),
+    part: smallint().notNull(),
+    filename: text().notNull(),
+    mimeType: text().notNull(),
+    data: bytea().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.id, t.part] }), index().on(t.createdAt)],
+);
+
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type ActionLog = typeof actionsLog.$inferSelect;

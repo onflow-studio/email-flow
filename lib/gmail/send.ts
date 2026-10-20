@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { convert } from "html-to-text";
 
 import type { Address } from "@/lib/db/schema";
+import { MAX_MESSAGE_BYTES } from "@/lib/mail/attach";
 
 import { getGmailClient } from "./client";
 import { gmailLimiter } from "./quota";
@@ -165,19 +166,29 @@ export function buildMime(message: OutgoingMessage, date = new Date()): string {
   return `${headers.join("\r\n")}\r\n${body}`;
 }
 
+/** The built message is over Gmail's 35 MB, so sending would fail. */
+export class MessageTooLargeError extends Error {
+  constructor() {
+    super("message over 35 mb");
+    this.name = "MessageTooLargeError";
+  }
+}
+
 /** Sends through Gmail. Pass the Gmail thread id for replies and forwards so Gmail threads them. */
 export async function sendMessage(
   accountId: string,
   message: OutgoingMessage,
   gmailThreadId?: string,
 ): Promise<{ gmailMessageId: string; gmailThreadId: string }> {
+  const mime = buildMime(message);
+  if (Buffer.byteLength(mime) > MAX_MESSAGE_BYTES) throw new MessageTooLargeError();
   const gmail = await getGmailClient(accountId);
   // Media upload rather than `raw` in the body: allows up to 35 MB with attachments.
   const res = await gmailLimiter(accountId).run("messages.send", () =>
     gmail.users.messages.send({
       userId: "me",
       requestBody: gmailThreadId ? { threadId: gmailThreadId } : {},
-      media: { mimeType: "message/rfc822", body: buildMime(message) },
+      media: { mimeType: "message/rfc822", body: mime },
     }),
   );
   if (!res.data.id || !res.data.threadId) throw new Error("Gmail did not return the sent message");
