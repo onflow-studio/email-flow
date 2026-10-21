@@ -17,32 +17,33 @@ const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 export function useComposeEditor({
   placeholder,
   onUpdate,
-  onError,
+  onAttach,
   onSubmit,
   onEscape,
 }: {
   placeholder: string;
   onUpdate: (editor: Editor) => void;
-  onError: (message: string) => void;
+  /** Files that can't go inline: anything but an image, or an image over 5 mb. */
+  onAttach: (files: File[]) => void;
   onSubmit: () => void;
   onEscape: () => void;
 }) {
   const submitRef = useRef(onSubmit);
   const escapeRef = useRef(onEscape);
+  const attachRef = useRef(onAttach);
   const editorRef = useRef<Editor | null>(null);
   useEffect(() => {
     submitRef.current = onSubmit;
     escapeRef.current = onEscape;
+    attachRef.current = onAttach;
   });
 
+  /** Images go into the body, at `pos` when given; every other file is attached. */
   const insertFiles = (editor: Editor, files: File[], pos?: number) => {
-    const images = files.filter((f) => IMAGE_TYPES.includes(f.type));
-    if (!images.length) return false;
-    for (const file of images) {
-      if (file.size > MAX_IMAGE_BYTES) {
-        onError(`${file.name} is over 5 mb`);
-        continue;
-      }
+    const inline = (f: File) => IMAGE_TYPES.includes(f.type) && f.size <= MAX_IMAGE_BYTES;
+    const rest = files.filter((f) => !inline(f));
+    if (rest.length) attachRef.current(rest);
+    for (const file of files.filter(inline)) {
       const reader = new FileReader();
       reader.onload = () => {
         const src = String(reader.result);
@@ -51,7 +52,7 @@ export function useComposeEditor({
       };
       reader.readAsDataURL(file);
     }
-    return true;
+    return files.length > 0;
   };
 
   const editor: Editor | null = useEditor({
@@ -131,6 +132,7 @@ export function useComposeEditor({
       handleDrop: (view, event): boolean => {
         const files = Array.from(event.dataTransfer?.files ?? []);
         if (!files.length) return false;
+        // Marks the drop as taken, so the compose window's drop zone leaves it alone.
         event.preventDefault();
         const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
         return insertFiles(editorRef.current!, files, pos);
@@ -161,11 +163,15 @@ export function ComposeToolbar({
   linkOpen,
   setLinkOpen,
   onImages,
+  attachInput,
+  onAttach,
 }: {
   editor: Editor | null;
   linkOpen: boolean;
   setLinkOpen: (open: boolean) => void;
   onImages: (files: File[]) => void;
+  attachInput: React.RefObject<HTMLInputElement | null>;
+  onAttach: (files: File[]) => void;
 }) {
   const active = useEditorState({
     editor,
@@ -230,6 +236,23 @@ export function ComposeToolbar({
             className="sr-only"
             onChange={(e) => {
               onImages(Array.from(e.target.files ?? []));
+              e.target.value = "";
+            }}
+          />
+        </label>
+        <label
+          title="attach files  mod+o, or drop them on compose"
+          className="relative flex h-6 shrink-0 cursor-pointer items-center rounded-sm px-2 text-11 text-text-muted transition-colors duration-80 ease-snap hover:text-text has-focus-visible:text-accent"
+        >
+          attach
+          <input
+            ref={attachInput}
+            type="file"
+            multiple
+            tabIndex={-1}
+            className="sr-only"
+            onChange={(e) => {
+              onAttach(Array.from(e.target.files ?? []));
               e.target.value = "";
             }}
           />
