@@ -22,6 +22,12 @@ const tsvector = customType<{ data: string }>({
   },
 });
 
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
 const id = () => uuid().primaryKey().defaultRandom();
 const createdAt = () => timestamp({ withTimezone: true }).notNull().defaultNow();
 const updatedAt = () =>
@@ -385,6 +391,21 @@ export const drafts = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [uniqueIndex().on(t.accountId, t.gmailDraftId), index().on(t.threadId)],
+);
+
+// Files attached in compose, held until the message is sent. A file arrives in parts small enough for
+// one request on Vercel, which caps a body at 4.5 MB; send joins them. Leftovers expire after a day.
+export const composeUploads = pgTable(
+  "compose_uploads",
+  {
+    id: uuid().notNull(),
+    part: smallint().notNull(),
+    filename: text().notNull(),
+    mimeType: text().notNull(),
+    data: bytea().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.id, t.part] }), index().on(t.createdAt)],
 );
 
 export const accountsRelations = relations(accounts, ({ many }) => ({

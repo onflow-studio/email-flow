@@ -45,6 +45,8 @@ export type ComposeSend = {
   subject: string;
   html: string;
   attachmentIds: string[];
+  /** Files attached in compose, see app/api/uploads. Sent, not kept in the draft. */
+  uploadIds?: string[];
   draftId: string | null;
 };
 

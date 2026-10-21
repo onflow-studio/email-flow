@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
@@ -9,6 +9,7 @@ import { MODE_LABELS, type ComposeAccount, type ComposeInit, type ComposeMode, t
 import { Button } from "@/components/ui/button";
 import { KeyHints } from "@/components/ui/kbd";
 import { Countdown, dismissToast, showToast, ToastCard } from "@/components/ui/toast";
+import { encodedBytes, MAX_MESSAGE_BYTES, UPLOAD_PART_BYTES } from "@/lib/mail/attach";
 import { cn } from "@/lib/utils";
 
 import { UNDO_MS, useUndo } from "../actions/undo";
@@ -99,6 +100,22 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(() => ({ open, openDraft, isOpen: !!session, onDone }), [open, openDraft, session, onDone]);
 
+  // A file dropped anywhere but compose would open in the tab and leave the app. Compose takes
+  // its own drops first; everywhere else refuses them.
+  useEffect(() => {
+    const refuse = (e: DragEvent) => {
+      if (e.defaultPrevented || !hasFiles(e.dataTransfer)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+    };
+    window.addEventListener("dragover", refuse);
+    window.addEventListener("drop", refuse);
+    return () => {
+      window.removeEventListener("dragover", refuse);
+      window.removeEventListener("drop", refuse);
+    };
+  }, []);
+
   return (
     <ComposeContext.Provider value={value}>
       {children}
@@ -125,6 +142,37 @@ function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} b`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kb`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} mb`;
+}
+
+const hasFiles = (data: DataTransfer | null) => !!data && Array.from(data.types).includes("Files");
+
+/** Sends a file to the server in parts, see app/api/uploads. Resolves to its upload id. */
+async function upload(file: File, signal: AbortSignal): Promise<string> {
+  let id: string | null = null;
+  for (let part = 0; part === 0 || part * UPLOAD_PART_BYTES < file.size; part++) {
+    const params = new URLSearchParams({ part: String(part), name: file.name || "attachment", type: file.type });
+    if (id) params.set("id", id);
+    const start = part * UPLOAD_PART_BYTES;
+    const res = await fetch(`/api/uploads?${params}`, {
+      method: "POST",
+      body: file.slice(start, start + UPLOAD_PART_BYTES),
+      signal,
+    });
+    if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+    id = ((await res.json()) as { id: string }).id;
+  }
+  return id!;
+}
+
+type Attached = { key: number; name: string; size: number; status: "uploading" | "ready" | "failed" };
+type UploadJob = { abort: AbortController; done: Promise<string | null> };
+
+/** Stops an upload and removes what reached the server. */
+function cancelUpload(job: UploadJob) {
+  job.abort.abort();
+  void job.done.then((id) => {
+    if (id) fetch(`/api/uploads?id=${id}`, { method: "DELETE" }).catch(() => {});
+  });
 }
 
 function ComposePanel({
@@ -159,6 +207,13 @@ function ComposePanel({
   const [error, setError] = useState<string | null>(null);
   const [sending, startSend] = useTransition();
   const toRef = useRef<HTMLInputElement>(null);
+  const attachInput = useRef<HTMLInputElement>(null);
+  // Files attached here, uploading as soon as they are added. Sent with the message, not kept in the draft.
+  const [attached, setAttached] = useState<Attached[]>([]);
+  const uploads = useRef(new Map<number, UploadJob>());
+  const nextUpload = useRef(0);
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
 
   const { editor, insertFiles } = useComposeEditor({
     placeholder: session.mode === "forward" ? "add a note" : "write",
@@ -166,7 +221,7 @@ function ComposePanel({
       setBodyEmpty(e.isEmpty);
       setBodyRev((r) => r + 1);
     },
-    onError: setError,
+    onAttach: (files) => attach(files),
     onSubmit: () => send(),
     onEscape: () => escape(),
   });
@@ -206,6 +261,7 @@ function ComposePanel({
 
   const edited =
     !bodyEmpty ||
+    attached.length > 0 ||
     (!!init && (to !== init.to || cc !== init.cc || bcc !== init.bcc || subject !== init.subject || dropped.size > 0));
   useEffect(() => {
     dirtyRef.current = edited;
@@ -267,6 +323,55 @@ function ComposePanel({
   const account = init?.accounts.find((a) => a.id === accountId) ?? null;
   const threadMode = session.mode !== "new";
 
+  /** Adds files as attachments, refusing any that would take the message over Gmail's limit. */
+  const attach = (files: File[]) => {
+    if (!init) return;
+    let total =
+      (editor?.getHTML().length ?? 0) +
+      init.attachments.filter((a) => !dropped.has(a.id)).reduce((n, a) => n + encodedBytes(a.size), 0) +
+      attached.reduce((n, a) => n + encodedBytes(a.size), 0);
+    const added: Attached[] = [];
+    for (const file of files) {
+      if (total + encodedBytes(file.size) > MAX_MESSAGE_BYTES) {
+        setError(`${file.name} would take the message over 35 mb`);
+        continue;
+      }
+      total += encodedBytes(file.size);
+      const key = nextUpload.current++;
+      const abort = new AbortController();
+      const mark = (status: Attached["status"]) =>
+        setAttached((prev) => prev.map((a) => (a.key === key ? { ...a, status } : a)));
+      const done = upload(file, abort.signal).then(
+        (id) => {
+          mark("ready");
+          return id;
+        },
+        () => {
+          if (!abort.signal.aborted) mark("failed");
+          return null;
+        },
+      );
+      uploads.current.set(key, { abort, done });
+      added.push({ key, name: file.name || "attachment", size: file.size, status: "uploading" });
+    }
+    if (added.length) setAttached((prev) => [...prev, ...added]);
+  };
+
+  const detach = (key: number) => {
+    const job = uploads.current.get(key);
+    uploads.current.delete(key);
+    setAttached((prev) => prev.filter((a) => a.key !== key));
+    if (job) cancelUpload(job);
+  };
+
+  /** Removes every attached file from the server; true when there were any. */
+  const dropUploads = () => {
+    const any = uploads.current.size > 0;
+    for (const job of uploads.current.values()) cancelUpload(job);
+    uploads.current.clear();
+    return any;
+  };
+
   const send = () => {
     const form = latest.current.form;
     if (!init || !editor || !form || sending) return;
@@ -274,7 +379,9 @@ function ComposePanel({
     startSend(async () => {
       // A save in flight may be creating the draft; wait so send removes it.
       await saving.current;
-      const result = await sendCompose(form());
+      const uploadIds = await Promise.all([...uploads.current.values()].map((job) => job.done));
+      if (uploadIds.some((id) => !id)) return setError("a file did not upload, remove it and attach it again");
+      const result = await sendCompose({ ...form(), uploadIds: uploadIds as string[] });
       if (result.ok) {
         rememberAccount(result.accountId);
         onSent(`sent from ${result.accountLabel}`, result.work ? init.threadId : null);
@@ -290,11 +397,15 @@ function ComposePanel({
   const close = () => {
     if (sending) return;
     const pending = latest.current.snapshot !== saved.current && (draftIdRef.current || latest.current.edited);
+    const hadFiles = dropUploads();
     onClose();
-    if (!pending) return;
+    if (!pending) {
+      if (hadFiles) onNotice("attached files are not kept in drafts", "error");
+      return;
+    }
     void persist().then(() => {
       if (draftIdRef.current) {
-        onNotice("draft saved", "success");
+        onNotice(hadFiles ? "draft saved without the attached files" : "draft saved", "success");
         router.refresh();
       } else {
         onNotice("draft not saved", "error");
@@ -304,6 +415,7 @@ function ComposePanel({
 
   const discard = () => {
     if (sending) return;
+    dropUploads();
     onClose();
     // Wait for a save in flight so its draft is the one removed.
     void saving.current.then(async () => {
@@ -325,6 +437,7 @@ function ComposePanel({
       { id: "compose.send", allowInInput: true, run: send },
       { id: "compose.close", allowInInput: true, run: escape },
       { id: "compose.link", allowInInput: true, run: () => setLinkOpen((o) => !o) },
+      { id: "compose.attach", allowInInput: true, run: () => attachInput.current?.click() },
     ],
     { exclusive: true },
   );
@@ -342,7 +455,37 @@ function ComposePanel({
       role="dialog"
       aria-label={`${modeLabel} message`}
       className="fixed inset-0 z-40 flex flex-col bg-surface-top md:inset-auto md:right-4 md:bottom-status md:max-h-compose-h md:w-compose md:rounded-md md:border md:border-border"
+      // Files dropped anywhere on compose are attached. The body takes images itself, inline, and
+      // marks the drop handled.
+      onDragEnter={(e) => {
+        if (!hasFiles(e.dataTransfer)) return;
+        dragDepth.current++;
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!hasFiles(e.dataTransfer) || --dragDepth.current > 0) return;
+        dragDepth.current = 0;
+        setDragging(false);
+      }}
+      onDragOver={(e) => {
+        if (hasFiles(e.dataTransfer)) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        dragDepth.current = 0;
+        setDragging(false);
+        if (e.defaultPrevented || !hasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        attach(Array.from(e.dataTransfer.files));
+      }}
     >
+      {dragging ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border border-dashed border-accent md:rounded-md"
+        >
+          <span className="rounded-sm bg-surface-raised px-2 py-1 text-11 text-text">drop to attach</span>
+        </div>
+      ) : null}
       <header className="flex h-touch shrink-0 items-center gap-3 border-b border-border px-3 md:h-row">
         <button
           type="button"
@@ -472,12 +615,14 @@ function ComposePanel({
             linkOpen={linkOpen}
             setLinkOpen={setLinkOpen}
             onImages={(files) => editor && insertFiles(editor, files)}
+            attachInput={attachInput}
+            onAttach={attach}
           />
           <div className="flex-1">
             <ComposeBody editor={editor} />
           </div>
 
-          {account?.signature || init?.quoting || init?.attachments.length ? (
+          {account?.signature || init?.quoting || init?.attachments.length || attached.length ? (
             <div className="flex flex-col gap-1 border-t border-border px-3 py-2 text-11 text-text-dim">
               {account?.signature ? <p className="truncate">-- {account.signature}</p> : null}
               {init?.quoting ? (
@@ -512,6 +657,25 @@ function ComposePanel({
                   </label>
                 );
               })}
+              {attached.map((a) => (
+                <div key={a.key} className="flex h-touch items-center gap-2 md:h-6">
+                  <span className="min-w-0 flex-1 truncate text-text-muted">{a.name}</span>
+                  {a.status === "failed" ? (
+                    <span className="text-danger">upload failed</span>
+                  ) : (
+                    <span>{a.status === "uploading" ? "uploading" : formatSize(a.size)}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => detach(a.key)}
+                    aria-label={`remove ${a.name}`}
+                    title="remove"
+                    className="-mr-1 flex size-touch shrink-0 items-center justify-center text-text-muted transition-colors duration-80 ease-snap hover:text-text focus-visible:text-accent md:size-6"
+                  >
+                    <X aria-hidden className="size-3" strokeWidth={1.5} />
+                  </button>
+                </div>
+              ))}
             </div>
           ) : null}
         </div>
