@@ -35,7 +35,7 @@ pnpm install
 DATABASE_URL='postgres://…direct connection string…' pnpm db:migrate
 ```
 
-Migrations are applied by hand. The Vercel build does not run them. When you pull changes that add a migration, run `pnpm db:migrate` against the production database **before** the code that needs it deploys.
+After that first time, each production deploy applies new migrations itself: Vercel runs the `vercel-build` script, which runs `drizzle-kit migrate` before `next build` when `VERCEL_ENV` is `production`. A migration that fails fails the build, so the code that needs it never goes live. Preview builds skip it and never touch the database.
 
 A variable set in your shell wins over `.env`, so a local `.env` pointing at Docker stays untouched.
 
