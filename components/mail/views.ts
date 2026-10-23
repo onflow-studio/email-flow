@@ -2,12 +2,12 @@ import type { Bucket } from "@/lib/db/schema";
 
 import type { CommandId } from "./keys/commands";
 
-export type ViewSlug = "inbox" | "news" | "paper-trail" | "receipts" | "triage" | "work" | "starred" | "snoozed" | "sent" | "drafts" | "trash";
+export type ViewSlug = "inbox" | "news" | "paper-trail" | "receipts" | "triage" | "work" | "starred" | "snoozed" | "digest" | "sent" | "drafts" | "trash";
 
 export type View = {
   slug: ViewSlug;
   label: string;
-  /** Set for bucket views; work, starred, snoozed, sent and trash cut across buckets. Drafts lists drafts, not threads. */
+  /** Set for bucket views; work, starred, snoozed, digest, sent and trash cut across buckets. Drafts lists drafts, not threads. */
   bucket?: Bucket;
   /** The go-to command; its keys live in the command registry. */
   command: CommandId;
@@ -22,6 +22,7 @@ export const VIEWS: View[] = [
   { slug: "work", command: "go.work", label: "work", group: "act" },
   { slug: "starred", command: "go.starred", label: "starred", group: "act" },
   { slug: "snoozed", command: "go.snoozed", label: "snoozed", group: "act" },
+  { slug: "digest", command: "go.digest", label: "digest", group: "act" },
   { slug: "news", command: "go.news", label: "news", bucket: "news", group: "later" },
   { slug: "paper-trail", command: "go.paper-trail", label: "paper trail", bucket: "paper_trail", group: "later" },
   { slug: "receipts", command: "go.receipts", label: "receipts", bucket: "receipts", group: "later" },

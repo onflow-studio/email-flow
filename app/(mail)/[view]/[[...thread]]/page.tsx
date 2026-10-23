@@ -19,7 +19,9 @@ import { ThreadList } from "@/components/mail/thread-list";
 import { TriageQueue } from "@/components/mail/triage-queue";
 import { UnreadDot } from "@/components/mail/unread-dot";
 import { findView, mailHref, VIEWS, type ViewSlug } from "@/components/mail/views";
+import { loadStaleSettings } from "@/lib/db/settings";
 import { accessExpiryFromEnv } from "@/lib/sync/expiry";
+import { staleCutoffs } from "@/lib/sync/stale";
 import { cn } from "@/lib/utils";
 
 import { accountsOff, accountsOn } from "../../_lib/account-filter";
@@ -38,10 +40,12 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   const [accounts, off] = await Promise.all([listAccounts(), accountsOff()]);
   const on = accountsOn(accounts, off);
   const isOn = (id: string) => !on || on.includes(id);
+  const now = new Date();
+  const cutoffs = staleCutoffs(now, await loadStaleSettings());
 
   const [counts, threads, drafts, detail] = await Promise.all([
-    viewCounts(on),
-    listThreads(view, on),
+    viewCounts(on, cutoffs, now),
+    listThreads(view, on, cutoffs, now),
     view.slug === "drafts" ? listDrafts(on) : [],
     threadId ? getThread(threadId) : null,
   ]);
@@ -49,7 +53,8 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   // A thread opened under a view it no longer belongs to (an old link, a thread snoozed elsewhere) moves to its
   // own view, so the list always holds the open thread. Archived and kept-out threads have no view and stay put.
   // Sent holds any thread written in, whatever its own view.
-  const home = detail && !(view.slug === "sent" && detail.wroteIn) ? homeView(detail) : null;
+  const inDigest = view.slug === "digest" && threads.some((t) => t.id === detail?.id || detail?.copyIds.includes(t.id));
+  const home = detail && !(view.slug === "sent" && detail.wroteIn) && !inDigest ? homeView(detail) : null;
   if (detail && home && home !== view.slug) redirect(mailHref(home, { threadId: detail.id }));
   // The list shows one copy per conversation; open that copy so the row and the pane line up.
   const listed = detail && !threads.some((t) => t.id === detail.id) ? threads.find((t) => detail.copyIds.includes(t.id)) : null;
