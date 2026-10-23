@@ -120,6 +120,13 @@
       "when": 1792529334000,
       "tag": "0016_compose_uploads",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792763394935,
+      "tag": "0017_embeddings",
+      "breakpoints": true
     }
   ]
 }

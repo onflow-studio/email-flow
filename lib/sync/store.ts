@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, gt, inArray, notInArray, sql } from "drizzle-orm";
 
+import { embeddingsEnabled } from "@/lib/ai";
 import { applyParticipation } from "@/lib/classify/participation";
 import { wantsSummary } from "@/lib/classify/summary";
 import type { Db } from "@/lib/db";
@@ -18,7 +19,7 @@ import { parseGmailMessage, type ParsedMessage } from "@/lib/mail/mime";
 import { rewriteCidImages } from "@/lib/mail/remote";
 
 import type { GmailSyncPort } from "./gmail";
-import { PRIORITY_LIVE, enqueueClassify, enqueueSummary } from "./jobs";
+import { PRIORITY_LIVE, enqueueClassify, enqueueEmbed, enqueueSummary } from "./jobs";
 import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt, starChange } from "./mirror";
 import { linkTwins, reconcileGroup, starGroup } from "./twins";
 
@@ -307,6 +308,9 @@ export async function ingestThread(
     // A new message in a known thread makes its summary stale.
     else if (existing && inserted > 0 && derived.hasInbound && wantsSummary(existing.bucket) && !mirror.spam) {
       await enqueueSummary(tx, { id: threadId, accountId: account.id }, classifyPriority);
+    }
+    if (inserted > 0 && embeddingsEnabled() && !mirror.spam && !mirror.trashed) {
+      await enqueueEmbed(tx, { id: threadId, accountId: account.id }, PRIORITY_LIVE);
     }
 
     return { status: "stored" as const, threadId, created, newMessages: parsed.length, classify };

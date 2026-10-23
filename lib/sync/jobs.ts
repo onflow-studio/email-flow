@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import type { Evaluator } from "@/lib/classify/classify";
+import type { Embedder } from "@/lib/ai";
 import type { Confirmer } from "@/lib/classify/confirm";
 import { classifyJob } from "@/lib/classify/classify";
 import type { Db } from "@/lib/db";
@@ -8,6 +9,7 @@ import { jobs, type Job, type JobType } from "@/lib/db/schema";
 import { GmailRateLimitError, isRateLimitError } from "@/lib/gmail/errors";
 
 import { writebackJob, type GmailLabelsPort } from "./writeback";
+import { embedJob } from "./embed";
 
 export const MAX_ATTEMPTS = 8;
 const BASE_BACKOFF_MS = 60_000;
@@ -24,6 +26,7 @@ export type JobContext = {
   gmail: (accountId: string) => Promise<GmailLabelsPort>;
   evaluate?: Evaluator;
   confirm?: Confirmer;
+  embed?: Embedder;
 };
 
 export type JobHandler = (job: Job, ctx: JobContext) => Promise<void>;
@@ -35,6 +38,8 @@ export function jobHandler(type: JobType): JobHandler | undefined {
       return classifyJob;
     case "writeback":
       return writebackJob;
+    case "embed":
+      return embedJob;
     default:
       return undefined;
   }
@@ -79,6 +84,21 @@ export function enqueueClassify(
     payload: { threadId: thread.id },
     priority,
     dedupeKey: `classify:${thread.id}`,
+  });
+}
+
+export function enqueueEmbed(
+  db: Pick<Db, "insert">,
+  thread: { id: string; accountId: string },
+  priority = PRIORITY_LIVE,
+) {
+  return db.insert(jobs).values({
+    type: "embed", accountId: thread.accountId, payload: { threadId: thread.id },
+    priority, dedupeKey: `embed:${thread.id}`,
+  }).onConflictDoUpdate({
+    target: jobs.dedupeKey,
+    targetWhere: sql`status = 'pending'`,
+    set: { priority: sql`greatest(${jobs.priority}, excluded.priority)`, runAfter: sql`least(${jobs.runAfter}, excluded.run_after)` },
   });
 }
 

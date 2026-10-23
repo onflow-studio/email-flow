@@ -6,6 +6,8 @@ import { accounts, type Account, type CatchUpState } from "@/lib/db/schema";
 import { CATCH_UP_THREADS_PER_PASS, mergeCatchUp, runCatchUp } from "./catchup";
 import { collectChanges, type ChangeMode } from "./changes";
 import type { GmailSyncPort } from "./gmail";
+import { embeddingsEnabled } from "@/lib/ai";
+import { enqueueEmbedBacklog } from "./embed";
 import type { JobContext } from "./jobs";
 import { processJobs, type JobCounts } from "./queue";
 import { ingestThread, type IngestResult } from "./store";
@@ -73,6 +75,7 @@ export async function syncAccount(
   }
 
   const stored = ingested.flatMap((r) => (r.status === "stored" ? [r] : []));
+  if (embeddingsEnabled()) await enqueueEmbedBacklog(db, account.id);
   return {
     mode: changes.mode,
     threads: ingested.length,

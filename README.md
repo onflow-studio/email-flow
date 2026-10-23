@@ -150,6 +150,7 @@ Your mail lives in your Postgres. These are the only outside services the app ta
 
 - **Gmail API** (Google): sync, sending, and writing read, archive, spam and bucket labels back.
 - **Anthropic API**: thread contents go to Claude for classification, rule parsing and summaries.
+- **Vercel AI Gateway**, optional and off unless `AI_GATEWAY_API_KEY` is set: message chunks, including subject, sender and attachment filenames, go to OpenAI `text-embedding-3-small` for embeddings. Search remains keyword-only until semantic search is added.
 - **TypeSafe Jev**, optional and off unless `JEV_API_KEY` is set: a second-opinion classifier. It is asked to confirm Claude's bucket suggestions (when it confidently agrees, the thread stops being marked as a suggestion), and once per new sender whether the mail comes from a person or a machine (for grouped machine mail). Each call sends the sender, subject and the first 1500 characters of the body to TypeSafe's API, which TypeSafe bills per use. Without the key nothing is sent: suggestions stay marked for you to check, and only senders that are obviously automated get grouped.
 - **YouTube IFrame API**: the radio loads it from youtube.com the first time you press play. Until then nothing is requested.
 - **Remote images** in mail are blocked by default. When you allow them for a sender, your browser fetches them from that sender's servers.
@@ -191,6 +192,7 @@ Optional (unset keeps the default):
 | `GMAIL_LABEL_PREFIX` | prefix of the bucket labels written to Gmail | `superfer` (labels `superfer/inbox`, `superfer/news`, …) |
 | `MAIL_LOCALE` | locale for dates in quoted and forwarded headers | `en-US` |
 | `JEV_API_KEY` | TypeSafe Jev second opinion, see [What leaves your instance](#what-leaves-your-instance) | unset: never called |
+| `AI_GATEWAY_API_KEY` | Embed mail with OpenAI `text-embedding-3-small` through Vercel AI Gateway (512 dimensions) | unset: no embedding jobs; keyword-only search |
 
 </details>
 
