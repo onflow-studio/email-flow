@@ -4,16 +4,23 @@ import { Command, useCommandState } from "cmdk";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
-import { BULK_ACTIONS } from "@/app/(mail)/_lib/bulk";
-import { paletteSearch, previewSearchAction, type PaletteSearch } from "@/app/(mail)/palette-actions";
+import { BULK_ACTIONS, BULK_KEEP_OUT, BULK_SNOOZE } from "@/app/(mail)/_lib/bulk";
+import {
+  paletteSearch,
+  previewSearchAction,
+  previewSearchKeepOut,
+  previewSearchSnooze,
+  type PaletteSearch,
+} from "@/app/(mail)/palette-actions";
 import { logout } from "@/app/(mail)/logout-action";
-import { runThreadAction } from "@/app/(mail)/thread-actions";
-import type { ActionPreview } from "@/lib/actions/types";
+import { runBulkKeepOut, runThreadAction } from "@/app/(mail)/thread-actions";
+import type { ActionPreview, KeepOutPreview } from "@/lib/actions/types";
 import { Kbd, KeyHints } from "@/components/ui/kbd";
 import type { Bucket } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 import { describeAction } from "../actions/actions";
+import { SnoozePicker } from "../actions/snooze-picker";
 import { useUndo } from "../actions/undo";
 import { CommandKbd, shortcutOf, useKeys, useOverrides } from "../keys/keymap";
 import { RADIO_TOGGLE_EVENT } from "@/components/radio";
@@ -22,7 +29,7 @@ import { AccountSquare } from "../account-square";
 import { useAccountToggles } from "../account-toggles";
 import { useCompose } from "../compose/compose";
 import { useMailSelection } from "../selection";
-import { Time } from "../time";
+import { fullTime, Time } from "../time";
 import { mailHref, VIEWS, type ViewSlug } from "../views";
 import { Highlight, Snippet } from "./highlight";
 
@@ -62,7 +69,23 @@ export function PaletteProvider({ counts, children }: { counts: Record<ViewSlug,
   );
 }
 
-type Mode = { kind: "search" } | { kind: "preview"; key: string; label: string; preview: ActionPreview | null };
+type Preview = ActionPreview | KeepOutPreview;
+
+type Mode =
+  | { kind: "search" }
+  | { kind: "snooze" }
+  | { kind: "preview"; key: string; label: string; detail?: string; preview: Preview | null };
+
+const isKeepOut = (p: Preview): p is KeepOutPreview => "senders" in p;
+const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
+const unitOf = (p: Preview) => (isKeepOut(p) ? "sender" : "thread");
+
+/** Every bulk row the results pane lists: thread actions, snooze, then keep out per sender. */
+const BULK_ROWS = [
+  ...BULK_ACTIONS.map((a) => ({ key: a.key, label: a.label, unit: "thread" })),
+  { ...BULK_SNOOZE, unit: "thread" },
+  ...BULK_KEEP_OUT.map((a) => ({ key: a.key, label: a.label, unit: "sender" })),
+];
 
 const CHIPS = ["from:", "account:", "before:", "after:"];
 
@@ -117,7 +140,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     };
   }, [query, searchKey]);
 
-  const back = () => (mode.kind === "preview" ? setMode({ kind: "search" }) : onClose());
+  const back = () => (mode.kind === "search" ? onClose() : setMode({ kind: "search" }));
   useKeys(
     [
       { keys: "escape", allowInInput: true, run: back },
@@ -131,9 +154,9 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     router.push(href);
   };
 
-  const startPreview = (key: string, label: string) => {
-    setMode({ kind: "preview", key, label, preview: null });
-    previewSearchAction(query, key)
+  const startPreview = (key: string, label: string, load: () => Promise<Preview> = () => previewSearchAction(query, key), detail?: string) => {
+    setMode({ kind: "preview", key, label, detail, preview: null });
+    load()
       .then((preview) => setMode((m) => (m.kind === "preview" && m.key === key ? { ...m, preview } : m)))
       .catch(() => {
         notify(`${label} preview failed, retry`, "error");
@@ -141,18 +164,29 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
       });
   };
 
-  const execute = async (preview: ActionPreview) => {
+  const pickBulk = (key: string, label: string) => {
+    if (key === BULK_SNOOZE.key) setMode({ kind: "snooze" });
+    else if (BULK_KEEP_OUT.some((a) => a.key === key)) startPreview(key, label, () => previewSearchKeepOut(query, key));
+    else startPreview(key, label);
+  };
+
+  const execute = async (preview: Preview) => {
     if (busy || !preview.count) return;
     setBusy(true);
     try {
-      const result = await runThreadAction(
-        preview.threads.map((t) => t.id),
-        preview.action,
-      );
-      report(describeAction(preview.action, result.count), result.token);
+      if (isKeepOut(preview)) {
+        const result = await runBulkKeepOut(preview.threadIds, preview.spam);
+        report(describeAction({ type: "keepOut", spam: preview.spam }, result.count, false, result.senders), result.token);
+      } else {
+        const result = await runThreadAction(
+          preview.threads.map((t) => t.id),
+          preview.action,
+        );
+        report(describeAction(preview.action, result.count), result.token);
+      }
       onClose();
     } catch {
-      notify(`${preview.action.type} failed, retry`, "error");
+      notify(`${isKeepOut(preview) ? "keep out" : preview.action.type} failed, retry`, "error");
       setBusy(false);
     }
   };
@@ -202,7 +236,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     ...hits.map((h) => `thread:${h.id}`),
   ];
   const actionValues = [
-    ...(current?.total ? BULK_ACTIONS.filter((a) => current.counts[a.key]).map((a) => `act:${a.key}`) : []),
+    ...(current?.total ? BULK_ROWS.filter((a) => current.counts[a.key]).map((a) => `act:${a.key}`) : []),
     ...views.map((v) => `view:${v.slug}`),
     ...actions.map((a) => `action:${a.key}`),
     ...accountRows.map((a) => `account:${a.id}`),
@@ -223,6 +257,24 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   };
 
   const heading = (name: Section, count: number) => <SectionHeading name={name} count={count} />;
+
+  // The picker stands in for the palette; its keys take over until it closes.
+  if (mode.kind === "snooze") {
+    return (
+      <SnoozePicker
+        onPick={(snooze) =>
+          startPreview(
+            BULK_SNOOZE.key,
+            BULK_SNOOZE.label,
+            () => previewSearchSnooze(query, snooze),
+            `until ${fullTime(snooze.until)}${snooze.needsReply ? ", needs reply" : ""}`,
+          )
+        }
+        onUnsnooze={() => {}}
+        onClose={() => setMode({ kind: "search" })}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-bg/60 px-2 pt-2 pb-2 md:px-4 md:pt-palette-top md:pb-palette-top" onClick={onClose}>
@@ -356,15 +408,15 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                 {query && current && !current.total ? <Line>no threads to act on</Line> : null}
               {current?.total ? (
                 <Command.Group heading={<span className="sr-only">bulk previews</span>}>
-                  {BULK_ACTIONS.map((a) => {
+                  {BULK_ROWS.map((a) => {
                     const n = current.counts[a.key] ?? 0;
                     return (
-                      <Item key={a.key} value={`act:${a.key}`} disabled={!n} onSelect={() => startPreview(a.key, a.label)}>
+                      <Item key={a.key} value={`act:${a.key}`} disabled={!n} onSelect={() => pickBulk(a.key, a.label)}>
                         <span className="flex-1">{a.label}</span>
                         {n > 1 ? (
-                          <span className="text-11 text-info">{n} threads</span>
+                          <span className="text-11 text-info">{plural(n, a.unit)}</span>
                         ) : (
-                          <span className="text-11 text-text-dim">{n ? "1 thread" : "nothing to change"}</span>
+                          <span className="text-11 text-text-dim">{n ? plural(1, a.unit) : "nothing to change"}</span>
                         )}
                       </Item>
                     );
@@ -515,7 +567,7 @@ function PreviewPane({
 }: {
   mode: Extract<Mode, { kind: "preview" }>;
   busy: boolean;
-  onConfirm: (preview: ActionPreview) => void;
+  onConfirm: (preview: Preview) => void;
   onBack: () => void;
 }) {
   const { preview } = mode;
@@ -528,8 +580,9 @@ function PreviewPane({
       <div className="palette-search-header flex h-touch shrink-0 items-center gap-2 border-b border-border px-3">
         <span>{mode.label}</span>
         <span className="text-info">
-          {preview ? `${preview.count} ${preview.count === 1 ? "thread" : "threads"}` : "counting"}
+          {preview ? plural(preview.count, unitOf(preview)) : "counting"}
         </span>
+        {mode.detail ? <span className="min-w-0 truncate text-text-muted">{mode.detail}</span> : null}
         {/* Hidden input keeps keyboard focus in the palette without offering a text field. */}
         <Command.Input ref={focusRef} value="" readOnly aria-label="confirm" className="sr-only" />
       </div>
@@ -539,21 +592,35 @@ function PreviewPane({
             <Group heading="confirm">
               <Item value="confirm" disabled={busy} onSelect={() => onConfirm(preview)}>
                 <span className="flex-1">
-                  {mode.label} {preview.count} {preview.count === 1 ? "thread" : "threads"}
+                  {isKeepOut(preview)
+                    ? `keep out ${plural(preview.count, "sender")}${preview.spam ? " as spam" : ""}`
+                    : `${mode.label} ${plural(preview.count, "thread")}`}
                 </span>
                 <Kbd keys="enter" />
               </Item>
             </Group>
-            <Group heading="affected">
-              {preview.threads.slice(0, 100).map((t) => (
-                <div key={t.id} className="flex h-touch items-center gap-2 px-3 text-text-muted md:h-row">
-                  <span className="w-sender shrink-0 truncate">{t.sender}</span>
-                  <span className="min-w-0 flex-1 truncate text-text">{t.subject}</span>
-                  <span className="shrink-0 text-11">{t.account}</span>
-                </div>
-              ))}
-              {preview.count > 100 ? <Line>and {preview.count - 100} more</Line> : null}
-            </Group>
+            {isKeepOut(preview) ? (
+              <Group heading="senders">
+                {preview.senders.slice(0, 100).map((s) => (
+                  <div key={s.id} className="flex h-touch items-center gap-2 px-3 text-text-muted md:h-row">
+                    <span className="min-w-0 flex-1 truncate text-text">{s.name}</span>
+                    <span className="shrink-0 text-11">{s.threads ? `${plural(s.threads, "thread")} out` : "nothing to move"}</span>
+                  </div>
+                ))}
+                {preview.count > 100 ? <Line>and {preview.count - 100} more</Line> : null}
+              </Group>
+            ) : (
+              <Group heading="affected">
+                {preview.threads.slice(0, 100).map((t) => (
+                  <div key={t.id} className="flex h-touch items-center gap-2 px-3 text-text-muted md:h-row">
+                    <span className="w-sender shrink-0 truncate">{t.sender}</span>
+                    <span className="min-w-0 flex-1 truncate text-text">{t.subject}</span>
+                    <span className="shrink-0 text-11">{t.account}</span>
+                  </div>
+                ))}
+                {preview.count > 100 ? <Line>and {preview.count - 100} more</Line> : null}
+              </Group>
+            )}
           </>
         ) : preview ? (
           <Line>nothing to change</Line>
