@@ -305,7 +305,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     (id?: string) => {
       const threadIds = id ? [id] : sel.targetIds;
       if (!threadIds.length) return Promise.resolve(null);
-      const done = sel.view === "work" && threadIds.every((t) => byId.get(t)?.work);
+      const done = (sel.view === "work" || sel.view === "digest") && threadIds.every((t) => byId.get(t)?.work);
       return run({ type: done ? "done" : "work" }, threadIds);
     },
     [sel.targetIds, sel.view, byId, run],
