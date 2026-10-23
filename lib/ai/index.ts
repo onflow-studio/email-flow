@@ -1,9 +1,12 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { Output, generateText, type LanguageModel } from "ai";
+import { Output, createGateway, embedMany, generateText, type LanguageModel } from "ai";
 import type { z } from "zod";
 
 export const CLAUDE_MODEL = "claude-sonnet-5";
 export const CLASSIFY_MODEL = "claude-haiku-4-5-20251001";
+export const EMBEDDING_MODEL = "openai/text-embedding-3-small";
+export const EMBEDDING_DIMENSIONS = 512;
+export type Embedder = (texts: string[]) => Promise<number[][]>;
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -18,6 +21,27 @@ export function claude(modelId: string = CLAUDE_MODEL) {
   anthropicProvider ??= createAnthropic({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
   return anthropicProvider(modelId);
 }
+
+export function embeddingsEnabled() {
+  return Boolean(process.env.AI_GATEWAY_API_KEY);
+}
+
+let gatewayProvider: ReturnType<typeof createGateway> | undefined;
+
+export const embedTexts: Embedder = async (texts) => {
+  if (texts.length === 0) return [];
+  gatewayProvider ??= createGateway({ apiKey: requireEnv("AI_GATEWAY_API_KEY") });
+  const { embeddings } = await embedMany({
+    model: gatewayProvider.textEmbeddingModel(EMBEDDING_MODEL),
+    values: texts,
+    providerOptions: { openai: { dimensions: EMBEDDING_DIMENSIONS } },
+    maxRetries: 0,
+  });
+  if (embeddings.length !== texts.length || embeddings.some((embedding) => embedding.length !== EMBEDDING_DIMENSIONS)) {
+    throw new Error(`Expected ${texts.length} embeddings of ${EMBEDDING_DIMENSIONS} dimensions`);
+  }
+  return embeddings;
+};
 
 export type StructuredRequest<T> = {
   // Stable across calls so the prefix can be cached; per-call data goes in prompt.

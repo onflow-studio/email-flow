@@ -16,9 +16,10 @@ import {
 } from "@/lib/db/schema";
 import { parseGmailMessage, type ParsedMessage } from "@/lib/mail/mime";
 import { rewriteCidImages } from "@/lib/mail/remote";
+import { embeddingsEnabled } from "@/lib/ai";
 
 import type { GmailSyncPort } from "./gmail";
-import { PRIORITY_LIVE, enqueueClassify, enqueueSummary } from "./jobs";
+import { PRIORITY_LIVE, enqueueClassify, enqueueEmbed, enqueueSummary } from "./jobs";
 import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt, starChange } from "./mirror";
 import { linkTwins, reconcileGroup, starGroup } from "./twins";
 
@@ -304,6 +305,9 @@ export async function ingestThread(
 
     const classify = created && !joined && derived.hasInbound && !mirror.trashed && !mirror.spam;
     if (classify) await enqueueClassify(tx, { id: threadId, accountId: account.id }, classifyPriority);
+    if (inserted > 0 && embeddingsEnabled() && !mirror.spam && !mirror.trashed) {
+      await enqueueEmbed(tx, { id: threadId, accountId: account.id }, PRIORITY_LIVE);
+    }
     // A new message in a known thread makes its summary stale.
     else if (existing && inserted > 0 && derived.hasInbound && wantsSummary(existing.bucket) && !mirror.spam) {
       await enqueueSummary(tx, { id: threadId, accountId: account.id }, classifyPriority);
