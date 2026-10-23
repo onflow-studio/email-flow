@@ -1,11 +1,12 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, ne } from "drizzle-orm";
 
+import { loadTriageSenders } from "@/lib/classify/screener";
 import type { Db } from "@/lib/db";
 import { accounts, threads } from "@/lib/db/schema";
 
 import { loadStates } from "./apply";
 import { patchFor } from "./patch";
-import type { ActionPreview, ThreadAction } from "./types";
+import type { ActionPreview, KeepOutPreview, ThreadAction } from "./types";
 
 /**
  * What a bulk action would touch, before it runs. The palette shows this list
@@ -49,4 +50,31 @@ export async function countThreadActions(db: Db, threadIds: string[], actions: T
   const now = new Date();
   const states = await loadStates(db, threadIds);
   return actions.map((action) => states.filter((t) => patchFor(action, t, now)).length);
+}
+
+/**
+ * Who bulk keep out would decide on among the Triage threads, and how many threads each one's
+ * decision moves out (every unarchived thread of theirs, as decideSender does). Execute with
+ * applyBulkKeepOut and the same thread ids.
+ */
+export async function previewBulkKeepOut(db: Db, threadIds: string[], spam: boolean): Promise<KeepOutPreview> {
+  const { targets, names } = await loadTriageSenders(db, threadIds);
+  if (!targets.size) return { spam, senders: [], threadIds: [], count: 0 };
+  const ids = [...targets.keys()];
+  const moving = await db
+    .select({ senderId: threads.senderId, n: count() })
+    .from(threads)
+    .where(and(inArray(threads.senderId, ids), eq(threads.archived, false), ne(threads.bucket, "out")))
+    .groupBy(threads.senderId);
+  const moves = new Map(moving.map((r) => [r.senderId, r.n]));
+  const list = ids.map((id) => {
+    const n = names.get(id);
+    return { id, name: n?.name || n?.email || "unknown", threads: moves.get(id) ?? 0 };
+  });
+  return { spam, senders: list, threadIds: [...new Set([...targets.values()].flat())], count: list.length };
+}
+
+/** How many senders bulk keep out would decide on among the threads. */
+export async function countBulkKeepOut(db: Db, threadIds: string[]): Promise<number> {
+  return (await loadTriageSenders(db, threadIds)).targets.size;
 }
