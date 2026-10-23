@@ -17,7 +17,7 @@ async function main() {
           const catchUp = r.catchUp ? `, ${r.catchUp.mode} catch-up at ${r.catchUp.seen} threads` : "";
           console.log(
             `${stamp} ${o.email} ${r.mode}: ${r.threads} threads, ${r.newMessages} new messages, ` +
-              `${r.classifyQueued} to classify, jobs ${r.jobs.done} done ${r.jobs.retry} retry ${r.jobs.failed} failed` +
+              `${r.classifyQueued} to classify${r.entitiesQueued ? `, ${r.entitiesQueued} to read for entities` : ""}, jobs ${r.jobs.done} done ${r.jobs.retry} retry ${r.jobs.failed} failed` +
               `${r.jobs.throttled ? ` ${r.jobs.throttled} throttled` : ""}${catchUp}`,
           );
         } else if (o.status === "error") {
