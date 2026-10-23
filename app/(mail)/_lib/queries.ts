@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 
 import type { View, ViewSlug } from "@/components/mail/views";
 import { CLUSTER_VIEWS, clusterOf, clusterOrder, isMachine, type ClusterInput } from "@/components/mail/clusters";
@@ -31,9 +31,9 @@ function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefin
   if (view.slug === "digest") return and(
     live(), unstarred(), or(isNull(threads.snoozedUntil), lte(threads.snoozedUntil, now)),
     or(
-      sql`${threads.workAt} < ${cutoffs.work}`,
-      and(eq(threads.needsReply, true), isNull(threads.deadlineAt), sql`${threads.lastMessageAt} < ${cutoffs.reply}`),
-      and(eq(threads.bucket, "triage"), sql`${threads.createdAt} < ${cutoffs.triage}`),
+      lt(threads.workAt, cutoffs.work),
+      and(eq(threads.needsReply, true), isNull(threads.deadlineAt), lt(threads.lastMessageAt, cutoffs.reply)),
+      and(eq(threads.bucket, "triage"), lt(threads.createdAt, cutoffs.triage)),
     ),
   );
   if (view.slug === "sent") return and(eq(threads.trashed, false), eq(threads.spam, false), wroteIn());
@@ -168,9 +168,9 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
         ? workOrder()
         : view.slug === "digest"
           ? [asc(sql`case
-              when ${threads.workAt} < ${cutoffs.work} then ${threads.workAt} - ${cutoffs.work}
-              when ${threads.needsReply} and ${threads.deadlineAt} is null and ${threads.lastMessageAt} < ${cutoffs.reply} then ${threads.lastMessageAt} - ${cutoffs.reply}
-              else ${threads.createdAt} - ${cutoffs.triage}
+              when ${lt(threads.workAt, cutoffs.work)} then ${threads.workAt} - ${cutoffs.work.toISOString()}::timestamptz
+              when ${threads.needsReply} and ${threads.deadlineAt} is null and ${lt(threads.lastMessageAt, cutoffs.reply)} then ${threads.lastMessageAt} - ${cutoffs.reply.toISOString()}::timestamptz
+              else ${threads.createdAt} - ${cutoffs.triage.toISOString()}::timestamptz
             end`), asc(threads.id)]
         : view.slug === "starred"
           ? [desc(threads.starredAt)]
