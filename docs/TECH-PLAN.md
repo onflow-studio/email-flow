@@ -22,7 +22,7 @@ Companion to REQUIREMENTS.md and DESIGN.md.
 | Classification | Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) via `@ai-sdk/anthropic`, structured output | Fast, cheap, same key as the rest; probabilities are self-reported, so thresholds sit higher |
 | Second opinion | TypeSafe Jev (`jev-1.13.0`, pinned) over plain HTTP in `lib/ai/jev.ts` | Calibrated probabilities, about 250ms and $0.00004 a call; confirms Claude's doubtful buckets, never generates text |
 | LLM | Claude via `@ai-sdk/anthropic` with existing key | Summaries, questions, later drafts |
-| Embeddings | Deferred to 1.5, likely via Vercel AI Gateway | No key yet, not needed in phase 1 |
+| Embeddings | OpenAI `text-embedding-3-small` through Vercel AI Gateway, 512 dimensions, $0.02 per million tokens | Optional key; stored mail is embedded for later semantic search |
 | UI | Tailwind 4, shadcn base, custom tokens from DESIGN.md | Fast to build, restyled hard so it isn't generic |
 | Palette | cmdk | Keyboard-first command palette, extensible with actions |
 | Editor | Tiptap | ProseMirror, emits clean HTML, h1-h3 bold italic underline links images |
@@ -66,12 +66,13 @@ Core tables, Drizzle in `lib/db/schema.ts`.
 - `classifications`: id, thread id, model, raw response json, bucket probabilities, urgency, human written, legit new sender, created at. Append-only.
 - `corrections`: id, thread id, sender id, from bucket, to bucket, created at. Append-only, feeds classify context.
 - `rules`: id, text, structured json parsed by Claude on save, enabled, created at.
-- `jobs`: id, type (classify, writeback, backfill), payload json, status, attempts, run after, error. The queue.
+- `jobs`: id, type (classify, writeback, backfill, embed), payload json, status, attempts, run after, error. The queue.
+- `embeddings`: id, message id, thread id, account id, 0-based chunk, embedded text, attachment metadata on chunk 0, model, 512-dimensional vector, created at. One row per message chunk; quoted replies are excluded.
 - `actions_log`: id, thread id, action, payload, undone at. Powers undo.
 - `keybindings`: command id, keys (text array, empty unbinds), updated at. Only overrides of the defaults in code.
 - `compose_uploads`: id, part, filename, mime type, data (bytea), created at. Files attached in compose, uploaded in 4 MB parts (Vercel caps a request body at 4.5 MB) and joined on send, then deleted. Leftovers expire after a day.
 
-Phase 1.5 adds `embeddings` (chunk, vector) and `entities` (people, projects, companies) with `entity_links`.
+Later work adds `entities` (people, projects, companies) with `entity_links` and uses the stored vectors for semantic search.
 
 ## Sync pipeline
 
@@ -79,8 +80,8 @@ Phase 1.5 adds `embeddings` (chunk, vector) and `entities` (people, projects, co
 
 1. Call Gmail history list from the stored cursor. With no cursor (first sync) or a stale one, store a fresh cursor at once and record a catch-up listing in `accounts.catch_up` (the last 14 days, or since last sync at). Each pass works through up to 250 of its threads in saved batches, so a quota error or restart loses at most one batch.
 2. For each new or changed message: fetch full, sanitize, upsert message and thread. Mirror read state and archive state from Gmail labels into our columns.
-3. For each thread that is new and inbound: enqueue a classify job.
-4. Process pending jobs for the account: classify, then writeback.
+3. For each thread that is new and inbound: enqueue a classify job. New messages also enqueue an embed job when the gateway key is set.
+4. Enqueue unembedded history at low priority, then process pending jobs for the account: live jobs first, including classify, embed and writeback.
 5. Store the new cursor.
 
 Every Gmail call goes through a per-account limiter in `lib/gmail/quota.ts`: at most 4 calls in flight, a token bucket spending 100 quota units a second (Gmail allows 15,000 a minute per user, shared by the loop, backfill and web), and 429 or rate-limit 403 retries with jittered exponential backoff that honor Retry-After. A pass that still runs out of quota ends quietly and resumes next pass; it is not a sync failure.
@@ -173,6 +174,7 @@ GOOGLE_CLIENT_SECRET
 GOOGLE_REDIRECT_URI
 TOKEN_ENCRYPTION_KEY
 ANTHROPIC_API_KEY
+AI_GATEWAY_API_KEY    optional: embeddings; unset keeps keyword-only search and enqueues no embed jobs
 JEV_API_KEY           TypeSafe key for the second opinion, optional: without it suggestions stay suggestions
 SYNC_SECRET
 CRON_SECRET           production only, identical to SYNC_SECRET for Vercel cron authentication
