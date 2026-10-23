@@ -5,9 +5,22 @@ import { refresh } from "next/cache";
 
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
+import { saveStaleSettings, staleSettingsSchema } from "@/lib/db/settings";
 import { ACCOUNT_COLORS } from "@/lib/gmail/colors";
 
 export type SaveState = { ok: boolean; message: string } | null;
+
+export async function saveDigest(_prev: SaveState, form: FormData): Promise<SaveState> {
+  const parsed = staleSettingsSchema.safeParse({
+    workDays: Number(form.get("workDays")),
+    replyDays: Number(form.get("replyDays")),
+    triageDays: Number(form.get("triageDays")),
+  });
+  if (!parsed.success) return { ok: false, message: "enter whole days from 1 to 90" };
+  await saveStaleSettings(parsed.data);
+  refresh();
+  return { ok: true, message: "saved" };
+}
 
 const MAX_LABEL = 32;
 const MAX_SIGNATURE = 20_000;
