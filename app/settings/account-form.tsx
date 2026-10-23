@@ -17,7 +17,23 @@ type Props = Pick<Account, "id" | "email" | "label" | "color" | "signatureHtml" 
 
 type AccessExpiry = { state: "expiring" | "expired"; expiresAt: string } | null;
 
-export function AccountForm({ account, accessExpiry }: { account: Props; accessExpiry: AccessExpiry }) {
+export type HistoryImport = { done: boolean; imported: number; seen: number };
+
+function historyText({ done, imported, seen }: HistoryImport) {
+  return done
+    ? `history: imported, ${seen.toLocaleString("en-US")} threads`
+    : `history: ${imported.toLocaleString("en-US")} imported`;
+}
+
+export function AccountForm({
+  account,
+  accessExpiry,
+  history,
+}: {
+  account: Props;
+  accessExpiry: AccessExpiry;
+  history: HistoryImport | null;
+}) {
   const [state, action, pending] = useActionState(saveAccount, null);
   const reconnectNeeded = needsReconnect(account.lastSyncError) || accessExpiry !== null;
 
@@ -45,6 +61,8 @@ export function AccountForm({ account, accessExpiry }: { account: Props; accessE
           reconnect
         </a>
       </div>
+
+      {history ? <p className="pl-4 text-11 text-text-muted">{historyText(history)}</p> : null}
 
       <div className="flex flex-wrap items-end gap-4 pl-4">
         <label className="flex flex-col gap-1">
