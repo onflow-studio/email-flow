@@ -69,6 +69,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
     snoozedUntil: t.snoozedUntil,
     needsReply: t.needsReply,
     deadlineAt: t.deadlineAt,
+    staleReason: t.staleReason?.kind ?? null,
   }));
   // An open thread may have left the list (e.g. opened from a link); it is still a target.
   if (detail && !targets.some((t) => t.id === detail.id)) {
@@ -81,6 +82,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       snoozedUntil: detail.snoozedUntil,
       needsReply: detail.needsReply,
       deadlineAt: detail.deadlineAt,
+      staleReason: null,
     });
   }
   const accountColors = Object.fromEntries(accounts.map((a) => [a.id, a.color]));
