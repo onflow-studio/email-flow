@@ -2,6 +2,7 @@ export const SECTIONS = [
   { slug: "accounts", label: "accounts" },
   { slug: "rules", label: "rules" },
   { slug: "keyboard", label: "keyboard" },
+  { slug: "digest", label: "digest" },
 ] as const;
 
 /** `/settings` itself opens accounts. */
