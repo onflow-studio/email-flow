@@ -122,7 +122,7 @@ export function ThreadList({
   }
   const blockUnseen = (b: Block) => b.threads.some((t) => t.unseen);
   // Work keeps its own order (deadlines, then by date), so it has no unseen and seen groups.
-  const unseen = work ? 0 : threads.filter((t) => t.unseen).length;
+  const unseen = work || sel.view === "digest" ? 0 : threads.filter((t) => t.unseen).length;
   // Group labels only hold while rows sit in server order (unseen first).
   const grouped = ordered.every((t, i) => t.id === threads[i]?.id);
   const firstUnseen = grouped ? 0 : -1;
@@ -154,6 +154,7 @@ export function ThreadList({
           sel.focus(t.id);
         }}
         showSnooze={sel.view === "snoozed"}
+        digest={sel.view === "digest"}
         work={work}
         byKind={byKind}
         nested={nested}
@@ -354,6 +355,7 @@ function ThreadRow({
   href,
   onSelect,
   showSnooze,
+  digest,
   work,
   byKind,
   nested = false,
@@ -370,6 +372,7 @@ function ThreadRow({
   href: string;
   onSelect: () => void;
   showSnooze: boolean;
+  digest: boolean;
   /** Work rows show the deadline and needs reply, and mark an unread reply with the dot. */
   work: boolean;
   /** Rows set by who wrote: a person's sender stays lit, whose turn it is on the sender. */
@@ -379,7 +382,7 @@ function ThreadRow({
 }) {
   const [now] = useState(() => Date.now());
   const overdue = !!t.deadlineAt && new Date(t.deadlineAt).getTime() < now;
-  const status = [t.resurfaced && "back", t.needsReply && "needs reply", overdue && "overdue", work && t.deadlineAt && !overdue && `due ${fullTime(t.deadlineAt)}`].filter(Boolean);
+  const status = [t.resurfaced && "back", t.needsReply && "needs reply", overdue && "overdue", work && t.deadlineAt && !overdue && `due ${fullTime(t.deadlineAt)}`, digest && t.staleReason && `${t.staleReason.kind} ${t.staleReason.days}d`].filter(Boolean);
   const person = byKind && t.kind === "person";
   // The user wrote last: the next move is theirs, so the row steps back.
   const theirTurn = person && t.lastFromMe && !t.unseen;
@@ -435,6 +438,7 @@ function ThreadRow({
       </span>
       <span className="flex-1 @min-[320px]:hidden" />
       <span className="flex shrink-0 items-center gap-1" aria-hidden>
+        {digest && t.staleReason ? <Badge>{t.staleReason.kind} {t.staleReason.days}d</Badge> : null}
         {t.needsReply ? <Badge className="bg-signal/15 text-signal">reply</Badge> : null}
         {overdue ? <Badge className="text-warning">overdue</Badge> : work && t.deadlineAt ? <Badge>due <Time iso={t.deadlineAt} /></Badge> : null}
       </span>
