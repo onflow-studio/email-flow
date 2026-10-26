@@ -68,9 +68,8 @@ The rail includes Triage, Inbox, Work, Starred, Snoozed and Digest for action, f
 - `classifications`: id, thread id, model, raw response json, bucket probabilities, urgency, human written, legit new sender, created at. Append-only.
 - `corrections`: id, thread id, sender id, from bucket, to bucket, created at. Append-only, feeds classify context.
 - `rules`: id, text, structured json parsed by Claude on save, enabled, created at.
-- `jobs`: id, type (classify, writeback, backfill, digest), account id (null for the daily digest, which spans accounts), payload json, status, attempts, run after, error. The queue.
+- `jobs`: id, type (classify, writeback, backfill, entities, embed, digest), account id (null for the daily digest, which spans accounts), payload json, status, attempts, run after, error. The queue.
 - `digests`: id, day (unique local date), content json (last 24 hours' arrivals per bucket, needs reply, deadlines, Triage and stale counts), summary (Claude's 2 to 5 lines), model, created at. One row per day, written by the `digest:<day>` job a sync pass enqueues once the set hour has passed.
-- `jobs`: id, type (classify, writeback, backfill, entities, embed), payload json, status, attempts, run after, error. The queue.
 - `embeddings`: id, message id, thread id, account id, 0-based chunk, embedded text, attachment metadata on chunk 0, model, 512-dimensional vector, created at. One row per message chunk; quoted replies are excluded.
 - `actions_log`: id, thread id, action, payload, undone at. Powers undo.
 - `keybindings`: command id, keys (text array, empty unbinds), updated at. Only overrides of the defaults in code.
