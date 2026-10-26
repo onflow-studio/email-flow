@@ -8,10 +8,8 @@ import {
   applySenderAction,
   applyThreadAction,
   markSeenOnOpen,
-  previewThreadAction,
   undoAction,
   unsubscribeThread,
-  type ActionPreview,
   type ActionResult,
   type SenderAction,
   type ThreadAction,
@@ -92,11 +90,6 @@ export async function undo(token: string): Promise<{ count: number; unsubscribed
   const result = await undoAction(db, id);
   refresh();
   return result;
-}
-
-/** Bulk preview for the palette: which threads the action would change. */
-export async function previewAction(threadIds: string[], action: ThreadAction): Promise<ActionPreview> {
-  return previewThreadAction(db, ids(threadIds), threadAction(action));
 }
 
 export async function alwaysLoadImages(senderId: string): Promise<void> {
