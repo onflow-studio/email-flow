@@ -92,6 +92,22 @@ async function upsertSender(tx: Tx, accountId: string, m: ParsedMessage): Promis
   return row.id;
 }
 
+// A new thread gets one classify call, unless it joined a group the user already placed. With
+// `classifyArchived` off (the full-history import), archived old mail keeps the bucket from Gmail's
+// categories: no AI call, and with no classify job no writeback, so Gmail stays as it was.
+export function shouldClassify(t: {
+  created: boolean;
+  joined: boolean;
+  hasInbound: boolean;
+  trashed: boolean;
+  spam: boolean;
+  inGmailInbox: boolean;
+  classifyArchived: boolean;
+}): boolean {
+  if (!t.created || t.joined || !t.hasInbound || t.trashed || t.spam) return false;
+  return t.classifyArchived || t.inGmailInbox;
+}
+
 // A queued writeback means our state is ahead of Gmail's; mirroring now would undo the user.
 async function hasPendingWriteback(db: Db | Tx, threadId: string) {
   const [row] = await db
@@ -114,7 +130,10 @@ export async function ingestThread(
   account: Pick<Account, "id" | "email">,
   gmailThreadId: string,
   now = new Date(),
-  { classifyPriority = PRIORITY_LIVE }: { classifyPriority?: number } = {},
+  {
+    classifyPriority = PRIORITY_LIVE,
+    classifyArchived = true,
+  }: { classifyPriority?: number; classifyArchived?: boolean } = {},
 ): Promise<IngestResult> {
   const [existing] = await db
     .select({ id: threads.id, bucket: threads.bucket, seenAt: threads.seenAt, starredAt: threads.starredAt })
@@ -147,6 +166,9 @@ export async function ingestThread(
   }
 
   const liveIds = live.map((m) => m.id);
+  const inGmailInbox = live.some((m) => m.labelIds.includes(LABEL.inbox));
+  // Old mail archived in Gmail stays archived here, whichever bucket its categories give it.
+  const archivedHistory = !classifyArchived && !inGmailInbox;
   const mirror = mirrorState(
     live.map((m) => m.labelIds),
     existing?.bucket ?? initialBucket(live.flatMap((m) => m.labelIds)),
@@ -178,7 +200,7 @@ export async function ingestThread(
           subject: first?.subject ?? null,
           lastMessageAt: first?.date ?? now,
           bucket,
-          archived: mirror.archived ?? false,
+          archived: archivedHistory || (mirror.archived ?? false),
           trashed: mirror.trashed,
           spam: mirror.spam,
           seenAt: nextSeenAt(mirror.unread, null, now),
@@ -303,7 +325,15 @@ export async function ingestThread(
     // A star added or removed in Gmail stars or unstars the whole group. Gmail never stars trash or spam here.
     if (star && !pending && !(star === "star" && (mirror.trashed || mirror.spam))) await starGroup(tx, threadId, star, now);
 
-    const classify = created && !joined && derived.hasInbound && !mirror.trashed && !mirror.spam;
+    const classify = shouldClassify({
+      created,
+      joined,
+      hasInbound: derived.hasInbound,
+      trashed: mirror.trashed,
+      spam: mirror.spam,
+      inGmailInbox,
+      classifyArchived,
+    });
     if (classify) await enqueueClassify(tx, { id: threadId, accountId: account.id }, classifyPriority);
     // A new message in a known thread makes its summary stale.
     else if (existing && inserted > 0 && derived.hasInbound && wantsSummary(existing.bucket) && !mirror.spam) {
