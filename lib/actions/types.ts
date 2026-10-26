@@ -37,12 +37,6 @@ export type SenderAction =
 export type Action = ThreadAction | SenderAction;
 export type ActionType = Action["type"];
 
-export const SENDER_ACTIONS = new Set<ActionType>(["letIn", "keepOut", "confirmAiAllow", "undoAiAllow", "decideSender"]);
-
-export function isSenderAction(action: Action): action is SenderAction {
-  return SENDER_ACTIONS.has(action.type);
-}
-
 /** Thread columns an action may change, and so what undo restores. */
 export const STATE_COLUMNS = [
   "bucket",
