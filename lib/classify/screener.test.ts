@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aiAllowedSenders, allowedTarget, inboundSenderIds, judgedSenders, type SenderState } from "./screener";
+import { aiAllowedSenders, allowedTarget, bulkJudgedSenders, inboundSenderIds, judgedSenders, type SenderState } from "./screener";
 
 describe("allowedTarget", () => {
   it("uses the default bucket the user picked", () => {
@@ -70,5 +70,34 @@ describe("aiAllowedSenders", () => {
   it("picks the senders the AI let in, not the user's", () => {
     const states = new Map([["divi", state("allowed", "ai")], ["jose", state("allowed", "user")], ["x", state("none")]]);
     expect(aiAllowedSenders(["divi", "jose", "x"], states)).toEqual(["divi"]);
+  });
+});
+
+describe("bulkJudgedSenders", () => {
+  it("lists each sender once, with every thread that named it", () => {
+    const rows = [
+      { id: "t1", senderId: "acme", messages: [{ isInbound: true, senderId: "acme" }] },
+      { id: "t2", senderId: "divi", messages: forwarded },
+      { id: "t3", senderId: "acme", messages: [{ isInbound: true, senderId: "acme" }] },
+    ];
+    expect([...bulkJudgedSenders(rows, new Map())]).toEqual([
+      ["acme", ["t1", "t3"]],
+      ["divi", ["t2"]],
+      ["jose", ["t2"]],
+    ]);
+  });
+
+  it("judges each thread against the states before any decision", () => {
+    const states = new Map([["divi", state("none")], ["jose", state("allowed", "user")]]);
+    const rows = [{ id: "t1", senderId: "divi", messages: forwarded }];
+    expect([...bulkJudgedSenders(rows, states)]).toEqual([["divi", ["t1"]]]);
+  });
+
+  it("uses the thread's sender when it has no messages yet", () => {
+    expect([...bulkJudgedSenders([{ id: "t1", senderId: "acme", messages: [] }], new Map())]).toEqual([["acme", ["t1"]]]);
+  });
+
+  it("skips threads without a sender", () => {
+    expect(bulkJudgedSenders([{ id: "t1", senderId: null, messages: [] }], new Map()).size).toBe(0);
   });
 });
