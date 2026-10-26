@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 
 import {
   allowSenderImages,
+  applyBulkKeepOut,
   applySenderAction,
   applyThreadAction,
   markSeenOnOpen,
@@ -68,6 +69,13 @@ export async function runThreadAction(threadIds: string[], action: ThreadAction)
 export async function runSenderAction(threadId: string, action: SenderAction): Promise<ActionResult> {
   const [id] = ids([threadId]);
   const result = await applySenderAction(db, id, senderAction(action));
+  refresh();
+  return result;
+}
+
+/** Keeps out every judged sender of the Triage threads among threadIds, as one undo. */
+export async function runBulkKeepOut(threadIds: string[], spam: boolean): Promise<ActionResult> {
+  const result = await applyBulkKeepOut(db, ids(threadIds), spam === true);
   refresh();
   return result;
 }
