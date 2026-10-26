@@ -1,3 +1,4 @@
+import type { LanguageModel } from "ai";
 import { eq } from "drizzle-orm";
 
 import type { Evaluator } from "@/lib/classify/classify";
@@ -7,6 +8,7 @@ import type { Db } from "@/lib/db";
 import { jobs, type Job, type JobType } from "@/lib/db/schema";
 import { GmailRateLimitError, isRateLimitError } from "@/lib/gmail/errors";
 
+import { digestJob } from "./digest";
 import { writebackJob, type GmailLabelsPort } from "./writeback";
 
 export const MAX_ATTEMPTS = 8;
@@ -24,6 +26,8 @@ export type JobContext = {
   gmail: (accountId: string) => Promise<GmailLabelsPort>;
   evaluate?: Evaluator;
   confirm?: Confirmer;
+  // Claude by default; tests pass a mock model.
+  digestModel?: LanguageModel;
 };
 
 export type JobHandler = (job: Job, ctx: JobContext) => Promise<void>;
@@ -35,6 +39,8 @@ export function jobHandler(type: JobType): JobHandler | undefined {
       return classifyJob;
     case "writeback":
       return writebackJob;
+    case "digest":
+      return digestJob;
     default:
       return undefined;
   }

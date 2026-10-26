@@ -68,10 +68,11 @@ The rail includes Triage, Inbox, Work, Starred, Snoozed and Digest for action, f
 - `classifications`: id, thread id, model, raw response json, bucket probabilities, urgency, human written, legit new sender, created at. Append-only.
 - `corrections`: id, thread id, sender id, from bucket, to bucket, created at. Append-only, feeds classify context.
 - `rules`: id, text, structured json parsed by Claude on save, enabled, created at.
-- `jobs`: id, type (classify, writeback, backfill), payload json, status, attempts, run after, error. The queue.
+- `jobs`: id, type (classify, writeback, backfill, digest), account id (null for the daily digest, which spans accounts), payload json, status, attempts, run after, error. The queue.
+- `digests`: id, day (unique local date), content json (last 24 hours' arrivals per bucket, needs reply, deadlines, Triage and stale counts), summary (Claude's 2 to 5 lines), model, created at. One row per day, written by the `digest:<day>` job a sync pass enqueues once the set hour has passed.
 - `actions_log`: id, thread id, action, payload, undone at. Powers undo.
 - `keybindings`: command id, keys (text array, empty unbinds), updated at. Only overrides of the defaults in code.
-- `settings`: key (text primary key), value (jsonb), updated at. The `stale` value stores Work, reply and Triage day thresholds; future digest scheduling settings use the same table.
+- `settings`: key (text primary key), value (jsonb), updated at. The `stale` value stores Work, reply and Triage day thresholds; `digest` stores the hour (0 to 23) and time zone the daily digest is made at.
 - `compose_uploads`: id, part, filename, mime type, data (bytea), created at. Files attached in compose, uploaded in 4 MB parts (Vercel caps a request body at 4.5 MB) and joined on send, then deleted. Leftovers expire after a day.
 
 Phase 1.5 adds `embeddings` (chunk, vector) and `entities` (people, projects, companies) with `entity_links`.
@@ -89,6 +90,8 @@ Phase 1.5 adds `embeddings` (chunk, vector) and `entities` (people, projects, co
 Every Gmail call goes through a per-account limiter in `lib/gmail/quota.ts`: at most 4 calls in flight, a token bucket spending 100 quota units a second (Gmail allows 15,000 a minute per user, shared by the loop, backfill and web), and 429 or rate-limit 403 retries with jittered exponential backoff that honor Retry-After. A pass that still runs out of quota ends quietly and resumes next pass; it is not a sync failure.
 
 `scripts/sync.ts` loops all accounts every 5 minutes. `app/api/sync/route.ts` runs one pass, protected by a bearer secret, which the Vercel cron calls when hosted. The refresh button calls the same route.
+
+After the accounts, each pass makes the daily digest (`lib/sync/digest.ts`) under its own advisory lock: once the local time in the `digest` setting's zone reaches its hour, it enqueues a `digest:<day>` job with no account, unless `digests` has that day, then runs the jobs that have no account. The job gathers the last 24 hours across accounts, asks Claude for 2 to 5 lines (`lib/ai/digest.ts`) and inserts the day's row; a failed call retries with the job's backoff. Both runners reach it, and the dedupe key and the unique day keep it to one per day.
 
 Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the current year forward, per account, in batches, enqueuing classify for each thread but with a lower priority so live mail is never behind history. It paces Gmail through the same limiter on a smaller budget (`--rate`, default 60 units a second, about a quarter of the per-user quota) and waits out rate limits instead of failing.
 

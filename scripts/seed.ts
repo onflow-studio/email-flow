@@ -373,6 +373,21 @@ async function main() {
     }
   }
 
+  // Today's digest from the seeded threads, with fixed lines instead of a model call. Never replaces one.
+  const { digests } = await import("@/lib/db/schema");
+  const { loadDigestSettings } = await import("@/lib/db/settings");
+  const { gatherDigest, localTime } = await import("@/lib/sync/digest");
+  const today = localTime(new Date(), (await loadDigestSettings(db)).timeZone).day;
+  await db
+    .insert(digests)
+    .values({
+      day: today,
+      content: await gatherDigest(db, new Date()),
+      summary: ["Two replies are waiting, the oldest from last week.", "A few new senders are waiting in Triage."].join("\n"),
+      model: "seed",
+    })
+    .onConflictDoNothing({ target: digests.day });
+
   console.log(`seeded ${THREADS.length} threads, ${messageCount} messages across ${Object.keys(ACCOUNTS).length} accounts`);
   process.exit(0);
 }

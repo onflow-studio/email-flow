@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
-import { saveStaleSettings, staleSettingsSchema } from "@/lib/db/settings";
+import { digestSettingsSchema, saveDigestSettings, saveStaleSettings, staleSettingsSchema } from "@/lib/db/settings";
 import { ACCOUNT_COLORS } from "@/lib/gmail/colors";
 
 export type SaveState = { ok: boolean; message: string } | null;
@@ -17,7 +17,16 @@ export async function saveDigest(_prev: SaveState, form: FormData): Promise<Save
     triageDays: Number(form.get("triageDays")),
   });
   if (!parsed.success) return { ok: false, message: "enter whole days from 1 to 90" };
-  await saveStaleSettings(parsed.data);
+  const hour = String(form.get("hour") ?? "").trim();
+  const schedule = digestSettingsSchema.safeParse({
+    hour: hour === "" ? NaN : Number(hour),
+    timeZone: String(form.get("timeZone") ?? "").trim(),
+  });
+  if (!schedule.success) {
+    return { ok: false, message: schedule.error.issues.some((i) => i.path[0] === "hour") ? "enter an hour from 0 to 23" : "enter a time zone like Europe/Madrid or UTC" };
+  }
+  await saveStaleSettings(db, parsed.data);
+  await saveDigestSettings(db, schedule.data);
   refresh();
   return { ok: true, message: "saved" };
 }
