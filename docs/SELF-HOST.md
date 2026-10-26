@@ -42,6 +42,7 @@ openssl rand -base64 32   # SYNC_SECRET
 | `TOKEN_ENCRYPTION_KEY` | Encrypts the Gmail refresh tokens in the database. Lose or change it and every account has to be reconnected |
 | `SESSION_SECRET` | Signs the session cookie |
 | `ANTHROPIC_API_KEY` | Classification, rules and summaries |
+| `AI_GATEWAY_API_KEY` | Optional Vercel AI Gateway key for OpenAI `text-embedding-3-small` embeddings (512 dimensions). Unset: no embedding jobs and keyword-only search |
 | `ALLOWED_EMAILS` | Your own Google addresses only. Everyone listed sees all connected mail |
 | `SYNC_SECRET` | Bearer token for `/api/sync`. The sync container doesn't use it, but set it anyway so the endpoint stays closed |
 | `WEB_PORT` | Optional. Host port for the web app, default `3000` |
@@ -84,6 +85,8 @@ The web app listens on `http://127.0.0.1:3000` (or your `WEB_PORT`). Until an ac
    ```
 
    It is resumable: stop it any time and run it again. Options: `--account <email>`, `--restart`, `--batch <n>`, `--rate <units/s>`. It shares Gmail quota with the sync loop, so leave that running.
+
+With `AI_GATEWAY_API_KEY` set, sync gradually embeds stored mail. To drain a large backlog, run `docker compose -f docker-compose.self-host.yml exec sync pnpm embed [--account <email>]`. A second run has no remaining messages to embed. Without the key, no embedding jobs are enqueued and search stays keyword-only.
 
 The other maintenance scripts run the same way: `pnpm summarize`, `pnpm participation`, `pnpm twins`, `pnpm confirm`.
 
@@ -138,7 +141,7 @@ While the OAuth consent screen is in Testing, Google expires Gmail refresh token
 
 ## Using your own Postgres
 
-To use a database you already run, remove the `DATABASE_URL` line under `x-app` in `docker-compose.self-host.yml`, set `DATABASE_URL` in `.env`, and drop the `db` service and the `migrate` dependency on it. Use Postgres 16 or later with a direct connection, not a transaction-mode pooler: sync holds session-level advisory locks. Search needs the `unaccent` extension, which ships with standard Postgres. The pgvector image is used so planned semantic search can arrive without a database change; no migration needs the extension yet.
+To use a database you already run, remove the `DATABASE_URL` line under `x-app` in `docker-compose.self-host.yml`, set `DATABASE_URL` in `.env`, and drop the `db` service and the `migrate` dependency on it. Use Postgres 16 or later with a direct connection, not a transaction-mode pooler: sync holds session-level advisory locks. Migrations require the `unaccent` and `vector` extensions; use a Postgres build with pgvector installed.
 
 ## Without Docker
 
