@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   aiAllowedSenders,
   allowedTarget,
+  bulkJudgedSenders,
   choiceDecision,
   currentChoice,
   inboundSenderIds,
@@ -105,5 +106,34 @@ describe("currentChoice", () => {
   it("has no choice while undecided or while the AI picks the bucket", () => {
     expect(currentChoice("none", null)).toBeNull();
     expect(currentChoice("allowed", null)).toBeNull();
+  });
+});
+
+describe("bulkJudgedSenders", () => {
+  it("lists each sender once, with every thread that named it", () => {
+    const rows = [
+      { id: "t1", senderId: "acme", messages: [{ isInbound: true, senderId: "acme" }] },
+      { id: "t2", senderId: "divi", messages: forwarded },
+      { id: "t3", senderId: "acme", messages: [{ isInbound: true, senderId: "acme" }] },
+    ];
+    expect([...bulkJudgedSenders(rows, new Map())]).toEqual([
+      ["acme", ["t1", "t3"]],
+      ["divi", ["t2"]],
+      ["jose", ["t2"]],
+    ]);
+  });
+
+  it("judges each thread against the states before any decision", () => {
+    const states = new Map([["divi", state("none")], ["jose", state("allowed", "user")]]);
+    const rows = [{ id: "t1", senderId: "divi", messages: forwarded }];
+    expect([...bulkJudgedSenders(rows, states)]).toEqual([["divi", ["t1"]]]);
+  });
+
+  it("uses the thread's sender when it has no messages yet", () => {
+    expect([...bulkJudgedSenders([{ id: "t1", senderId: "acme", messages: [] }], new Map())]).toEqual([["acme", ["t1"]]]);
+  });
+
+  it("skips threads without a sender", () => {
+    expect(bulkJudgedSenders([{ id: "t1", senderId: null, messages: [] }], new Map()).size).toBe(0);
   });
 });

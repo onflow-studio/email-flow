@@ -227,3 +227,66 @@ export async function loadThreadSenders(tx: Pick<Db, "select">, threadId: string
     names: new Map(found.map((s) => [s.id, { name: s.name, email: s.email }])),
   };
 }
+
+/**
+ * Senders a bulk let in or keep out decides on: each thread's judged senders, once each, in thread
+ * order, with the threads that named them. Same choice as one thread at a time, made for all of
+ * them before any decision lands.
+ */
+export function bulkJudgedSenders(
+  rows: { id: string; senderId: string | null; messages: { isInbound: boolean; senderId: string | null }[] }[],
+  states: Map<string, SenderState>,
+): Map<string, string[]> {
+  const targets = new Map<string, string[]>();
+  for (const t of rows) {
+    const ids = inboundSenderIds(t.messages);
+    if (t.senderId && !ids.includes(t.senderId)) ids.unshift(t.senderId);
+    for (const id of judgedSenders(ids, states, t.senderId)) targets.set(id, [...(targets.get(id) ?? []), t.id]);
+  }
+  return targets;
+}
+
+/** The judged senders of the Triage threads among threadIds (see bulkJudgedSenders), in one read. */
+export async function loadTriageSenders(tx: Pick<Db, "select">, threadIds: string[]) {
+  const held = threadIds.length
+    ? await tx
+        .select({ id: threads.id, senderId: threads.senderId })
+        .from(threads)
+        .where(and(inArray(threads.id, threadIds), eq(threads.bucket, "triage")))
+    : [];
+  if (!held.length) return { targets: new Map<string, string[]>(), names: new Map<string, { name: string | null; email: string }>() };
+
+  const rows = await tx
+    .select({ threadId: messages.threadId, isInbound: messages.isInbound, senderId: messages.senderId })
+    .from(messages)
+    .where(inArray(messages.threadId, held.map((t) => t.id)))
+    .orderBy(asc(messages.date));
+  const byThread = new Map<string, { isInbound: boolean; senderId: string | null }[]>();
+  for (const r of rows) byThread.set(r.threadId, [...(byThread.get(r.threadId) ?? []), r]);
+
+  const ids = new Set<string>();
+  for (const t of held) if (t.senderId) ids.add(t.senderId);
+  for (const r of rows) if (r.isInbound && r.senderId) ids.add(r.senderId);
+  const found = ids.size
+    ? await tx
+        .select({
+          id: senders.id,
+          email: senders.email,
+          name: senders.displayName,
+          decision: senders.screenerDecision,
+          decidedBy: senders.decidedBy,
+        })
+        .from(senders)
+        .where(inArray(senders.id, [...ids]))
+    : [];
+
+  const order = new Map(threadIds.map((id, i) => [id, i]));
+  const sorted = held.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  return {
+    targets: bulkJudgedSenders(
+      sorted.map((t) => ({ id: t.id, senderId: t.senderId, messages: byThread.get(t.id) ?? [] })),
+      new Map(found.map((s) => [s.id, { decision: s.decision, decidedBy: s.decidedBy }])),
+    ),
+    names: new Map(found.map((s) => [s.id, { name: s.name, email: s.email }])),
+  };
+}
