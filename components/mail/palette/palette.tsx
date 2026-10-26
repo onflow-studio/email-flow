@@ -17,6 +17,7 @@ import { runBulkKeepOut, runThreadAction } from "@/app/(mail)/thread-actions";
 import type { ActionPreview, KeepOutPreview } from "@/lib/actions/types";
 import { Kbd, KeyHints } from "@/components/ui/kbd";
 import type { Bucket } from "@/lib/db/schema";
+import { parseQuery } from "@/lib/search/query";
 import { cn } from "@/lib/utils";
 
 import { describeAction } from "../actions/actions";
@@ -87,7 +88,7 @@ const BULK_ROWS = [
   ...BULK_KEEP_OUT.map((a) => ({ key: a.key, label: a.label, unit: "sender" })),
 ];
 
-const CHIPS = ["from:", "account:", "before:", "after:"];
+const CHIPS = ["from:", "account:", "before:", "after:", "bucket:"];
 
 type Section = "go to" | "actions" | "accounts" | "app";
 
@@ -122,7 +123,13 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     const timer = setTimeout(() => {
       paletteSearch(query)
         .then((result) => {
-          if (!cancelled) setSearch({ input: searchKey, result });
+          if (cancelled) return;
+          setSearch({ input: searchKey, result });
+          if (parseQuery(query).words.length) {
+            void paletteSearch(query, { semantic: true }).then((hybrid) => {
+              if (!cancelled) setSearch({ input: searchKey, result: hybrid });
+            }).catch(() => {});
+          }
         })
         .catch(() => {
           if (!cancelled) {
@@ -374,18 +381,19 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
                           ))}
                         </span>
                         <span className="min-w-0 flex-1 break-words font-medium" title={hit.sender}>
-                          <Highlight text={hit.sender} words={words} />
+                          {hit.related ? hit.sender : <Highlight text={hit.sender} words={words} />}
                         </span>
+                        {hit.related ? <span className="shrink-0 text-11 text-text-muted">related</span> : null}
                         {hit.archived ? <span className="shrink-0 text-11 text-text-dim">archived</span> : null}
                         <Time iso={hit.lastMessageAt} className="shrink-0 text-11 text-text-muted" />
                       </span>
                       <span className="line-clamp-2 w-full break-words" title={hit.subject}>
-                        <Highlight text={hit.subject} words={words} />
+                        {hit.related ? hit.subject : <Highlight text={hit.subject} words={words} />}
                       </span>
                       {hit.snippet ? (
                         <span className="flex w-full min-w-0 items-baseline gap-2 text-12 text-text-muted">
                           <span className="shrink-0 text-11">message</span>
-                          <span className="line-clamp-2 min-w-0 break-words"><Snippet text={hit.snippet} /></span>
+                          <span className="line-clamp-2 min-w-0 break-words">{hit.related ? hit.snippet : <Snippet text={hit.snippet} />}</span>
                         </span>
                       ) : null}
                     </Item>
