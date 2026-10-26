@@ -11,7 +11,7 @@ function mockGmail(opts: {
   const history = [...(opts.history ?? [])];
   const pages = [...(opts.threadPages ?? [[]])];
   return {
-    getProfile: vi.fn(async () => ({ emailAddress: "me@x.com", historyId: opts.profileHistoryId ?? "900" })),
+    getProfile: vi.fn(async () => ({ emailAddress: "me@x.com", historyId: opts.profileHistoryId ?? "900", messagesTotal: 0, threadsTotal: 0 })),
     listHistory: vi.fn(async () => history.shift() ?? null),
     listThreadIds: vi.fn(async () => {
       const threadIds = pages.shift() ?? [];
