@@ -17,7 +17,7 @@ export type ThreadLabels = {
 
 // The slice of Gmail the sync pass reads. lib/gmail adapts to it; tests mock it.
 export interface GmailSyncPort {
-  getProfile(): Promise<{ emailAddress: string; historyId: string }>;
+  getProfile(): Promise<{ emailAddress: string; historyId: string; messagesTotal: number; threadsTotal: number }>;
   // Null when the cursor is too old and Gmail no longer has that history.
   listHistory(startHistoryId: string, pageToken?: string): Promise<HistoryPage | null>;
   listThreadIds(query: string, pageToken?: string): Promise<{ threadIds: string[]; nextPageToken: string | null }>;
@@ -44,7 +44,12 @@ export function createGmailSyncAdapter(gmail: GmailSyncClient, limiter: GmailLim
     async getProfile() {
       const { data } = await limiter.run("users.getProfile", () => gmail.users.getProfile({ userId: "me" }));
       if (!data.emailAddress || !data.historyId) throw new Error("Gmail profile incomplete");
-      return { emailAddress: data.emailAddress, historyId: data.historyId };
+      return {
+        emailAddress: data.emailAddress,
+        historyId: data.historyId,
+        messagesTotal: data.messagesTotal ?? 0,
+        threadsTotal: data.threadsTotal ?? 0,
+      };
     },
     async listHistory(startHistoryId, pageToken) {
       const res = await orNull(
