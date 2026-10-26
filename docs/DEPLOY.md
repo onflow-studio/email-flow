@@ -80,6 +80,7 @@ Optional:
 | --- | --- |
 | `LOGIN_REDIRECT_URI` | Sign-in callback. Unset, it is `/api/auth/login/callback` on `GOOGLE_REDIRECT_URI`'s origin |
 | `JEV_API_KEY` | TypeSafe Jev key for a second opinion on doubtful classifications. Unset, suggestions stay suggestions |
+| `AI_GATEWAY_API_KEY` | Optional Vercel AI Gateway key for OpenAI `text-embedding-3-small` mail embeddings (512 dimensions). Unset: no embedding jobs and keyword-only search |
 | `CONNECTABLE_EMAILS` | Comma-separated Gmail addresses that may be connected. Unset, any address |
 | `GOOGLE_TOKEN_LIFETIME_DAYS` | Days before a reconnect warning. Unset, 7 (Testing mode); 0 turns warnings off |
 | `GMAIL_LABEL_PREFIX` | Prefix of the bucket labels written to Gmail. Unset, `superfer` |
@@ -132,6 +133,8 @@ Run one sync writer per database: either the hosted cron or a local `pnpm sync` 
    ```
 
    It is resumable: stop it any time and run it again. Options: `--account <email>`, `--restart`, `--batch <n>`, `--rate <units/s>`. It shares Gmail quota politely with the hosted sync, so leave the cron running.
+
+With `AI_GATEWAY_API_KEY` set, sync gradually embeds stored mail. Run `pnpm embed [--account <email>]` with the same database URL and gateway key to drain a large backlog; a second run has no remaining messages to embed. Without the key, sync enqueues no embedding jobs and search stays keyword-only.
 
 The other maintenance scripts (`pnpm summarize`, `pnpm participation`, `pnpm twins`, `pnpm confirm`) take the same environment.
 

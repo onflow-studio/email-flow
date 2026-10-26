@@ -15,6 +15,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
@@ -54,7 +55,7 @@ export const screenerDecision = pgEnum("screener_decision", [
   "none",
 ]);
 export const decidedBy = pgEnum("decided_by", ["ai", "user"]);
-export const jobType = pgEnum("job_type", ["classify", "writeback", "backfill", "entities"]);
+export const jobType = pgEnum("job_type", ["classify", "writeback", "backfill", "entities", "embed"]);
 export const entityType = pgEnum("entity_type", ["person", "project", "company"]);
 // What a starred thread goes back to when unstarred.
 export const starredFrom = pgEnum("starred_from", ["bucket", "archived", "snoozed", "work"]);
@@ -275,6 +276,27 @@ export const attachments = pgTable(
     contentId: text(),
   },
   (t) => [index().on(t.messageId)],
+);
+
+export const embeddings = pgTable(
+  "embeddings",
+  {
+    id: id(),
+    messageId: uuid().notNull().references(() => messages.id, { onDelete: "cascade" }),
+    threadId: uuid().notNull().references(() => threads.id, { onDelete: "cascade" }),
+    accountId: uuid().notNull().references(() => accounts.id, { onDelete: "cascade" }),
+    chunk: integer().notNull(),
+    text: text().notNull(),
+    metadata: jsonb().$type<{ attachments: string[] }>(),
+    model: text().notNull(),
+    embedding: vector({ dimensions: 512 }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex().on(t.messageId, t.chunk),
+    index().on(t.threadId),
+    index("embeddings_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+  ],
 );
 
 // Append-only.
