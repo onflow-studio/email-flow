@@ -1,9 +1,11 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 
 import type { View, ViewSlug } from "@/components/mail/views";
 import { CLUSTER_VIEWS, clusterOf, clusterOrder, isMachine, type ClusterInput } from "@/components/mail/clusters";
 import { VIEWS } from "@/components/mail/views";
 import { db } from "@/lib/db";
+import type { StaleCutoffs } from "@/lib/sync/stale";
+import { staleReason } from "@/lib/sync/stale";
 import { aiAllowedSenders, currentChoice, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
 import { accounts, attachments, drafts, messages, senderAccounts, senders, threads, type Address } from "@/lib/db/schema";
 import { mergeTimeline, shownCopy } from "@/lib/sync/twins";
@@ -23,9 +25,17 @@ const lastSentAt = () => sql`(select max(m.date) from ${messages} m where m.thre
 // Starred threads leave every other view but Sent and Trash, whatever else they are.
 const unstarred = () => isNull(threads.starredAt);
 
-function viewFilter(view: View): SQL | undefined {
+function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefined {
   if (view.slug === "starred") return and(live(), isNotNull(threads.starredAt));
   if (view.slug === "snoozed") return and(live(), snoozed(), unstarred());
+  if (view.slug === "digest") return and(
+    live(), unstarred(), or(isNull(threads.snoozedUntil), lte(threads.snoozedUntil, now)),
+    or(
+      lt(threads.workAt, cutoffs.work),
+      and(eq(threads.needsReply, true), isNull(threads.deadlineAt), lt(threads.lastMessageAt, cutoffs.reply)),
+      and(eq(threads.bucket, "triage"), lt(threads.createdAt, cutoffs.triage)),
+    ),
+  );
   if (view.slug === "sent") return and(eq(threads.trashed, false), eq(threads.spam, false), wroteIn());
   // Drafts are not threads; see listDrafts.
   if (view.slug === "drafts") return sql`false`;
@@ -72,7 +82,7 @@ export type ViewCounts = {
   unread: Partial<Record<ViewSlug, boolean>>;
 };
 
-export async function viewCounts(on: string[] | null): Promise<ViewCounts> {
+export async function viewCounts(on: string[] | null, cutoffs: StaleCutoffs, now: Date): Promise<ViewCounts> {
   const rows = await Promise.all(
     VIEWS.map(async (view) => {
       if (view.slug === "drafts") {
@@ -83,7 +93,7 @@ export async function viewCounts(on: string[] | null): Promise<ViewCounts> {
       const [row] = await db
         .select({ n: count(), unseen: count(sql`case when ${unseen()} then 1 end`) })
         .from(threads)
-        .where(and(viewFilter(view), accountFilter(on), unseenOnly ? unseen() : undefined));
+        .where(and(viewFilter(view, cutoffs, now), accountFilter(on), unseenOnly ? unseen() : undefined));
       return { slug: view.slug, n: row.n, unread: view.slug === "work" && row.unseen > 0 };
     }),
   );
@@ -99,7 +109,7 @@ export async function viewCounts(on: string[] | null): Promise<ViewCounts> {
  */
 const workOrder = () => [sql`${threads.deadlineAt} asc nulls last`, desc(threads.lastMessageAt)];
 
-export async function listThreads(view: View, on: string[] | null) {
+export async function listThreads(view: View, on: string[] | null, cutoffs: StaleCutoffs, now: Date) {
   const last = db
     .select({
       fromName: messages.fromName,
@@ -122,6 +132,7 @@ export async function listThreads(view: View, on: string[] | null) {
       accountId: threads.accountId,
       senderId: threads.senderId,
       bucket: threads.bucket,
+      createdAt: threads.createdAt,
       subject: threads.subject,
       participants: threads.participantsSummary,
       lastMessageAt: threads.lastMessageAt,
@@ -151,10 +162,16 @@ export async function listThreads(view: View, on: string[] | null) {
     })
     .from(threads)
     .leftJoinLateral(last, sql`true`)
-    .where(and(viewFilter(view), accountFilter(on)))
+    .where(and(viewFilter(view, cutoffs, now), accountFilter(on)))
     .orderBy(
       ...(view.slug === "work"
         ? workOrder()
+        : view.slug === "digest"
+          ? [asc(sql`case
+              when ${lt(threads.workAt, cutoffs.work)} then ${threads.workAt} - ${cutoffs.work.toISOString()}::timestamptz
+              when ${threads.needsReply} and ${threads.deadlineAt} is null and ${lt(threads.lastMessageAt, cutoffs.reply)} then ${threads.lastMessageAt} - ${cutoffs.reply.toISOString()}::timestamptz
+              else ${threads.createdAt} - ${cutoffs.triage.toISOString()}::timestamptz
+            end`), asc(threads.id)]
         : view.slug === "starred"
           ? [desc(threads.starredAt)]
           : view.slug === "sent"
@@ -222,6 +239,7 @@ export async function listThreads(view: View, on: string[] | null) {
     resurfaced: r.resurfaced,
     snoozedUntil: r.snoozedUntil?.toISOString() ?? null,
     needsReply: r.needsReply,
+    staleReason: staleReason(r, cutoffs, now),
     deadlineAt: r.deadlineAt?.toISOString() ?? null,
     work: r.workAt !== null,
     starred: r.starredAt !== null,
