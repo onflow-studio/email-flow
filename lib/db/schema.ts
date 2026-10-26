@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   customType,
   index,
   integer,
@@ -15,6 +16,7 @@ import {
   uniqueIndex,
   uuid,
   vector,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 const tsvector = customType<{ data: string }>({
@@ -53,7 +55,8 @@ export const screenerDecision = pgEnum("screener_decision", [
   "none",
 ]);
 export const decidedBy = pgEnum("decided_by", ["ai", "user"]);
-export const jobType = pgEnum("job_type", ["classify", "writeback", "backfill", "embed"]);
+export const jobType = pgEnum("job_type", ["classify", "writeback", "backfill", "entities", "embed"]);
+export const entityType = pgEnum("entity_type", ["person", "project", "company"]);
 // What a starred thread goes back to when unstarred.
 export const starredFrom = pgEnum("starred_from", ["bucket", "archived", "snoozed", "work"]);
 export const jobStatus = pgEnum("job_status", [
@@ -67,6 +70,8 @@ export type Bucket = (typeof bucket.enumValues)[number];
 export type BucketSource = (typeof bucketSource.enumValues)[number];
 export type ScreenerDecision = (typeof screenerDecision.enumValues)[number];
 export type JobType = (typeof jobType.enumValues)[number];
+export type EntityType = (typeof entityType.enumValues)[number];
+export type EntityQuestionStatus = "open" | "same" | "different" | "dismissed";
 export type StarredFrom = (typeof starredFrom.enumValues)[number];
 export type JobStatus = (typeof jobStatus.enumValues)[number];
 
@@ -196,6 +201,8 @@ export const threads = pgTable(
     // One-line AI summary, in the mail's own language. Stale when summaryMessageAt < lastMessageAt.
     summary: text(),
     summaryMessageAt: timestamp({ withTimezone: true }),
+    // The last message entity extraction covered. Stale when before lastMessageAt. See lib/sync/entities.ts.
+    entitiesMessageAt: timestamp({ withTimezone: true }),
     // Copies of one conversation in different accounts (twins: they share a Message-ID) share a
     // group id and act as one thread. Null for a thread with no twin. See lib/sync/twins.ts.
     groupId: uuid(),
@@ -430,6 +437,87 @@ export const composeUploads = pgTable(
   (t) => [primaryKey({ columns: [t.id, t.part] }), index().on(t.createdAt)],
 );
 
+// The semantic layer: people, projects and companies the mail is about, read by lib/sync/entities.ts.
+// User corrections stick: userEditedAt freezes name, aliases and summary; a merged-away or deleted
+// entity stays as a tombstone so its names keep resolving (to the winner, or to nothing).
+export const entities = pgTable(
+  "entities",
+  {
+    id: id(),
+    type: entityType().notNull(),
+    name: text().notNull(),
+    // normalizeName(name), for matching.
+    normName: text().notNull(),
+    aliases: text().array().notNull().default([]),
+    summary: text(),
+    userEditedAt: timestamp({ withTimezone: true }),
+    mergedIntoId: uuid().references((): AnyPgColumn => entities.id, { onDelete: "set null" }),
+    deletedAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index().on(t.type, t.normName), index().on(t.mergedIntoId)],
+);
+
+// What an entity appears in or relates to: exactly one target per row. A link the user removed stays,
+// rejected, so extraction never adds it back.
+export const entityLinks = pgTable(
+  "entity_links",
+  {
+    id: id(),
+    entityId: uuid()
+      .notNull()
+      .references(() => entities.id, { onDelete: "cascade" }),
+    threadId: uuid().references(() => threads.id, { onDelete: "cascade" }),
+    messageId: uuid().references(() => messages.id, { onDelete: "cascade" }),
+    senderId: uuid().references(() => senders.id, { onDelete: "cascade" }),
+    otherEntityId: uuid().references(() => entities.id, { onDelete: "cascade" }),
+    // Entity to entity only, e.g. "works at", "part of".
+    relation: text(),
+    source: decidedBy().notNull(),
+    rejected: boolean().notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      "entity_links_one_target",
+      sql`num_nonnulls(${t.threadId}, ${t.messageId}, ${t.senderId}, ${t.otherEntityId}) = 1`,
+    ),
+    uniqueIndex().on(t.entityId, t.threadId),
+    uniqueIndex().on(t.entityId, t.messageId),
+    uniqueIndex().on(t.entityId, t.senderId),
+    uniqueIndex().on(t.entityId, t.otherEntityId),
+    index().on(t.threadId),
+    index().on(t.senderId),
+  ],
+);
+
+// "Same as?", asked when extraction was unsure two entities are one. One question per pair, ever,
+// stored ordered (entityId < otherEntityId).
+export const entityQuestions = pgTable(
+  "entity_questions",
+  {
+    id: id(),
+    entityId: uuid()
+      .notNull()
+      .references(() => entities.id, { onDelete: "cascade" }),
+    otherEntityId: uuid()
+      .notNull()
+      .references(() => entities.id, { onDelete: "cascade" }),
+    // As the model wrote it, in the mail's language.
+    question: text().notNull(),
+    // Where it came up.
+    threadId: uuid().references(() => threads.id, { onDelete: "set null" }),
+    status: text().$type<EntityQuestionStatus>().notNull().default("open"),
+    answeredAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("entity_questions_ordered", sql`${t.entityId} < ${t.otherEntityId}`),
+    uniqueIndex().on(t.entityId, t.otherEntityId),
+  ],
+);
+
 export const accountsRelations = relations(accounts, ({ many }) => ({
   threads: many(threads),
   senderAccounts: many(senderAccounts),
@@ -512,6 +600,25 @@ export const actionsLogRelations = relations(actionsLog, ({ one }) => ({
   }),
 }));
 
+export const entitiesRelations = relations(entities, ({ one, many }) => ({
+  mergedInto: one(entities, { fields: [entities.mergedIntoId], references: [entities.id], relationName: "merged" }),
+  links: many(entityLinks, { relationName: "entity" }),
+}));
+
+export const entityLinksRelations = relations(entityLinks, ({ one }) => ({
+  entity: one(entities, { fields: [entityLinks.entityId], references: [entities.id], relationName: "entity" }),
+  thread: one(threads, { fields: [entityLinks.threadId], references: [threads.id] }),
+  message: one(messages, { fields: [entityLinks.messageId], references: [messages.id] }),
+  sender: one(senders, { fields: [entityLinks.senderId], references: [senders.id] }),
+  otherEntity: one(entities, { fields: [entityLinks.otherEntityId], references: [entities.id] }),
+}));
+
+export const entityQuestionsRelations = relations(entityQuestions, ({ one }) => ({
+  entity: one(entities, { fields: [entityQuestions.entityId], references: [entities.id] }),
+  otherEntity: one(entities, { fields: [entityQuestions.otherEntityId], references: [entities.id] }),
+  thread: one(threads, { fields: [entityQuestions.threadId], references: [threads.id] }),
+}));
+
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 export type Sender = typeof senders.$inferSelect;
@@ -533,6 +640,12 @@ export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type ActionLog = typeof actionsLog.$inferSelect;
 export type NewActionLog = typeof actionsLog.$inferInsert;
+export type Entity = typeof entities.$inferSelect;
+export type NewEntity = typeof entities.$inferInsert;
+export type EntityLink = typeof entityLinks.$inferSelect;
+export type NewEntityLink = typeof entityLinks.$inferInsert;
+export type EntityQuestion = typeof entityQuestions.$inferSelect;
+export type NewEntityQuestion = typeof entityQuestions.$inferInsert;
 
 // Keyboard shortcut overrides, only where they differ from the defaults in
 // components/mail/keys/commands.ts. An empty list unbinds the command.

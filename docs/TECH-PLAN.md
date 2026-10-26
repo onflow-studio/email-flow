@@ -61,21 +61,23 @@ Core tables, Drizzle in `lib/db/schema.ts`.
 The rail includes Triage, Inbox, Work, Starred, Snoozed and Digest for action, followed by News, Paper Trail and Receipts, with Sent, Drafts and Trash below. Digest lists live, unstarred threads past their configured Work, reply or Triage threshold; active snoozes are excluded. Its badge and list use the same account filter and cutoffs, and rows sort by when they became stale, oldest first.
 
 - `accounts`: id, email, label, color, oauth tokens (encrypted at rest with a key from env), gmail history cursor, last sync at, signature html.
-- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, receipts, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, deadline at, work at (stored as `pinned_at`: when the thread entered Work, null when not in Work), starred at (null when not starred) and starred from (`bucket`, `archived`, `snoozed`, `work`: what unstar goes back to), archived, participants summary, list summary and the last message time it covers. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
+- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, receipts, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, deadline at, work at (stored as `pinned_at`: when the thread entered Work, null when not in Work), starred at (null when not starred) and starred from (`bucket`, `archived`, `snoozed`, `work`: what unstar goes back to), archived, participants summary, list summary and the last message time it covers, the last message time entity extraction covered. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
 - `messages`: id, thread id, gmail message id, from, to, cc, date, snippet, html sanitized, text, is inbound, gmail labels, headers subset (list-unsubscribe, precedence, in-reply-to).
 - `attachments`: id, message id, filename, mime, size, gmail attachment id. Metadata only.
 - `senders`: id, email, domain, display name, first seen, screener decision (allowed, out_spam, out_not_now, none), decided at, decided by (ai, user), images allowed, notes. Shared across accounts, with a per-account seen count in a join table.
 - `classifications`: id, thread id, model, raw response json, bucket probabilities, urgency, human written, legit new sender, created at. Append-only.
 - `corrections`: id, thread id, sender id, from bucket, to bucket, created at. Append-only, feeds classify context.
 - `rules`: id, text, structured json parsed by Claude on save, enabled, created at.
-- `jobs`: id, type (classify, writeback, backfill, embed), payload json, status, attempts, run after, error. The queue.
+- `jobs`: id, type (classify, writeback, backfill, entities, embed), payload json, status, attempts, run after, error. The queue.
 - `embeddings`: id, message id, thread id, account id, 0-based chunk, embedded text, attachment metadata on chunk 0, model, 512-dimensional vector, created at. One row per message chunk; quoted replies are excluded.
 - `actions_log`: id, thread id, action, payload, undone at. Powers undo.
 - `keybindings`: command id, keys (text array, empty unbinds), updated at. Only overrides of the defaults in code.
 - `settings`: key (text primary key), value (jsonb), updated at. The `stale` value stores Work, reply and Triage day thresholds; future digest scheduling settings use the same table.
 - `compose_uploads`: id, part, filename, mime type, data (bytea), created at. Files attached in compose, uploaded in 4 MB parts (Vercel caps a request body at 4.5 MB) and joined on send, then deleted. Leftovers expire after a day.
 
-Later work adds `entities` (people, projects, companies) with `entity_links` and uses the stored vectors for semantic search.
+- `entities`: id, type (person, project, company), name, normalized name, aliases, summary, user edited at, merged into id, deleted at. Merged-away and deleted entities stay as tombstones. `entity_links`: entity id and exactly one of thread, message, sender or other entity id, relation (entity to entity only), source (ai, user), rejected. `entity_questions`: an ordered pair of entities, the model's "same as?" question, the thread it came up in, status (open, same, different, dismissed), answered at; one per pair, ever. See Semantic layer.
+
+Later work uses the stored vectors for semantic search.
 
 ## Sync pipeline
 
@@ -107,6 +109,10 @@ Full history: `pnpm backfill --full` imports everything before January 1, walkin
 - Participation (`lib/classify/participation.ts`): ingest runs it on every thread with an outbound message, classify again after a triage call. Undecided inbound senders become allowed by ai, a triage thread whose first sender is now allowed moves to inbox (source ai), all logged in `actions_log` as `participation` under one batch, the move enqueuing writeback. Senders whose AI let-in was undone (an open `undoAiAllow` row) are skipped. `pnpm participation [--dry-run]` applied it once to mail synced before the rule.
 
 User moves write a correction row and set bucket source user. Rules are entered as text in settings, Claude parses them into structured hints stored alongside, and both text and structure go into the classifier prompt.
+
+## Semantic layer
+
+`lib/sync/entities.ts` reads people, projects and companies out of placed Inbox and Receipts mail: one Claude Haiku call per conversation (`lib/ai/entities.ts`), run as an `entities` job, on the messages since the last read (`entities_message_at`), with known entities as candidates (those linked to the participants, or named in the mail). Twin copies are read once and linked on every copy. A proposal resolves to a known id, then a person's known sender address (so one person across accounts and addresses is one entity), then a matching name or alias of the same type, else a new entity; the user's own addresses are never an entity. When the model is unsure a new entity is a known one, it opens a yes/no "same as?" question instead of guessing. Each sync pass queues up to 20 threads from the last 30 days, and only with `ANTHROPIC_API_KEY` set; older mail goes through `pnpm entities [--since] [--limit] [--rate] [--account] [--dry-run]`, run on purpose after a `--dry-run` estimate. Corrections stick: a user edit freezes name, aliases and summary; a merged or deleted entity stays as a tombstone so its names resolve to the winner or to nothing; a removed link stays as a rejected row; a pair is never asked twice.
 
 ## Write back to Gmail
 

@@ -14,6 +14,7 @@
     "backfill": "tsx scripts/backfill.ts",
     "embed": "tsx scripts/embed.ts",
     "summarize": "tsx scripts/summarize.ts",
+    "entities": "tsx scripts/entities.ts",
     "receipts": "tsx scripts/receipts.ts",
     "confirm": "tsx scripts/confirm.ts",
     "participation": "tsx scripts/participation.ts",
