@@ -22,7 +22,7 @@ Companion to REQUIREMENTS.md and DESIGN.md.
 | Classification | Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) via `@ai-sdk/anthropic`, structured output | Fast, cheap, same key as the rest; probabilities are self-reported, so thresholds sit higher |
 | Second opinion | TypeSafe Jev (`jev-1.13.0`, pinned) over plain HTTP in `lib/ai/jev.ts` | Calibrated probabilities, about 250ms and $0.00004 a call; confirms Claude's doubtful buckets, never generates text |
 | LLM | Claude via `@ai-sdk/anthropic` with existing key | Summaries, questions, later drafts |
-| Embeddings | Deferred to 1.5, likely via Vercel AI Gateway | No key yet, not needed in phase 1 |
+| Embeddings | OpenAI `text-embedding-3-small` through Vercel AI Gateway, 512 dimensions, $0.02 per million tokens | Optional key; stored mail is embedded for later semantic search |
 | UI | Tailwind 4, shadcn base, custom tokens from DESIGN.md | Fast to build, restyled hard so it isn't generic |
 | Palette | cmdk | Keyboard-first command palette, extensible with actions |
 | Editor | Tiptap | ProseMirror, emits clean HTML, h1-h3 bold italic underline links images |
@@ -61,7 +61,7 @@ Core tables, Drizzle in `lib/db/schema.ts`.
 The rail includes Triage, Inbox, Work, Starred, Snoozed and Digest for action, followed by News, Paper Trail and Receipts, with Sent, Drafts and Trash below. Digest lists live, unstarred threads past their configured Work, reply or Triage threshold; active snoozes are excluded. Its badge and list use the same account filter and cutoffs, and rows sort by when they became stale, oldest first.
 
 - `accounts`: id, email, label, color, oauth tokens (encrypted at rest with a key from env), gmail history cursor, last sync at, signature html.
-- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, receipts, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, deadline at, work at (stored as `pinned_at`: when the thread entered Work, null when not in Work), starred at (null when not starred) and starred from (`bucket`, `archived`, `snoozed`, `work`: what unstar goes back to), archived, participants summary, list summary and the last message time it covers. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
+- `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, receipts, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, deadline at, work at (stored as `pinned_at`: when the thread entered Work, null when not in Work), starred at (null when not starred) and starred from (`bucket`, `archived`, `snoozed`, `work`: what unstar goes back to), archived, participants summary, list summary and the last message time it covers, the last message time entity extraction covered. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
 - `messages`: id, thread id, gmail message id, from, to, cc, date, snippet, html sanitized, text, is inbound, gmail labels, headers subset (list-unsubscribe, precedence, in-reply-to).
 - `attachments`: id, message id, filename, mime, size, gmail attachment id. Metadata only.
 - `senders`: id, email, domain, display name, first seen, screener decision (allowed, out_spam, out_not_now, none), decided at, decided by (ai, user), images allowed, notes. Shared across accounts, with a per-account seen count in a join table.
@@ -70,12 +70,16 @@ The rail includes Triage, Inbox, Work, Starred, Snoozed and Digest for action, f
 - `rules`: id, text, structured json parsed by Claude on save, enabled, created at.
 - `jobs`: id, type (classify, writeback, backfill, digest), account id (null for the daily digest, which spans accounts), payload json, status, attempts, run after, error. The queue.
 - `digests`: id, day (unique local date), content json (last 24 hours' arrivals per bucket, needs reply, deadlines, Triage and stale counts), summary (Claude's 2 to 5 lines), model, created at. One row per day, written by the `digest:<day>` job a sync pass enqueues once the set hour has passed.
+- `jobs`: id, type (classify, writeback, backfill, entities, embed), payload json, status, attempts, run after, error. The queue.
+- `embeddings`: id, message id, thread id, account id, 0-based chunk, embedded text, attachment metadata on chunk 0, model, 512-dimensional vector, created at. One row per message chunk; quoted replies are excluded.
 - `actions_log`: id, thread id, action, payload, undone at. Powers undo.
 - `keybindings`: command id, keys (text array, empty unbinds), updated at. Only overrides of the defaults in code.
 - `settings`: key (text primary key), value (jsonb), updated at. The `stale` value stores Work, reply and Triage day thresholds; `digest` stores the hour (0 to 23) and time zone the daily digest is made at.
 - `compose_uploads`: id, part, filename, mime type, data (bytea), created at. Files attached in compose, uploaded in 4 MB parts (Vercel caps a request body at 4.5 MB) and joined on send, then deleted. Leftovers expire after a day.
 
-Phase 1.5 adds `embeddings` (chunk, vector) and `entities` (people, projects, companies) with `entity_links`.
+- `entities`: id, type (person, project, company), name, normalized name, aliases, summary, user edited at, merged into id, deleted at. Merged-away and deleted entities stay as tombstones. `entity_links`: entity id and exactly one of thread, message, sender or other entity id, relation (entity to entity only), source (ai, user), rejected. `entity_questions`: an ordered pair of entities, the model's "same as?" question, the thread it came up in, status (open, same, different, dismissed), answered at; one per pair, ever. See Semantic layer.
+
+Later work uses the stored vectors for semantic search.
 
 ## Sync pipeline
 
@@ -83,8 +87,8 @@ Phase 1.5 adds `embeddings` (chunk, vector) and `entities` (people, projects, co
 
 1. Call Gmail history list from the stored cursor. With no cursor (first sync) or a stale one, store a fresh cursor at once and record a catch-up listing in `accounts.catch_up` (the last 14 days, or since last sync at). Each pass works through up to 250 of its threads in saved batches, so a quota error or restart loses at most one batch.
 2. For each new or changed message: fetch full, sanitize, upsert message and thread. Mirror read state and archive state from Gmail labels into our columns.
-3. For each thread that is new and inbound: enqueue a classify job.
-4. Process pending jobs for the account: classify, then writeback.
+3. For each thread that is new and inbound: enqueue a classify job. New messages also enqueue an embed job when the gateway key is set.
+4. Enqueue unembedded history at low priority, then process pending jobs for the account: live jobs first, including classify, embed and writeback.
 5. Store the new cursor.
 
 Every Gmail call goes through a per-account limiter in `lib/gmail/quota.ts`: at most 4 calls in flight, a token bucket spending 100 quota units a second (Gmail allows 15,000 a minute per user, shared by the loop, backfill and web), and 429 or rate-limit 403 retries with jittered exponential backoff that honor Retry-After. A pass that still runs out of quota ends quietly and resumes next pass; it is not a sync failure.
@@ -109,6 +113,10 @@ Full history: `pnpm backfill --full` imports everything before January 1, walkin
 - Participation (`lib/classify/participation.ts`): ingest runs it on every thread with an outbound message, classify again after a triage call. Undecided inbound senders become allowed by ai, a triage thread whose first sender is now allowed moves to inbox (source ai), all logged in `actions_log` as `participation` under one batch, the move enqueuing writeback. Senders whose AI let-in was undone (an open `undoAiAllow` row) are skipped. `pnpm participation [--dry-run]` applied it once to mail synced before the rule.
 
 User moves write a correction row and set bucket source user. Rules are entered as text in settings, Claude parses them into structured hints stored alongside, and both text and structure go into the classifier prompt.
+
+## Semantic layer
+
+`lib/sync/entities.ts` reads people, projects and companies out of placed Inbox and Receipts mail: one Claude Haiku call per conversation (`lib/ai/entities.ts`), run as an `entities` job, on the messages since the last read (`entities_message_at`), with known entities as candidates (those linked to the participants, or named in the mail). Twin copies are read once and linked on every copy. A proposal resolves to a known id, then a person's known sender address (so one person across accounts and addresses is one entity), then a matching name or alias of the same type, else a new entity; the user's own addresses are never an entity. When the model is unsure a new entity is a known one, it opens a yes/no "same as?" question instead of guessing. Each sync pass queues up to 20 threads from the last 30 days, and only with `ANTHROPIC_API_KEY` set; older mail goes through `pnpm entities [--since] [--limit] [--rate] [--account] [--dry-run]`, run on purpose after a `--dry-run` estimate. Corrections stick: a user edit freezes name, aliases and summary; a merged or deleted entity stays as a tombstone so its names resolve to the winner or to nothing; a removed link stays as a rejected row; a pair is never asked twice.
 
 ## Write back to Gmail
 
@@ -181,6 +189,7 @@ GOOGLE_CLIENT_SECRET
 GOOGLE_REDIRECT_URI
 TOKEN_ENCRYPTION_KEY
 ANTHROPIC_API_KEY
+AI_GATEWAY_API_KEY    optional: embeddings; unset keeps keyword-only search and enqueues no embed jobs
 JEV_API_KEY           TypeSafe key for the second opinion, optional: without it suggestions stay suggestions
 SYNC_SECRET
 CRON_SECRET           production only, identical to SYNC_SECRET for Vercel cron authentication
