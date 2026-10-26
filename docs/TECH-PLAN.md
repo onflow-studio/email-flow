@@ -43,12 +43,13 @@ email-flow/
     gmail/                client factory, fetch, history, label writes, send
     sync/                 orchestration: poll, store, enqueue classify, write back
     classify/             classifier prompt, thresholds, correction context, rules
-    ai/                   provider wiring, summarize, later embed and ask
+    ai/                   provider wiring, summarize, embed, ask.ts (plan and answer questions)
     mail/                 html sanitize, text extraction, thread grouping
     actions/              archive, snooze, work, move, undo log
   scripts/
     sync.ts               local loop runner
     backfill.ts           year-to-date import per account
+    ask.ts                pnpm ask: a question from the terminal
   docker-compose.yml      postgres with pgvector
   DESIGN.md
   docs/
@@ -135,6 +136,8 @@ Every user action goes through `lib/actions`. It writes the local change, logs t
 ## Command palette
 
 cmdk with three sources: navigation (buckets, accounts, settings), thread search, and actions. Phase 1 search is Postgres full-text over subject, sender, recipients, and text with a tsvector column and a GIN index, accent-insensitive through `unaccent`, with simple filters parsed from the query: `from:`, `account:`, `before:`, `after:`, `bucket:`. The palette first requests keyword results for immediate display, then requests a hybrid list when the query has words and embeddings are enabled. Hybrid search combines up to 200 full-text candidates with filtered vector candidates using reciprocal rank fusion (k = 60), keeping keyword relevance tiers ahead of semantic-only results. Semantic-only threads are tagged `related`; bulk previews and actions still use keyword matches only. Actions on results show the preview count in `--info` and execute after Enter.
+
+Questions (`POST /api/ask`, `lib/ai/ask.ts`, `lib/search/ask.ts`) take two calls. Claude Haiku plans: intent (`answer`, or `list` for "show me all"), the few keywords, dates read against the user's today and timezone, senders, accounts, buckets, named people, projects and companies, and whether a file is asked about. The plan is written as a palette query, shown to the user, and run through the same search, so its filters mean what they mean typed. Retrieval fuses hybrid search with the threads linked to the named entities (reciprocal rank fusion, k = 60), threads with a real attachment first when a file is asked about. Claude Sonnet then answers from the top 12 threads (the 3 latest messages each, quotes cut, 40,000 characters in all), citing them as `[n]`; attachments are filenames only, so the answer points to the email with the file and never describes it. For `list`, the bulk set is the keyword matches plus entity-linked threads, never vector-only neighbours, which show as `related`. The route streams newline-delimited JSON events: `plan` (intent and query), `sources`, `list` (hits, ids, total), `text` deltas, then `done` or `error`; aborting the request stops the Claude call. `pnpm ask "<question>" [--json]` runs the same over every account from the terminal.
 
 ## Keyboard
 

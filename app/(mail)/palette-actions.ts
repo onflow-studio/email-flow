@@ -12,20 +12,14 @@ import {
 import { db } from "@/lib/db";
 import { searchThreadIds, searchThreads, type SearchHit } from "@/lib/search";
 
-import { accountsOff, accountsOn } from "./_lib/account-filter";
 import { BULK_ACTIONS, BULK_KEEP_OUT, BULK_SNOOZE } from "./_lib/bulk";
-import { listAccounts } from "./_lib/queries";
+import { scope } from "./_lib/scope";
 
 const MAX_QUERY = 500;
 
 function query(input: unknown): string {
   if (typeof input !== "string") throw new Error("invalid query");
   return input.slice(0, MAX_QUERY);
-}
-
-/** Search covers only the accounts toggled on in the header. */
-async function scope() {
-  return { accountIds: accountsOn(await listAccounts(), await accountsOff()) };
 }
 
 function bulkAction(key: unknown): ThreadAction {
