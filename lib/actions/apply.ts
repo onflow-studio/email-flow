@@ -5,6 +5,7 @@ import { eq, inArray } from "drizzle-orm";
 import { recordCorrection } from "@/lib/classify/corrections";
 import {
   aiAllowedSenders,
+  choiceDecision,
   decideSender,
   judgedSenders,
   loadThreadSenders,
@@ -109,9 +110,11 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
   const found = await loadThreadSenders(tx, threadId);
   if (!found) return null;
   const targets =
-    action.type === "undoAiAllow" || action.type === "confirmAiAllow"
-      ? aiAllowedSenders(found.ids, found.states)
-      : judgedSenders(found.ids, found.states, found.threadSenderId);
+    action.type === "decideSender"
+      ? found.threadSenderId ? [found.threadSenderId] : []
+      : action.type === "undoAiAllow" || action.type === "confirmAiAllow"
+        ? aiAllowedSenders(found.ids, found.states)
+        : judgedSenders(found.ids, found.states, found.threadSenderId);
   if (!targets.length) return null;
   return decideSendersIn(tx, batchId, targets, action);
 }
@@ -158,7 +161,10 @@ async function decideSendersIn(tx: Tx, batchId: string, targets: string[], actio
   const screenerDb = tx as unknown as Db;
   const moves: ThreadMove[] = [];
   for (const senderId of targets) {
-    if (action.type === "letIn" || action.type === "confirmAiAllow") moves.push(...(await decideSender(screenerDb, senderId, "allowed")));
+    if (action.type === "decideSender") {
+      const { decision, defaultBucket } = choiceDecision(action.choice);
+      moves.push(...(await decideSender(screenerDb, senderId, decision, defaultBucket)));
+    } else if (action.type === "letIn" || action.type === "confirmAiAllow") moves.push(...(await decideSender(screenerDb, senderId, "allowed")));
     else if (action.type === "keepOut") moves.push(...(await decideSender(screenerDb, senderId, action.spam ? "out_spam" : "out_not_now")));
     else moves.push(...(await undoAiAllow(screenerDb, senderId)));
   }

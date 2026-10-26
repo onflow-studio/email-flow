@@ -18,6 +18,26 @@ export type UserDecision = Exclude<ScreenerDecision, "none">;
 
 export type ThreadMove = { threadId: string; from: Bucket; to: Bucket };
 
+/** What the sender card sets: a bucket the sender's mail always goes to, or out. */
+export type SenderChoice = "inbox" | "news" | "paper_trail" | "receipts" | "out_spam" | "out_not_now";
+
+export const SENDER_CHOICES: readonly SenderChoice[] = ["inbox", "news", "paper_trail", "receipts", "out_spam", "out_not_now"];
+
+// A bucket choice lets the sender in with that default bucket, which every later classification follows.
+export function choiceDecision(choice: SenderChoice): { decision: UserDecision; defaultBucket: Bucket | null } {
+  if (choice === "out_spam" || choice === "out_not_now") return { decision: choice, defaultBucket: null };
+  return { decision: "allowed", defaultBucket: choice };
+}
+
+/** The card's current choice for a sender, or null while it has none (undecided, or let in with the AI picking). */
+export function currentChoice(decision: ScreenerDecision, defaultBucket: Bucket | null): SenderChoice | null {
+  if (decision === "out_spam" || decision === "out_not_now") return decision;
+  if (decision === "allowed" && defaultBucket && (SENDER_CHOICES as readonly string[]).includes(defaultBucket)) {
+    return defaultBucket as SenderChoice;
+  }
+  return null;
+}
+
 type Latest = { bucket: Bucket; urgency: number | null } | undefined;
 
 // Where a held thread goes once its sender is let in.
@@ -69,9 +89,9 @@ async function moveThreads(
 }
 
 /**
- * User screener decision. Allowed releases held triage threads to the sender's default bucket
- * or the model's last choice. Out moves every unarchived thread out. Returns the moves so
- * lib/actions can log them for undo.
+ * User screener decision. Allowed releases held triage threads to the model's last choice; with a
+ * default bucket, every unarchived thread goes there, out ones included. Out moves every unarchived
+ * thread out. Returns the moves so lib/actions can log them for undo.
  */
 export async function decideSender(
   db: Db,
@@ -91,6 +111,13 @@ export async function decideSender(
       .where(eq(senders.id, senderId));
 
     const cols = { id: threads.id, accountId: threads.accountId, bucket: threads.bucket };
+    if (decision === "allowed" && defaultBucket) {
+      const current = await tx
+        .select(cols)
+        .from(threads)
+        .where(and(eq(threads.senderId, senderId), eq(threads.archived, false)));
+      return moveThreads(tx, senderId, current, () => defaultBucket);
+    }
     if (decision === "allowed") {
       const held = await tx
         .select(cols)

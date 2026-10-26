@@ -1,3 +1,4 @@
+import type { SenderChoice } from "@/lib/classify/screener";
 import type { Bucket, Thread } from "@/lib/db/schema";
 
 export type MovableBucket = Exclude<Bucket, "triage" | "out">;
@@ -29,12 +30,14 @@ export type SenderAction =
   | { type: "letIn" }
   | { type: "keepOut"; spam?: boolean }
   | { type: "confirmAiAllow" }
-  | { type: "undoAiAllow" };
+  | { type: "undoAiAllow" }
+  /** From the sender card: the thread's own sender, to a bucket for good or out. */
+  | { type: "decideSender"; choice: SenderChoice };
 
 export type Action = ThreadAction | SenderAction;
 export type ActionType = Action["type"];
 
-export const SENDER_ACTIONS = new Set<ActionType>(["letIn", "keepOut", "confirmAiAllow", "undoAiAllow"]);
+export const SENDER_ACTIONS = new Set<ActionType>(["letIn", "keepOut", "confirmAiAllow", "undoAiAllow", "decideSender"]);
 
 export function isSenderAction(action: Action): action is SenderAction {
   return SENDER_ACTIONS.has(action.type);
