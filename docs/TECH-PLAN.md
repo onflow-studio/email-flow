@@ -58,6 +58,8 @@ email-flow/
 
 Core tables, Drizzle in `lib/db/schema.ts`.
 
+The rail includes Triage, Inbox, Work, Starred, Snoozed and Digest for action, followed by News, Paper Trail and Receipts, with Sent, Drafts and Trash below. Digest lists live, unstarred threads past their configured Work, reply or Triage threshold; active snoozes are excluded. Its badge and list use the same account filter and cutoffs, and rows sort by when they became stale, oldest first.
+
 - `accounts`: id, email, label, color, oauth tokens (encrypted at rest with a key from env), gmail history cursor, last sync at, signature html.
 - `threads`: id, account id, gmail thread id, subject, last message at, bucket (inbox, news, paper_trail, receipts, triage, out), bucket source (ai, user, rule), bucket confidence, seen at, snoozed until, needs reply, deadline at, work at (stored as `pinned_at`: when the thread entered Work, null when not in Work), starred at (null when not starred) and starred from (`bucket`, `archived`, `snoozed`, `work`: what unstar goes back to), archived, participants summary, list summary and the last message time it covers, the last message time entity extraction covered. Group id links twins: copies of one conversation in different accounts (they share a Message-ID) act as one thread, see Twins.
 - `messages`: id, thread id, gmail message id, from, to, cc, date, snippet, html sanitized, text, is inbound, gmail labels, headers subset (list-unsubscribe, precedence, in-reply-to).
@@ -69,6 +71,7 @@ Core tables, Drizzle in `lib/db/schema.ts`.
 - `jobs`: id, type (classify, writeback, backfill, entities), payload json, status, attempts, run after, error. The queue.
 - `actions_log`: id, thread id, action, payload, undone at. Powers undo.
 - `keybindings`: command id, keys (text array, empty unbinds), updated at. Only overrides of the defaults in code.
+- `settings`: key (text primary key), value (jsonb), updated at. The `stale` value stores Work, reply and Triage day thresholds; future digest scheduling settings use the same table.
 - `compose_uploads`: id, part, filename, mime type, data (bytea), created at. Files attached in compose, uploaded in 4 MB parts (Vercel caps a request body at 4.5 MB) and joined on send, then deleted. Leftovers expire after a day.
 
 - `entities`: id, type (person, project, company), name, normalized name, aliases, summary, user edited at, merged into id, deleted at. Merged-away and deleted entities stay as tombstones. `entity_links`: entity id and exactly one of thread, message, sender or other entity id, relation (entity to entity only), source (ai, user), rejected. `entity_questions`: an ordered pair of entities, the model's "same as?" question, the thread it came up in, status (open, same, different, dismissed), answered at; one per pair, ever. See Semantic layer.
