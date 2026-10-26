@@ -107,6 +107,12 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
       return `kept out${who}`;
     case "undoAiAllow":
       return count ? `back to triage, ${count} moved` : "back to triage";
+    case "decideSender": {
+      const moved = count ? `, ${count} moved` : "";
+      if (action.choice === "out_spam") return `kept out${who} as spam${moved}`;
+      if (action.choice === "out_not_now") return `kept out${who}${moved}`;
+      return `${BUCKET_NAMES[action.choice]} from now on for${who}${moved}`;
+    }
   }
 }
 
@@ -118,7 +124,7 @@ function flagLine(action: Extract<ThreadAction, { type: "flag" }>, n: string) {
   return `${n}${parts.join(", ")}`;
 }
 
-const STAYS_STARRED = new Set<string>(["star", "read", "unread", "flag", "unsnooze", "unarchive", "restore", "letIn", "keepOut", "confirmAiAllow", "undoAiAllow"]);
+const STAYS_STARRED = new Set<string>(["star", "read", "unread", "flag", "unsnooze", "unarchive", "restore", "letIn", "keepOut", "confirmAiAllow", "undoAiAllow", "decideSender"]);
 
 /** Whether the action takes the thread out of the current view. */
 function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
@@ -156,6 +162,8 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
       return !!bucket;
     case "undoAiAllow":
       return !!bucket && bucket !== "triage";
+    case "decideSender":
+      return !!bucket && bucket !== action.choice;
     default:
       return false;
   }
