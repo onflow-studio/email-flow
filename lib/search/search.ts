@@ -31,7 +31,7 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 const SEARCH_CONFIG = "simple_unaccent";
 const VECTOR_CANDIDATES = 200;
 const MAX_DISTANCE = 0.6;
-const FUSION_K = 60;
+export const FUSION_K = 60;
 
 /** `accountIds` limits results to the accounts toggled on; null searches all. */
 export type SearchScope = { accountIds?: string[] | null };
