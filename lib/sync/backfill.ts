@@ -9,6 +9,7 @@ import { PRIORITY_BACKFILL } from "./jobs";
 
 // Year-to-date import, newest first. Progress lives in one `backfill` row in `jobs` per account,
 // so a stopped run resumes where it left off. Live sync never claims these rows.
+// The full-history import is the same walk on its own row, from January 1 back to the oldest thread.
 
 export const BACKFILL_BATCH = 50;
 
@@ -41,8 +42,15 @@ export function newBackfillState(now: Date): BackfillState {
   };
 }
 
+// Everything before January 1. From then on belongs to the year-to-date backfill, which classifies all of it.
+export function newFullImportState(now: Date): BackfillState {
+  return { ...newBackfillState(now), after: 0, before: Math.floor(startOfYear(now).getTime() / 1000) };
+}
+
+// Without `after` Gmail lists everything before `before`, newest first: the full import walks backwards.
 export function backfillQuery(state: Pick<BackfillState, "after" | "before">): string {
-  return `after:${state.after} before:${state.before} -in:spam -in:trash -in:chats`;
+  const after = state.after ? `after:${state.after} ` : "";
+  return `${after}before:${state.before} -in:spam -in:trash -in:chats`;
 }
 
 export type BackfillStepDeps = {
@@ -81,20 +89,43 @@ export async function backfillStep(
   return { ...next, done: true };
 }
 
-function dedupeKey(accountId: string) {
-  return `backfill:${accountId}`;
+export const FULL_IMPORT_THREADS_PER_RUN = 250;
+
+export type FullImportDeps = BackfillStepDeps & {
+  save: (state: BackfillState) => Promise<void>;
+};
+
+// Works through the walk until it ends or the budget is spent, saving after every batch, so a stop
+// costs at most one batch. Sized to fit one function run; call again with the returned state.
+export async function runFullImport(
+  state: BackfillState,
+  deps: FullImportDeps,
+  { budget = FULL_IMPORT_THREADS_PER_RUN, batch = BACKFILL_BATCH } = {},
+): Promise<BackfillState> {
+  const start = state.seen;
+  while (!state.done && state.seen - start < budget) {
+    state = await backfillStep(state, deps, Math.min(batch, budget - (state.seen - start)));
+    await deps.save(state);
+  }
+  return state;
+}
+
+export function backfillDedupeKey(accountId: string, { full = false } = {}) {
+  return `${full ? "backfill-full" : "backfill"}:${accountId}`;
 }
 
 // The account's backfill row, started fresh when there is none or `restart` is asked.
+// `full` picks the full-history row, kept apart from the year-to-date one.
 export async function loadBackfill(
   db: Db,
   accountId: string,
-  { now = new Date(), restart = false } = {},
+  { now = new Date(), restart = false, full = false } = {},
 ): Promise<{ jobId: string; state: BackfillState }> {
+  const key = backfillDedupeKey(accountId, { full });
   const [latest] = await db
     .select({ id: jobs.id, status: jobs.status, payload: jobs.payload })
     .from(jobs)
-    .where(and(eq(jobs.type, "backfill"), eq(jobs.dedupeKey, dedupeKey(accountId))))
+    .where(and(eq(jobs.type, "backfill"), eq(jobs.dedupeKey, key)))
     .orderBy(desc(jobs.createdAt))
     .limit(1);
 
@@ -108,7 +139,7 @@ export async function loadBackfill(
     await db.update(jobs).set({ status: "done", error: "restarted" }).where(eq(jobs.id, latest.id));
   }
 
-  const state = newBackfillState(now);
+  const state = full ? newFullImportState(now) : newBackfillState(now);
   const [row] = await db
     .insert(jobs)
     .values({
@@ -116,7 +147,7 @@ export async function loadBackfill(
       accountId,
       payload: state,
       priority: PRIORITY_BACKFILL,
-      dedupeKey: dedupeKey(accountId),
+      dedupeKey: key,
     })
     .returning({ id: jobs.id });
   return { jobId: row.id, state };
