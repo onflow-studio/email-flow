@@ -80,3 +80,12 @@ export type ActionPreview = {
   threads: PreviewThread[];
   count: number;
 };
+
+export type KeepOutPreview = {
+  spam: boolean;
+  /** Senders bulk keep out would decide on, each with the threads it would move out. */
+  senders: { id: string; name: string; threads: number }[];
+  /** The Triage threads the senders came from; pass them back to execute. */
+  threadIds: string[];
+  count: number;
+};
