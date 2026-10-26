@@ -92,6 +92,8 @@ Every Gmail call goes through a per-account limiter in `lib/gmail/quota.ts`: at 
 
 Initial backfill: `scripts/backfill.ts` walks messages from January 1 of the current year forward, per account, in batches, enqueuing classify for each thread but with a lower priority so live mail is never behind history. It paces Gmail through the same limiter on a smaller budget (`--rate`, default 60 units a second, about a quarter of the per-user quota) and waits out rate limits instead of failing.
 
+Full history: `pnpm backfill --full` imports everything before January 1, walking backwards from there to the oldest thread. It keeps its own `backfill` row per account (dedupe key `backfill-full:<accountId>`), whose payload holds the page token and offset as the cursor and the seen and imported counts settings shows, so it never resumes or restarts the year-to-date row. Each step is `runFullImport`, budgeted in threads and saved after every batch, small enough for a function run later. It stores messages, threads and attachment metadata through the same ingest as sync. Classification policy for old mail: threads still in Gmail's inbox are classified at backfill priority, with writeback; archived ones keep the bucket from Gmail's categories, stay archived, get no AI call and no writeback, so Gmail labels on untouched old threads stay as they are. A copy joining a group the user already placed takes that state as usual. `pnpm backfill --full --measure` prints per-account counts, sizes and token estimates for classifying and embedding the old mail, and writes nothing.
+
 ## Classification pipeline
 
 `lib/classify/classify.ts`, one Claude Haiku 4.5 call per thread, structured output validated against a zod schema:
