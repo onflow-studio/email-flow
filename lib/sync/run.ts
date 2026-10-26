@@ -7,6 +7,8 @@ import { CATCH_UP_THREADS_PER_PASS, mergeCatchUp, runCatchUp } from "./catchup";
 import { collectChanges, type ChangeMode } from "./changes";
 import { enqueueEntityBacklog } from "./entities";
 import type { GmailSyncPort } from "./gmail";
+import { embeddingsEnabled } from "@/lib/ai";
+import { enqueueEmbedBacklog } from "./embed";
 import type { JobContext } from "./jobs";
 import { processJobs, type JobCounts } from "./queue";
 import { ingestThread, type IngestResult } from "./store";
@@ -79,6 +81,7 @@ export async function syncAccount(
   const entitiesQueued = process.env.ANTHROPIC_API_KEY ? await enqueueEntityBacklog(db, account.id, undefined, now) : 0;
 
   const stored = ingested.flatMap((r) => (r.status === "stored" ? [r] : []));
+  if (embeddingsEnabled()) await enqueueEmbedBacklog(db, account.id);
   return {
     mode: changes.mode,
     threads: ingested.length,
