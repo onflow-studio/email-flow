@@ -26,6 +26,7 @@ export type ActionTarget = {
   snoozedUntil: string | null;
   needsReply: boolean;
   deadlineAt: string | null;
+  staleReason: "work" | "reply" | "triage" | null;
 };
 
 type ThreadActions = {
@@ -127,12 +128,20 @@ function flagLine(action: Extract<ThreadAction, { type: "flag" }>, n: string) {
 const STAYS_STARRED = new Set<string>(["star", "read", "unread", "flag", "unsnooze", "unarchive", "restore", "letIn", "keepOut", "confirmAiAllow", "undoAiAllow", "decideSender"]);
 
 /** Whether the action takes the thread out of the current view. */
-function leavesView(action: ThreadAction | SenderAction, view: ViewSlug) {
+function leavesView(action: ThreadAction | SenderAction, view: ViewSlug, target?: ActionTarget) {
   const bucket = findView(view)?.bucket;
   // Sent keeps every thread written in, wherever it went, until it is deleted or marked spam.
   if (view === "sent") return action.type === "trash" || action.type === "spam";
   // Whatever sends a starred thread somewhere takes it out of Starred; marks and screener moves leave it be.
   if (view === "starred") return !STAYS_STARRED.has(action.type);
+  if (view === "digest") {
+    if (["trash", "archive", "done", "spam", "snooze", "star"].includes(action.type)) return true;
+    if (action.type === "move" || action.type === "letIn" || action.type === "keepOut" || action.type === "confirmAiAllow")
+      return target?.staleReason === "triage";
+    if (action.type === "flag")
+      return target?.staleReason === "reply" && (action.needsReply === false || (action.deadline !== undefined && action.deadline !== null));
+    return false;
+  }
   switch (action.type) {
     case "trash":
       return true;
@@ -189,13 +198,13 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   // With the acted-on thread open and leaving the view, step to its neighbour.
   const afterAction = useCallback(
     (action: ThreadAction | SenderAction, ids: string[]) => {
-      if (!sel.openId || !ids.includes(sel.openId) || !leavesView(action, sel.view)) return;
+      if (!sel.openId || !ids.includes(sel.openId) || !leavesView(action, sel.view, byId.get(sel.openId))) return;
       const i = sel.threadIds.indexOf(sel.openId);
-      const rest = sel.threadIds.filter((id) => !ids.includes(id));
+      const rest = sel.threadIds.filter((id) => !ids.includes(id) || !leavesView(action, sel.view, byId.get(id)));
       const next = rest[Math.min(Math.max(i, 0), rest.length - 1)];
       router.push(mailHref(sel.view, { threadId: next ?? null }), { scroll: false });
     },
-    [router, sel.openId, sel.threadIds, sel.view],
+    [router, sel.openId, sel.threadIds, sel.view, byId],
   );
 
   // Keyboard actions take the selection when there is one; the rest take one thread.
@@ -218,12 +227,13 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
       // A move to the bucket every thread is already in confirms the placement instead.
       const kept = action.type === "move" && targetIds.every((id) => byId.get(id)?.bucket === action.bucket) ? action.bucket : null;
       // Rows on their way out start leaving now, while the server catches up.
-      const putBack = !kept && leavesView(action, sel.view) ? markLeaving(targetIds) : () => {};
+      const leavingIds = kept ? [] : targetIds.filter((id) => leavesView(action, sel.view, byId.get(id)));
+      const putBack = leavingIds.length ? markLeaving(leavingIds) : () => {};
       try {
         const result = await runThreadAction(targetIds, action);
         if (result.count) {
           report(describeAction(action, result.count, !!kept), result.token);
-          afterAction(action, targetIds);
+          if (!kept) afterAction(action, targetIds);
         } else {
           putBack();
           if (kept) notify(`already in ${BUCKET_NAMES[kept]}`, "warning");
@@ -249,7 +259,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         notify("no sender to decide on", "warning");
         return null;
       }
-      const putBack = leavesView(action, sel.view) ? markLeaving([threadId]) : () => {};
+      const putBack = leavesView(action, sel.view, byId.get(threadId)) ? markLeaving([threadId]) : () => {};
       try {
         const result = await runSenderAction(threadId, action);
         report(describeAction(action, result.count, false, result.senders), result.token);
@@ -303,7 +313,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     (id?: string) => {
       const threadIds = id ? [id] : sel.targetIds;
       if (!threadIds.length) return Promise.resolve(null);
-      const done = sel.view === "work" && threadIds.every((t) => byId.get(t)?.work);
+      const done = (sel.view === "work" || sel.view === "digest") && threadIds.every((t) => byId.get(t)?.work);
       return run({ type: done ? "done" : "work" }, threadIds);
     },
     [sel.targetIds, sel.view, byId, run],

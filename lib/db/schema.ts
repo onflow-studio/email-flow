@@ -520,5 +520,11 @@ export const keybindings = pgTable("keybindings", {
   updatedAt: updatedAt(),
 });
 
+export const settings = pgTable("settings", {
+  key: text().primaryKey(),
+  value: jsonb().notNull(),
+  updatedAt: updatedAt(),
+});
+
 export type Keybinding = typeof keybindings.$inferSelect;
 export type Draft = typeof drafts.$inferSelect;
