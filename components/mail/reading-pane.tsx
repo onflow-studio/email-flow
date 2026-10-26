@@ -15,6 +15,7 @@ import { rememberAccount } from "./compose/last-account";
 import { useKeys } from "./keys/keymap";
 import { displayName, MessageContent } from "./message";
 import { useMailSelection } from "./selection";
+import { SenderCard } from "./sender-card";
 import { ThreadTimeline } from "./thread-timeline";
 import { shortTime, Time } from "./time";
 
@@ -138,6 +139,8 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
           ) : null}
         </div>
       </header>}
+
+      {thread.sender ? <SenderCard thread={thread} card={thread.sender} /> : null}
 
       <div className="reader-in flex flex-col gap-4">
       {judgedMessage ? (
