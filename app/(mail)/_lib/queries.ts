@@ -6,8 +6,8 @@ import { VIEWS } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import type { StaleCutoffs } from "@/lib/sync/stale";
 import { staleReason } from "@/lib/sync/stale";
-import { aiAllowedSenders, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
-import { accounts, attachments, drafts, messages, senders, threads, type Address } from "@/lib/db/schema";
+import { aiAllowedSenders, currentChoice, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
+import { accounts, attachments, drafts, messages, senderAccounts, senders, threads, type Address } from "@/lib/db/schema";
 import { mergeTimeline, shownCopy } from "@/lib/sync/twins";
 
 const live = () => and(eq(threads.archived, false), eq(threads.trashed, false), eq(threads.spam, false));
@@ -340,7 +340,8 @@ export async function getThread(id: string) {
     ...opened,
     messages: mergeTimeline(all.map((t) => t.messages.map((m) => ({ ...m, messageId: m.headers.messageId })))),
   };
-  const accountOrder = new Map((await listAccounts()).map((a, i) => [a.id, i]));
+  const [accountList, card] = await Promise.all([listAccounts(), opened.senderId ? senderCard(opened.senderId) : null]);
+  const accountOrder = new Map(accountList.map((a, i) => [a.id, i]));
   const reached = [...new Map(all.map((t) => [t.account.id, t.account])).values()].sort(
     (a, b) => (accountOrder.get(a.id) ?? 0) - (accountOrder.get(b.id) ?? 0),
   );
@@ -399,6 +400,10 @@ export async function getThread(id: string) {
             }),
           }
         : null,
+    // The sender card: who the thread's sender is to you, from what sync already counted.
+    sender: card
+      ? { ...card, accounts: card.accounts.sort((a, b) => (accountOrder.get(a.id) ?? 0) - (accountOrder.get(b.id) ?? 0)) }
+      : null,
     account: thread.account,
     // Every account the conversation reached, twins included, in account order.
     accounts: reached,
@@ -416,6 +421,51 @@ export async function getThread(id: string) {
         senderId: m.sender?.id ?? null,
       };
     }),
+  };
+}
+
+/** A sender's standing: the accounts it writes to, its threads (twins once), last mail and screener choice. */
+async function senderCard(senderId: string) {
+  const [[sender], reached, [threadCount]] = await Promise.all([
+    db
+      .select({
+        id: senders.id,
+        email: senders.email,
+        name: senders.displayName,
+        decision: senders.screenerDecision,
+        defaultBucket: senders.defaultBucket,
+        decidedBy: senders.decidedBy,
+      })
+      .from(senders)
+      .where(eq(senders.id, senderId)),
+    db
+      .select({
+        id: accounts.id,
+        label: accounts.label,
+        color: accounts.color,
+        seenCount: senderAccounts.seenCount,
+        lastSeenAt: senderAccounts.lastSeenAt,
+      })
+      .from(senderAccounts)
+      .innerJoin(accounts, eq(accounts.id, senderAccounts.accountId))
+      .where(eq(senderAccounts.senderId, senderId)),
+    db
+      .select({ n: sql<number>`count(distinct coalesce(${threads.groupId}, ${threads.id}))`.mapWith(Number) })
+      .from(threads)
+      .where(eq(threads.senderId, senderId)),
+  ]);
+  if (!sender) return null;
+  const last = reached.reduce<Date | null>((max, a) => (a.lastSeenAt && (!max || a.lastSeenAt > max) ? a.lastSeenAt : max), null);
+  return {
+    id: sender.id,
+    email: sender.email,
+    name: sender.name,
+    decision: sender.decision,
+    decidedBy: sender.decidedBy,
+    choice: currentChoice(sender.decision, sender.defaultBucket),
+    threadCount: threadCount?.n ?? 0,
+    lastSeenAt: last?.toISOString() ?? null,
+    accounts: reached.map((a) => ({ id: a.id, label: a.label, color: a.color, seenCount: a.seenCount })),
   };
 }
 

@@ -18,6 +18,7 @@ import {
   type UnsubscribeResult,
 } from "@/lib/actions";
 import { setSenderMachine } from "@/lib/classify/machine";
+import { SENDER_CHOICES } from "@/lib/classify/screener";
 import { db } from "@/lib/db";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -55,6 +56,7 @@ function senderAction(a: unknown): SenderAction {
   const action = a as SenderAction;
   if (action?.type === "letIn" || action?.type === "confirmAiAllow" || action?.type === "undoAiAllow") return { type: action.type };
   if (action?.type === "keepOut") return { type: "keepOut", spam: !!action.spam };
+  if (action?.type === "decideSender" && SENDER_CHOICES.includes(action.choice)) return { type: "decideSender", choice: action.choice };
   throw new Error("invalid action");
 }
 
