@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { aiAllowedSenders, allowedTarget, bulkJudgedSenders, inboundSenderIds, judgedSenders, type SenderState } from "./screener";
+import {
+  aiAllowedSenders,
+  allowedTarget,
+  bulkJudgedSenders,
+  choiceDecision,
+  currentChoice,
+  inboundSenderIds,
+  judgedSenders,
+  SENDER_CHOICES,
+  type SenderState,
+} from "./screener";
 
 describe("allowedTarget", () => {
   it("uses the default bucket the user picked", () => {
@@ -70,6 +80,32 @@ describe("aiAllowedSenders", () => {
   it("picks the senders the AI let in, not the user's", () => {
     const states = new Map([["divi", state("allowed", "ai")], ["jose", state("allowed", "user")], ["x", state("none")]]);
     expect(aiAllowedSenders(["divi", "jose", "x"], states)).toEqual(["divi"]);
+  });
+});
+
+describe("choiceDecision", () => {
+  it("lets the sender in with the picked bucket as its default", () => {
+    expect(choiceDecision("news")).toEqual({ decision: "allowed", defaultBucket: "news" });
+    expect(choiceDecision("paper_trail")).toEqual({ decision: "allowed", defaultBucket: "paper_trail" });
+  });
+
+  it("keeps the sender out without a default bucket", () => {
+    expect(choiceDecision("out_spam")).toEqual({ decision: "out_spam", defaultBucket: null });
+    expect(choiceDecision("out_not_now")).toEqual({ decision: "out_not_now", defaultBucket: null });
+  });
+});
+
+describe("currentChoice", () => {
+  it("reads back every choice it sets", () => {
+    for (const choice of SENDER_CHOICES) {
+      const { decision, defaultBucket } = choiceDecision(choice);
+      expect(currentChoice(decision, defaultBucket)).toBe(choice);
+    }
+  });
+
+  it("has no choice while undecided or while the AI picks the bucket", () => {
+    expect(currentChoice("none", null)).toBeNull();
+    expect(currentChoice("allowed", null)).toBeNull();
   });
 });
 
