@@ -53,10 +53,10 @@ export type PaletteSearch = {
   counts: Record<string, number>;
 };
 
-export async function paletteSearch(input: string): Promise<PaletteSearch> {
+export async function paletteSearch(input: string, { semantic = false }: { semantic?: boolean } = {}): Promise<PaletteSearch> {
   const q = query(input);
   const s = await scope();
-  const [result, ids] = await Promise.all([searchThreads(db, q, s), searchThreadIds(db, q, s)]);
+  const [result, ids] = await Promise.all([searchThreads(db, q, s, 50, { semantic }), searchThreadIds(db, q, s)]);
   const snooze: ThreadAction = { type: "snooze", until: new Date(Date.now() + SAMPLE_SNOOZE_MS).toISOString() };
   const [counts, keepOut] = await Promise.all([
     countThreadActions(db, ids, [...BULK_ACTIONS.map((a) => a.action), snooze]),

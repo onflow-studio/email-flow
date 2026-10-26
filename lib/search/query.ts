@@ -1,6 +1,6 @@
 /**
  * Palette query syntax: free words plus `from:`, `account:`, `before:`,
- * `after:`. Quoted text is a phrase. Words match as prefixes so results
+ * `after:`, `bucket:`. Quoted text is a phrase. Words match as prefixes so results
  * narrow while typing.
  */
 /** Markers ts_headline wraps around matched words in snippets. */
@@ -14,6 +14,7 @@ export type ParsedQuery = {
   words: string[];
   from: string[];
   account: string[];
+  bucket: string[];
   before: Date | null;
   after: Date | null;
 };
@@ -35,7 +36,7 @@ export function parseDate(value: string): Date | null {
 }
 
 export function parseQuery(input: string): ParsedQuery {
-  const parsed: ParsedQuery = { tsquery: null, words: [], from: [], account: [], before: null, after: null };
+  const parsed: ParsedQuery = { tsquery: null, words: [], from: [], account: [], bucket: [], before: null, after: null };
   const clauses: string[] = [];
 
   for (const [, key, rawValue, phrase, bare] of input.matchAll(TOKEN)) {
@@ -49,6 +50,14 @@ export function parseQuery(input: string): ParsedQuery {
       if (k === "account") {
         parsed.account.push(value.toLowerCase());
         continue;
+      }
+      if (k === "bucket") {
+        const name = value.toLowerCase();
+        const bucket = name === "paper-trail" || name === "papertrail" ? "paper_trail" : name;
+        if (["inbox", "news", "paper_trail", "receipts", "triage"].includes(bucket)) {
+          parsed.bucket.push(bucket);
+          continue;
+        }
       }
       if (k === "before" || k === "after") {
         const date = parseDate(value);
@@ -71,5 +80,5 @@ export function parseQuery(input: string): ParsedQuery {
 }
 
 export function isEmptyQuery(q: ParsedQuery) {
-  return !q.tsquery && !q.from.length && !q.account.length && !q.before && !q.after;
+  return !q.tsquery && !q.from.length && !q.account.length && !q.bucket.length && !q.before && !q.after;
 }
