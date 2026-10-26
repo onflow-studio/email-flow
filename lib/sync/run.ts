@@ -5,6 +5,7 @@ import { accounts, type Account, type CatchUpState } from "@/lib/db/schema";
 
 import { CATCH_UP_THREADS_PER_PASS, mergeCatchUp, runCatchUp } from "./catchup";
 import { collectChanges, type ChangeMode } from "./changes";
+import { enqueueEntityBacklog } from "./entities";
 import type { GmailSyncPort } from "./gmail";
 import { embeddingsEnabled } from "@/lib/ai";
 import { enqueueEmbedBacklog } from "./embed";
@@ -21,6 +22,8 @@ export type SyncResult = {
   created: number;
   newMessages: number;
   classifyQueued: number;
+  // Entity extraction jobs this pass queued; 0 without an AI key.
+  entitiesQueued: number;
   // A listing still working through its backlog after this pass, null when there is none.
   catchUp: { mode: "initial" | "fallback"; seen: number } | null;
   jobs: JobCounts;
@@ -74,6 +77,9 @@ export async function syncAccount(
     catchUp = await runCatchUp(catchUp, { gmail, ingest, save }, { budget: catchUpBudget });
   }
 
+  // Extraction calls the model on its own, so it only runs where the key is set.
+  const entitiesQueued = process.env.ANTHROPIC_API_KEY ? await enqueueEntityBacklog(db, account.id, undefined, now) : 0;
+
   const stored = ingested.flatMap((r) => (r.status === "stored" ? [r] : []));
   if (embeddingsEnabled()) await enqueueEmbedBacklog(db, account.id);
   return {
@@ -82,6 +88,7 @@ export async function syncAccount(
     created: stored.filter((r) => r.created).length,
     newMessages: stored.reduce((n, r) => n + r.newMessages, 0),
     classifyQueued: stored.filter((r) => r.classify).length,
+    entitiesQueued,
     catchUp: catchUp ? { mode: catchUp.mode, seen: catchUp.seen } : null,
     jobs: await processJobs(account.id, jobContext),
   };

@@ -1,5 +1,5 @@
 {
-  "id": "e98858eb-835d-4290-ba47-001c272a81d2",
+  "id": "cf6732c8-a6e3-4400-8433-0ae52be11f32",
   "prevId": "bf1e7978-d14a-40a9-8110-e62199466ef7",
   "version": "7",
   "dialect": "postgresql",
@@ -808,8 +808,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.embeddings": {
-      "name": "embeddings",
+    "public.entities": {
+      "name": "entities",
       "schema": "",
       "columns": {
         "id": {
@@ -819,8 +819,143 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "message_id": {
-          "name": "message_id",
+        "type": {
+          "name": "type",
+          "type": "entity_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "norm_name": {
+          "name": "norm_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aliases": {
+          "name": "aliases",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_edited_at": {
+          "name": "user_edited_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "merged_into_id": {
+          "name": "merged_into_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "entities_type_norm_name_index": {
+          "name": "entities_type_norm_name_index",
+          "columns": [
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "norm_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "entities_merged_into_id_index": {
+          "name": "entities_merged_into_id_index",
+          "columns": [
+            {
+              "expression": "merged_into_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "entities_merged_into_id_entities_id_fk": {
+          "name": "entities_merged_into_id_entities_id_fk",
+          "tableFrom": "entities",
+          "tableTo": "entities",
+          "columnsFrom": [
+            "merged_into_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.entity_links": {
+      "name": "entity_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "entity_id": {
+          "name": "entity_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -829,43 +964,45 @@
           "name": "thread_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "account_id": {
-          "name": "account_id",
+        "message_id": {
+          "name": "message_id",
           "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "chunk": {
-          "name": "chunk",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
-        "model": {
-          "name": "model",
+        "sender_id": {
+          "name": "sender_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "other_entity_id": {
+          "name": "other_entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "relation": {
+          "name": "relation",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "decided_by",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
-        "embedding": {
-          "name": "embedding",
-          "type": "vector(512)",
+        "rejected": {
+          "name": "rejected",
+          "type": "boolean",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -876,17 +1013,17 @@
         }
       },
       "indexes": {
-        "embeddings_message_id_chunk_index": {
-          "name": "embeddings_message_id_chunk_index",
+        "entity_links_entity_id_thread_id_index": {
+          "name": "entity_links_entity_id_thread_id_index",
           "columns": [
             {
-              "expression": "message_id",
+              "expression": "entity_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "chunk",
+              "expression": "thread_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -897,8 +1034,71 @@
           "method": "btree",
           "with": {}
         },
-        "embeddings_thread_id_index": {
-          "name": "embeddings_thread_id_index",
+        "entity_links_entity_id_message_id_index": {
+          "name": "entity_links_entity_id_message_id_index",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "message_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "entity_links_entity_id_sender_id_index": {
+          "name": "entity_links_entity_id_sender_id_index",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sender_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "entity_links_entity_id_other_entity_id_index": {
+          "name": "entity_links_entity_id_other_entity_id_index",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "other_entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "entity_links_thread_id_index": {
+          "name": "entity_links_thread_id_index",
           "columns": [
             {
               "expression": "thread_id",
@@ -912,30 +1112,29 @@
           "method": "btree",
           "with": {}
         },
-        "embeddings_embedding_idx": {
-          "name": "embeddings_embedding_idx",
+        "entity_links_sender_id_index": {
+          "name": "entity_links_sender_id_index",
           "columns": [
             {
-              "expression": "embedding",
+              "expression": "sender_id",
               "isExpression": false,
               "asc": true,
-              "nulls": "last",
-              "opclass": "vector_cosine_ops"
+              "nulls": "last"
             }
           ],
           "isUnique": false,
           "concurrently": false,
-          "method": "hnsw",
+          "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "embeddings_message_id_messages_id_fk": {
-          "name": "embeddings_message_id_messages_id_fk",
-          "tableFrom": "embeddings",
-          "tableTo": "messages",
+        "entity_links_entity_id_entities_id_fk": {
+          "name": "entity_links_entity_id_entities_id_fk",
+          "tableFrom": "entity_links",
+          "tableTo": "entities",
           "columnsFrom": [
-            "message_id"
+            "entity_id"
           ],
           "columnsTo": [
             "id"
@@ -943,9 +1142,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "embeddings_thread_id_threads_id_fk": {
-          "name": "embeddings_thread_id_threads_id_fk",
-          "tableFrom": "embeddings",
+        "entity_links_thread_id_threads_id_fk": {
+          "name": "entity_links_thread_id_threads_id_fk",
+          "tableFrom": "entity_links",
           "tableTo": "threads",
           "columnsFrom": [
             "thread_id"
@@ -956,12 +1155,38 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "embeddings_account_id_accounts_id_fk": {
-          "name": "embeddings_account_id_accounts_id_fk",
-          "tableFrom": "embeddings",
-          "tableTo": "accounts",
+        "entity_links_message_id_messages_id_fk": {
+          "name": "entity_links_message_id_messages_id_fk",
+          "tableFrom": "entity_links",
+          "tableTo": "messages",
           "columnsFrom": [
-            "account_id"
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "entity_links_sender_id_senders_id_fk": {
+          "name": "entity_links_sender_id_senders_id_fk",
+          "tableFrom": "entity_links",
+          "tableTo": "senders",
+          "columnsFrom": [
+            "sender_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "entity_links_other_entity_id_entities_id_fk": {
+          "name": "entity_links_other_entity_id_entities_id_fk",
+          "tableFrom": "entity_links",
+          "tableTo": "entities",
+          "columnsFrom": [
+            "other_entity_id"
           ],
           "columnsTo": [
             "id"
@@ -973,7 +1198,143 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "entity_links_one_target": {
+          "name": "entity_links_one_target",
+          "value": "num_nonnulls(\"entity_links\".\"thread_id\", \"entity_links\".\"message_id\", \"entity_links\".\"sender_id\", \"entity_links\".\"other_entity_id\") = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.entity_questions": {
+      "name": "entity_questions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "other_entity_id": {
+          "name": "other_entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "question": {
+          "name": "question",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "thread_id": {
+          "name": "thread_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "answered_at": {
+          "name": "answered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "entity_questions_entity_id_other_entity_id_index": {
+          "name": "entity_questions_entity_id_other_entity_id_index",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "other_entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "entity_questions_entity_id_entities_id_fk": {
+          "name": "entity_questions_entity_id_entities_id_fk",
+          "tableFrom": "entity_questions",
+          "tableTo": "entities",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "entity_questions_other_entity_id_entities_id_fk": {
+          "name": "entity_questions_other_entity_id_entities_id_fk",
+          "tableFrom": "entity_questions",
+          "tableTo": "entities",
+          "columnsFrom": [
+            "other_entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "entity_questions_thread_id_threads_id_fk": {
+          "name": "entity_questions_thread_id_threads_id_fk",
+          "tableFrom": "entity_questions",
+          "tableTo": "threads",
+          "columnsFrom": [
+            "thread_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "entity_questions_ordered": {
+          "name": "entity_questions_ordered",
+          "value": "\"entity_questions\".\"entity_id\" < \"entity_questions\".\"other_entity_id\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.jobs": {
@@ -1922,6 +2283,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "entities_message_at": {
+          "name": "entities_message_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "group_id": {
           "name": "group_id",
           "type": "uuid",
@@ -2118,6 +2485,15 @@
         "user"
       ]
     },
+    "public.entity_type": {
+      "name": "entity_type",
+      "schema": "public",
+      "values": [
+        "person",
+        "project",
+        "company"
+      ]
+    },
     "public.job_status": {
       "name": "job_status",
       "schema": "public",
@@ -2135,7 +2511,7 @@
         "classify",
         "writeback",
         "backfill",
-        "embed"
+        "entities"
       ]
     },
     "public.screener_decision": {

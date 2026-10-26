@@ -245,6 +245,14 @@ const THREADS: SeedThread[] = [
     messages: [{ from: { name: "Lena Park", email: "lena@work2.example" }, minutesAgo: 5 * D, text: "Here are the demo day photos for the website.", attachments: [{ filename: "demo-day.zip", mimeType: "application/zip", size: 48_000_000 }] }],
   },
   {
+    // The same person from a second address on another account, for the entities pass.
+    account: "personal",
+    subject: "Climbing on Sunday?",
+    bucket: "inbox",
+    seen: true,
+    messages: [{ from: { name: "Lena Park", email: "lena.park@example.net" }, minutesAgo: 2 * D, text: "Hi Alex, Lena here from my own address. Up for climbing on Sunday? I can book the wall for 11." }],
+  },
+  {
     account: "personal",
     subject: "Recipe: lentil soup",
     bucket: "inbox",

@@ -131,8 +131,15 @@
     {
       "idx": 18,
       "version": "7",
-      "when": 1793026837551,
-      "tag": "0018_embeddings",
+      "when": 1793026845830,
+      "tag": "0018_entities",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793032091270,
+      "tag": "0019_embeddings",
       "breakpoints": true
     }
   ]
