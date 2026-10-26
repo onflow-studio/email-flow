@@ -11,3 +11,12 @@ export const BULK_ACTIONS: { key: string; label: string; action: ThreadAction }[
   { key: "work", label: "move to work", action: { type: "work" } },
   { key: "trash", label: "delete", action: { type: "trash" } },
 ];
+
+/** Snooze asks until when first, then previews like the rest. */
+export const BULK_SNOOZE = { key: "snooze", label: "snooze" };
+
+/** Keep out decides per sender, so it previews senders. Only Triage threads in the results count. */
+export const BULK_KEEP_OUT: { key: string; label: string; spam: boolean }[] = [
+  { key: "keep-out", label: "keep out", spam: false },
+  { key: "keep-out-spam", label: "keep out as spam", spam: true },
+];
