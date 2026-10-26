@@ -242,11 +242,6 @@ export function useOverrides() {
   return useKeymapContext().overrides;
 }
 
-/** Every key that triggers a command, bound ones first. */
-export function useBinding(id: CommandId) {
-  return effectiveKeys(id, useKeymapContext().overrides);
-}
-
 /** The one key to show on a button: the first bound key, else the first fixed one. Undefined when unbound. */
 export function useShortcut(id: CommandId): string | undefined {
   return shortcutOf(id, useKeymapContext().overrides);
