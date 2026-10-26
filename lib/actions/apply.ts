@@ -8,6 +8,7 @@ import {
   decideSender,
   judgedSenders,
   loadThreadSenders,
+  loadTriageSenders,
   undoAiAllow,
   type ThreadMove,
 } from "@/lib/classify/screener";
@@ -112,7 +113,28 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
       ? aiAllowedSenders(found.ids, found.states)
       : judgedSenders(found.ids, found.states, found.threadSenderId);
   if (!targets.length) return null;
+  return decideSendersIn(tx, batchId, targets, action);
+}
 
+/**
+ * Keep out every judged sender of the Triage threads among threadIds (see loadTriageSenders), in
+ * one batch: one undo restores every sender decision and every thread moved.
+ */
+export async function applyBulkKeepOut(db: Db, threadIds: string[], spam: boolean): Promise<ActionResult> {
+  return db.transaction(async (tx) => {
+    const { targets } = await loadTriageSenders(tx, threadIds);
+    if (!targets.size) return { token: null, count: 0 };
+    const batchId = randomUUID();
+    const done = await decideSendersIn(tx, batchId, [...targets.keys()], { type: "keepOut", spam });
+    return { token: batchId, count: done.count, senders: done.senders };
+  });
+}
+
+/**
+ * Decide on the given senders through the screener. Logs each sender's prior decision and every
+ * thread the screener moved under the batch id. Returns threads moved and who was decided.
+ */
+async function decideSendersIn(tx: Tx, batchId: string, targets: string[], action: SenderAction) {
   const prior = await tx
     .select({
       id: senders.id,
@@ -120,6 +142,8 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
       defaultBucket: senders.defaultBucket,
       decidedBy: senders.decidedBy,
       decidedAt: senders.decidedAt,
+      name: senders.displayName,
+      email: senders.email,
     })
     .from(senders)
     .where(inArray(senders.id, targets));
@@ -139,8 +163,10 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
     else moves.push(...(await undoAiAllow(screenerDb, senderId)));
   }
 
-  for (const sender of prior) {
-    const payload: LogPayload = { sender: { ...sender, decidedAt: sender.decidedAt?.toISOString() ?? null } };
+  for (const s of prior) {
+    const payload: LogPayload = {
+      sender: { id: s.id, screenerDecision: s.screenerDecision, defaultBucket: s.defaultBucket, decidedBy: s.decidedBy, decidedAt: s.decidedAt?.toISOString() ?? null },
+    };
     await tx.insert(actionsLog).values({ threadId: null, batchId, action: action.type, payload });
   }
 
@@ -158,10 +184,8 @@ export async function senderActionIn(tx: Tx, batchId: string, threadId: string, 
     };
     await tx.insert(actionsLog).values({ threadId: m.threadId, batchId, action: action.type, payload });
   }
-  const senderNames = targets.map((id) => {
-    const n = found.names.get(id);
-    return n?.name || n?.email || "unknown";
-  });
+  const names = new Map(prior.map((s) => [s.id, s.name || s.email]));
+  const senderNames = targets.map((id) => names.get(id) ?? "unknown");
   // Twins move together (they share the sender); they count once.
   const moved = new Set(moves.map((m) => before.get(m.threadId)?.groupId ?? m.threadId));
   return { count: moved.size, senders: senderNames };
