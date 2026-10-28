@@ -141,6 +141,13 @@
       "when": 1793032091270,
       "tag": "0019_embeddings",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793032707872,
+      "tag": "0020_heavy_maestro",
+      "breakpoints": true
     }
   ]
 }
