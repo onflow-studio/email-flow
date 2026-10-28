@@ -154,8 +154,9 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
     };
   }, [query, searchKey]);
 
+  const askActive = mode.kind === "ask" || (mode.kind === "preview" && mode.from === "ask");
   useEffect(() => {
-    if (mode.kind !== "ask" || !ask || ask.status !== "loading") return;
+    if (!askActive || !ask || ask.status !== "loading") return;
     const controller = new AbortController();
     let active = true;
     const run = async () => {
@@ -203,9 +204,8 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
       active = false;
       controller.abort();
     };
-  // A preview retains received events but stops the active request.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode.kind, ask?.attempt, ask?.question]);
+  }, [askActive, ask?.attempt, ask?.question]);
 
   useEffect(() => {
     if (!ask?.list?.ids) return;
@@ -237,7 +237,6 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   };
 
   const startPreview = (key: string, label: string, load: () => Promise<Preview> = () => previewSearchAction(query, key), detail?: string, from?: "ask") => {
-    if (from === "ask") setAsk((state) => state?.status === "loading" ? { ...state, status: "done" } : state);
     setMode({ kind: "preview", key, label, detail, preview: null, from });
     load()
       .then((preview) => setMode((m) => (m.kind === "preview" && m.key === key ? { ...m, preview } : m)))
