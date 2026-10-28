@@ -56,11 +56,11 @@ export function SettingsTabs() {
   }, [current.slug, router]);
 
   return (
-    <ul role="tablist" aria-label="settings" className="flex items-stretch self-stretch">
+    <ul role="tablist" aria-label="settings" className="flex min-w-0 items-stretch self-stretch overflow-x-auto">
       {SECTIONS.map((s) => {
         const active = s.slug === current.slug;
         return (
-          <li key={s.slug} className="flex">
+          <li key={s.slug} className="flex shrink-0">
             <Link
               href={`/settings/${s.slug}`}
               role="tab"

@@ -1,6 +1,7 @@
 export const SECTIONS = [
   { slug: "accounts", label: "accounts" },
   { slug: "rules", label: "rules" },
+  { slug: "people", label: "people" },
   { slug: "keyboard", label: "keyboard" },
   { slug: "digest", label: "digest" },
 ] as const;
