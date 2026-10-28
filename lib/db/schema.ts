@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   customType,
+  date,
   index,
   integer,
   jsonb,
@@ -55,7 +56,7 @@ export const screenerDecision = pgEnum("screener_decision", [
   "none",
 ]);
 export const decidedBy = pgEnum("decided_by", ["ai", "user"]);
-export const jobType = pgEnum("job_type", ["classify", "writeback", "backfill", "entities", "embed"]);
+export const jobType = pgEnum("job_type", ["classify", "writeback", "backfill", "digest", "entities", "embed"]);
 export const entityType = pgEnum("entity_type", ["person", "project", "company"]);
 // What a starred thread goes back to when unstarred.
 export const starredFrom = pgEnum("starred_from", ["bucket", "archived", "snoozed", "work"]);
@@ -437,6 +438,43 @@ export const composeUploads = pgTable(
   (t) => [primaryKey({ columns: [t.id, t.part] }), index().on(t.createdAt)],
 );
 
+/** Buckets the daily digest counts arrivals in. */
+export type DigestBucket = Exclude<Bucket, "out">;
+export type DigestItem = {
+  threadId: string;
+  subject: string;
+  account: string;
+  // The thread's one-line summary, when it has one; the model reads it, the view does not.
+  summary: string | null;
+};
+
+// What one day's digest found, across all accounts. Written once by lib/sync/digest.ts.
+export type DigestContent = {
+  // The 24 hours the arrivals cover, ISO.
+  since: string;
+  until: string;
+  // One per twin group, by when the thread was first stored.
+  arrivals: Record<DigestBucket, number>;
+  // Newest Inbox arrivals, for the summary.
+  inbox: DigestItem[];
+  // Lists are capped; totals are the full counts.
+  needsReply: { total: number; items: (DigestItem & { lastMessageAt: string; days: number })[] };
+  deadlines: { total: number; items: (DigestItem & { deadlineAt: string; overdue: boolean })[] };
+  triage: number;
+  stale: { work: number; reply: number; triage: number };
+};
+
+// One row per local day, so the view outlives the job that made it.
+export const digests = pgTable("digests", {
+  id: id(),
+  // Local date in the digest time zone, YYYY-MM-DD.
+  day: date({ mode: "string" }).notNull().unique(),
+  content: jsonb().$type<DigestContent>().notNull(),
+  // The model's lines, one per line.
+  summary: text().notNull(),
+  model: text().notNull(),
+  createdAt: createdAt(),
+});
 // The semantic layer: people, projects and companies the mail is about, read by lib/sync/entities.ts.
 // User corrections stick: userEditedAt freezes name, aliases and summary; a merged-away or deleted
 // entity stays as a tombstone so its names keep resolving (to the winner, or to nothing).
@@ -661,5 +699,6 @@ export const settings = pgTable("settings", {
   updatedAt: updatedAt(),
 });
 
+export type Digest = typeof digests.$inferSelect;
 export type Keybinding = typeof keybindings.$inferSelect;
 export type Draft = typeof drafts.$inferSelect;

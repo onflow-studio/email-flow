@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt, lte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, lte, ne } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
 import { jobs } from "@/lib/db/schema";
@@ -18,14 +18,15 @@ export async function releaseStaleLocks(db: Db, now = new Date()) {
   for (const { id } of stale) await requeue(db, id, { status: "pending", lockedAt: null });
 }
 
-// Due jobs for one account, highest priority first. Skip-locked so parallel passes never share one.
-export async function claimJobs(db: Db, accountId: string, limit: number, now = new Date()) {
+// Due jobs for one account, or for none (null: the daily digest), highest priority first.
+// Skip-locked so parallel passes never share one.
+export async function claimJobs(db: Db, accountId: string | null, limit: number, now = new Date()) {
   const due = db
     .select({ id: jobs.id })
     .from(jobs)
     .where(
       and(
-        eq(jobs.accountId, accountId),
+        accountId === null ? isNull(jobs.accountId) : eq(jobs.accountId, accountId),
         eq(jobs.status, "pending"),
         lte(jobs.runAfter, now),
         // Backfill rows hold scripts/backfill.ts progress; only that script touches them.
@@ -52,7 +53,7 @@ export type JobCounts = Record<JobOutcome, number>;
 // Runs until nothing is due or the budget is spent. Jobs a handler enqueues (classify then
 // writeback) run in the same pass.
 export async function processJobs(
-  accountId: string,
+  accountId: string | null,
   ctx: JobContext,
   budget = JOBS_PER_PASS,
 ): Promise<JobCounts> {

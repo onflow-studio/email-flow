@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import type { StaleCutoffs } from "@/lib/sync/stale";
 import { staleReason } from "@/lib/sync/stale";
 import { aiAllowedSenders, currentChoice, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
-import { accounts, attachments, drafts, messages, senderAccounts, senders, threads, type Address } from "@/lib/db/schema";
+import { accounts, attachments, digests, drafts, messages, senderAccounts, senders, threads, type Address } from "@/lib/db/schema";
 import { mergeTimeline, shownCopy } from "@/lib/sync/twins";
 
 const live = () => and(eq(threads.archived, false), eq(threads.trashed, false), eq(threads.spam, false));
@@ -74,6 +74,12 @@ export async function listAccounts() {
 }
 
 export type AccountSummary = Awaited<ReturnType<typeof listAccounts>>[number];
+
+/** The newest daily digest: today's once made, until then the one before. */
+export async function latestDigest() {
+  const [row] = await db.select().from(digests).orderBy(desc(digests.day)).limit(1);
+  return row ?? null;
+}
 
 export type ViewCounts = {
   /** Unseen count for News, Paper Trail and Receipts; total visible threads for other views. */
