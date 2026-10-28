@@ -17,12 +17,14 @@ import {
   settle,
   type JobContext,
 } from "./jobs";
+import { digestJob } from "./digest";
 import { writebackJob } from "./writeback";
 
 describe("jobHandler", () => {
-  it("routes classify and writeback", () => {
+  it("routes classify, writeback and digest", () => {
     expect(jobHandler("classify")).toBe(classifyJob);
     expect(jobHandler("writeback")).toBe(writebackJob);
+    expect(jobHandler("digest")).toBe(digestJob);
   });
 
   it("has no backfill handler yet", () => {

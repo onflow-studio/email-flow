@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ActionsProvider } from "@/components/mail/actions/actions";
 import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
+import { DigestSummary } from "@/components/mail/digest-summary";
 import { DraftList } from "@/components/mail/draft-list";
 import { FocusPane } from "@/components/mail/focus-pane";
 import { NavKeys } from "@/components/mail/keys/nav-keys";
@@ -19,13 +20,15 @@ import { ThreadList } from "@/components/mail/thread-list";
 import { TriageQueue } from "@/components/mail/triage-queue";
 import { UnreadDot } from "@/components/mail/unread-dot";
 import { findView, mailHref, VIEWS, type ViewSlug } from "@/components/mail/views";
-import { loadStaleSettings } from "@/lib/db/settings";
+import { db } from "@/lib/db";
+import { loadDigestSettings, loadStaleSettings } from "@/lib/db/settings";
+import { localTime } from "@/lib/sync/digest";
 import { accessExpiryFromEnv } from "@/lib/sync/expiry";
 import { staleCutoffs } from "@/lib/sync/stale";
 import { cn } from "@/lib/utils";
 
 import { accountsOff, accountsOn } from "../../_lib/account-filter";
-import { getThread, listAccounts, listDrafts, listThreads, viewCounts } from "../../_lib/queries";
+import { getThread, latestDigest, listAccounts, listDrafts, listThreads, viewCounts } from "../../_lib/queries";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -41,13 +44,15 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   const on = accountsOn(accounts, off);
   const isOn = (id: string) => !on || on.includes(id);
   const now = new Date();
-  const cutoffs = staleCutoffs(now, await loadStaleSettings());
+  const cutoffs = staleCutoffs(now, await loadStaleSettings(db));
 
-  const [counts, threads, drafts, detail] = await Promise.all([
+  const [counts, threads, drafts, detail, digest, digestSettings] = await Promise.all([
     viewCounts(on, cutoffs, now),
     listThreads(view, on, cutoffs, now),
     view.slug === "drafts" ? listDrafts(on) : [],
     threadId ? getThread(threadId) : null,
+    view.slug === "digest" ? latestDigest() : null,
+    view.slug === "digest" ? loadDigestSettings(db) : null,
   ]);
   if (threadId && !detail) notFound();
   // A thread opened under a view it no longer belongs to (an old link, a thread snoozed elsewhere) moves to its
@@ -158,6 +163,9 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                       </span>
                     </header>
                     <div className="min-h-0 flex-1 overflow-y-auto">
+                      {digest && digestSettings ? (
+                        <DigestSummary digest={digest} today={digest.day === localTime(now, digestSettings.timeZone).day} />
+                      ) : null}
                       {view.slug === "drafts" ? (
                         <DraftList drafts={drafts} accountColors={accountColors} accountNames={accountNames} />
                       ) : (

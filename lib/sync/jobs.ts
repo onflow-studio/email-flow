@@ -1,3 +1,4 @@
+import type { LanguageModel } from "ai";
 import { eq, sql } from "drizzle-orm";
 
 import type { EntityExtractor } from "@/lib/ai/entities";
@@ -9,6 +10,7 @@ import type { Db } from "@/lib/db";
 import { jobs, type Job, type JobType } from "@/lib/db/schema";
 import { GmailRateLimitError, isRateLimitError } from "@/lib/gmail/errors";
 
+import { digestJob } from "./digest";
 import { entitiesJob } from "./entities";
 import { writebackJob, type GmailLabelsPort } from "./writeback";
 import { embedJob } from "./embed";
@@ -28,6 +30,8 @@ export type JobContext = {
   gmail: (accountId: string) => Promise<GmailLabelsPort>;
   evaluate?: Evaluator;
   confirm?: Confirmer;
+  // Claude by default; tests pass a mock model.
+  digestModel?: LanguageModel;
   extract?: EntityExtractor;
   embed?: Embedder;
 };
@@ -41,6 +45,8 @@ export function jobHandler(type: JobType): JobHandler | undefined {
       return classifyJob;
     case "writeback":
       return writebackJob;
+    case "digest":
+      return digestJob;
     case "entities":
       return entitiesJob;
     case "embed":

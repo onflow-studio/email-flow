@@ -3,13 +3,15 @@ import { asc, eq, isNotNull } from "drizzle-orm";
 import { judgeSenders } from "@/lib/classify/machine";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
+import { loadDigestSettings } from "@/lib/db/settings";
 import { ReauthRequiredError, getGmailLabelsAdapter, markReauthRequired } from "@/lib/gmail/client";
 import { getGmailDraftsAdapter } from "@/lib/gmail/drafts";
 import { isInvalidGrant, isRateLimitError } from "@/lib/gmail/errors";
 
+import { dueDay, enqueueDigest } from "./digest";
 import { syncDrafts } from "./drafts";
 import { getGmailSyncAdapter } from "./gmail";
-import { releaseStaleLocks } from "./queue";
+import { processJobs, releaseStaleLocks } from "./queue";
 import { syncAccount, type SyncResult } from "./run";
 
 export const SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -81,6 +83,16 @@ export async function syncAllAccounts(accountId?: string): Promise<AccountSyncOu
     await withLock("superfer:machine", () => judgeSenders(db));
   } catch (error) {
     console.error("machine judge pass failed", error);
+  }
+  // Once the set hour has passed, the day's digest. Deduped by day, so every runner may try.
+  try {
+    await withLock("superfer:digest", async () => {
+      const day = dueDay(new Date(), await loadDigestSettings(db));
+      if (day) await enqueueDigest(db, day);
+      await processJobs(null, { db, gmail: getGmailLabelsAdapter });
+    });
+  } catch (error) {
+    console.error("digest pass failed", error);
   }
   return outcomes;
 }
