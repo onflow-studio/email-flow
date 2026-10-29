@@ -12,8 +12,16 @@ import { cn } from "@/lib/utils";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+// Mail clients draw a bare blockquote as an indent at best, so the sent HTML carries its rule inline.
+const QUOTE_STYLE = "margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex";
 
-/** Headings, bold, italic, underline, links and inline images. Nothing else. */
+/** The body as sent: the editor's HTML without its trailing empty paragraph, quotes styled inline. */
+export function bodyHtml(editor: Editor | null) {
+  if (!editor || editor.isEmpty) return "";
+  return editor.getHTML().replace(/(<p><\/p>)+$/, "").replaceAll("<blockquote>", `<blockquote style="${QUOTE_STYLE}">`);
+}
+
+/** Headings, quotes, bold, italic, underline, links and inline images. Nothing else. */
 export function useComposeEditor({
   placeholder,
   onUpdate,
@@ -61,7 +69,6 @@ export function useComposeEditor({
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
         link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
-        blockquote: false,
         bulletList: false,
         orderedList: false,
         listItem: false,
@@ -150,6 +157,7 @@ export function useComposeEditor({
 const body = cn(
   "min-h-editor px-3 py-2 leading-prose text-text",
   "[&_h1]:text-20 [&_h1]:font-semibold [&_h2]:text-15 [&_h2]:font-semibold [&_h3]:text-13 [&_h3]:font-semibold",
+  "[&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-text-muted",
   "[&_strong]:font-bold [&_b]:font-bold [&_a]:text-text [&_a]:underline [&_img]:inline [&_img]:max-w-full [&_img]:rounded-sm",
   "[&_.is-editor-empty:first-child]:before:pointer-events-none [&_.is-editor-empty:first-child]:before:float-left [&_.is-editor-empty:first-child]:before:h-0 [&_.is-editor-empty:first-child]:before:text-text-dim [&_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]",
 );
@@ -179,6 +187,7 @@ export function ComposeToolbar({
       h1: e?.isActive("heading", { level: 1 }) ?? false,
       h2: e?.isActive("heading", { level: 2 }) ?? false,
       h3: e?.isActive("heading", { level: 3 }) ?? false,
+      quote: e?.isActive("blockquote") ?? false,
       bold: e?.isActive("bold") ?? false,
       italic: e?.isActive("italic") ?? false,
       underline: e?.isActive("underline") ?? false,
@@ -193,6 +202,7 @@ export function ComposeToolbar({
     { key: "h1", label: "h1", title: "heading 1  mod+alt+1", on: !!active?.h1, action: () => run((c) => c.toggleHeading({ level: 1 })) },
     { key: "h2", label: "h2", title: "heading 2  mod+alt+2", on: !!active?.h2, action: () => run((c) => c.toggleHeading({ level: 2 })) },
     { key: "h3", label: "h3", title: "heading 3  mod+alt+3", on: !!active?.h3, action: () => run((c) => c.toggleHeading({ level: 3 })) },
+    { key: "quote", label: "quote", title: "quote  mod+shift+b", on: !!active?.quote, action: () => run((c) => c.toggleBlockquote()) },
     { key: "b", label: "b", title: "bold  mod+b", on: !!active?.bold, action: () => run((c) => c.toggleBold()) },
     { key: "i", label: "i", title: "italic  mod+i", on: !!active?.italic, action: () => run((c) => c.toggleItalic()) },
     { key: "u", label: "u", title: "underline  mod+u", on: !!active?.underline, action: () => run((c) => c.toggleUnderline()) },
