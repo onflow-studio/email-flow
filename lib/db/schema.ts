@@ -152,6 +152,21 @@ export const projectLabels = pgTable(
   (t) => [primaryKey({ columns: [t.projectId, t.accountId] }), uniqueIndex().on(t.accountId, t.gmailLabelId)],
 );
 
+// A project the owner said a thread is not in: never suggested or sorted there again.
+export const projectDismissals = pgTable(
+  "project_dismissals",
+  {
+    projectId: uuid()
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    threadId: uuid()
+      .notNull()
+      .references((): AnyPgColumn => threads.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.threadId] })],
+);
+
 export const senders = pgTable(
   "senders",
   {
@@ -218,6 +233,10 @@ export const threads = pgTable(
     // The project the thread is in, which takes it out of its bucket's view. Null for none.
     projectId: uuid().references(() => projects.id, { onDelete: "set null" }),
     projectSource: bucketSource(),
+    // A project the app thinks it belongs to but is not sure of: the owner confirms or dismisses it.
+    projectSuggestedId: uuid().references(() => projects.id, { onDelete: "set null" }),
+    // When project sorting last read the thread; null to read it on the next pass. See lib/classify/projects.ts.
+    projectCheckedAt: timestamp({ withTimezone: true }),
     seenAt: timestamp({ withTimezone: true }),
     snoozedUntil: timestamp({ withTimezone: true }),
     needsReply: boolean().notNull().default(false),
@@ -249,6 +268,8 @@ export const threads = pgTable(
     index().on(t.groupId),
     index().on(t.bucket, t.lastMessageAt),
     index().on(t.projectId, t.lastMessageAt),
+    index().on(t.projectSuggestedId),
+    index().on(t.accountId, t.projectCheckedAt),
     index().on(t.accountId, t.lastMessageAt),
     index().on(t.senderId),
     index().on(t.snoozedUntil),
