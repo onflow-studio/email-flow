@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { staleCutoffs, staleReason, type StaleThread } from "./stale";
+import { digestSection, staleCutoffs, staleReason, type StaleThread } from "./stale";
 
 const DAY = 86_400_000;
 const now = new Date("2026-10-23T12:00:00Z");
@@ -41,5 +41,26 @@ describe("staleReason", () => {
     expect(reason(all)?.kind).toBe("work");
     expect(reason({ ...all, workAt: null })?.kind).toBe("reply");
     expect(reason({ ...all, workAt: null, needsReply: false })?.kind).toBe("triage");
+  });
+});
+
+describe("digestSection", () => {
+  const section = (changes: Partial<StaleThread>) => digestSection({ ...thread, ...changes }, cutoffs, now);
+
+  it("puts a deadline due within a day, or overdue, under deadlines before any stale reason", () => {
+    expect(section({ deadlineAt: new Date(now.getTime() + DAY) })).toBe("deadline");
+    expect(section({ deadlineAt: before(2), workAt: before(9) })).toBe("deadline");
+    expect(section({ deadlineAt: new Date(now.getTime() + DAY + 1) })).toBeNull();
+  });
+
+  it("otherwise follows the stale reason", () => {
+    expect(section({ workAt: before(9), deadlineAt: new Date(now.getTime() + 3 * DAY) })).toBe("work");
+    expect(section({ needsReply: true, lastMessageAt: before(4) })).toBe("reply");
+    expect(section({ bucket: "triage", createdAt: before(4) })).toBe("triage");
+    expect(section({})).toBeNull();
+  });
+
+  it("leaves out an active snooze, deadline or not", () => {
+    expect(section({ deadlineAt: before(1), snoozedUntil: new Date(now.getTime() + 1) })).toBeNull();
   });
 });
