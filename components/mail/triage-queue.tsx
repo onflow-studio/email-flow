@@ -64,7 +64,7 @@ export function TriageQueue({ threads, accountColors }: { threads: ThreadListIte
                 <span aria-hidden className="flex shrink-0 gap-1">
                   {thread.accountIds.map((id) => <AccountSquare key={id} color={accountColors[id]} />)}
                 </span>
-                <span className={cn("min-w-0 truncate", thread.unseen ? "font-medium text-text" : "text-text-muted")}>{thread.sender}</span>
+                <span className={cn("min-w-0 truncate", thread.unseen ? "font-semibold text-text" : "text-text-muted")}>{thread.sender}</span>
               </span>
               <span className="truncate pl-4 text-11 text-text-muted">{thread.subject}</span>
             </Link>
