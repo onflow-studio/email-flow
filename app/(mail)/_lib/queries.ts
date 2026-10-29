@@ -440,7 +440,7 @@ export async function getThread(id: string) {
 }
 
 /** A sender's standing: the accounts it writes to, its threads (twins once), last mail and screener choice. */
-async function senderCard(senderId: string) {
+export async function senderCard(senderId: string) {
   const [[sender], reached, [threadCount]] = await Promise.all([
     db
       .select({

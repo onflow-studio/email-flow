@@ -29,7 +29,7 @@ export function Header({ className }: { className?: string }) {
       <div className="flex min-w-0 flex-1 justify-end md:hidden">
         <button
           type="button"
-          onClick={openPalette}
+          onClick={() => openPalette()}
           className="flex h-touch items-center px-2 text-text-muted transition-colors duration-80 ease-snap hover:text-text md:hidden"
         >
           search
