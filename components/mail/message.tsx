@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 import { EmailFrame } from "./email-frame";
 import { QuoteFold } from "./quote-fold";
-import { Time } from "./time";
+import { fullTime, Time } from "./time";
 
 export type MessageItem = ThreadDetail["messages"][number];
 
@@ -29,7 +29,7 @@ export function MessageContent({ message: m, quoteLabel = null }: { message: Mes
           {m.fromName || !m.isInbound ? (
             <span className="hidden min-w-0 shrink-2 truncate text-12 text-text-muted md:inline">{m.fromEmail}</span>
           ) : null}
-          <CopyBody text={m.text ?? ""} />
+          <CopyButton text={() => ownText(m)} label="copy text" className="md:group-hover/header:opacity-100" />
           <Time iso={m.date} format="full" className="shrink-0 text-12 text-text-muted" />
         </div>
         <span className="truncate text-11 text-text-muted">
@@ -69,8 +69,26 @@ export function MessageContent({ message: m, quoteLabel = null }: { message: Mes
   );
 }
 
-/** Copies the message's own text, without the quoted history. Shown on hover of the header line. */
-function CopyBody({ text }: { text: string }) {
+/** A message's own text, without the quoted history. */
+function ownText(m: MessageItem) {
+  return splitTextQuote(m.text ?? "").body.trim();
+}
+
+/** The whole thread as plain text, oldest first: the subject, then each message's header line, recipients and own text. */
+export function threadText(subject: string, messages: MessageItem[]) {
+  const parts = messages.map((m) => {
+    const from = m.isInbound ? (m.fromName ? `${m.fromName} <${m.fromEmail}>` : m.fromEmail) : `me <${m.fromEmail}>`;
+    const to = `to ${formatAddresses(m.to)}${m.cc.length ? `, cc ${formatAddresses(m.cc)}` : ""}`;
+    return `${from}, ${fullTime(m.date)}\n${to}\n\n${ownText(m) || (m.snippet ?? "")}`;
+  });
+  return [subject, ...parts].join("\n\n---\n\n");
+}
+
+/**
+ * Copies `text()` to the clipboard, with a check for 1.5s after. Hidden on desktop until its
+ * `className` reveals it (a `group-hover` on what it belongs to) or it has keyboard focus.
+ */
+export function CopyButton({ text, label, className }: { text: () => string; label: string; className?: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
     if (state === "idle") return;
@@ -79,7 +97,7 @@ function CopyBody({ text }: { text: string }) {
   }, [state]);
 
   const copy = () => {
-    navigator.clipboard.writeText(splitTextQuote(text).body.trim()).then(
+    navigator.clipboard.writeText(text()).then(
       () => setState("copied"),
       () => setState("failed"),
     );
@@ -90,11 +108,12 @@ function CopyBody({ text }: { text: string }) {
     <button
       type="button"
       onClick={copy}
-      title={state === "failed" ? "copy failed" : state === "copied" ? "copied" : "copy text"}
-      aria-label="copy text"
+      title={state === "failed" ? "copy failed" : state === "copied" ? "copied" : label}
+      aria-label={label}
       className={cn(
-        "ml-auto flex size-4 shrink-0 items-center justify-center self-center rounded-sm outline-none transition-[color,opacity] duration-80 ease-snap focus-visible:text-accent focus-visible:opacity-100 hover:text-text md:group-hover/header:opacity-100",
+        "ml-auto flex size-4 shrink-0 items-center justify-center self-center rounded-sm outline-none transition-[color,opacity] duration-80 ease-snap focus-visible:text-accent focus-visible:opacity-100 hover:text-text",
         state === "idle" ? "text-text-muted md:opacity-0" : state === "copied" ? "text-success" : "text-danger",
+        className,
       )}
     >
       <Icon aria-hidden className="size-3" strokeWidth={1.5} />
