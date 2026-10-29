@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, Minus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 import { UNDO_MS, useUndo } from "../actions/undo";
 import { useKeys, useShortcut } from "../keys/keymap";
-import { ComposeBody, ComposeToolbar, useComposeEditor } from "./editor";
+import { bodyHtml, ComposeBody, ComposeToolbar, useComposeEditor } from "./editor";
 import { readLastAccount, rememberAccount } from "./last-account";
 import { RecipientInput } from "./recipient-input";
 
@@ -24,7 +24,7 @@ type Session = { key: number; mode: ComposeMode; threadId: string | null; accoun
 const AUTOSAVE_MS = 1500;
 
 type ComposeContextValue = {
-  /** Opens compose. Ignored while an edited draft is open, so it is never lost. */
+  /** Opens compose. While an edited draft is open it only brings that one back, so it is never lost. */
   open: (mode: ComposeMode, threadId?: string | null, accountHint?: string | null) => void;
   /** Resumes a saved draft. Same rule as `open`. */
   openDraft: (draftId: string) => void;
@@ -43,11 +43,14 @@ export function useCompose() {
 
 export function ComposeProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  // Minimized: compose shrinks to a bar and the app's keys work again; the draft keeps saving.
+  const [minimized, setMinimized] = useState(false);
   const { notify } = useUndo();
   const dirty = useRef(false);
 
   const open = useCallback(
     (mode: ComposeMode, threadId: string | null = null, accountHint: string | null = null) => {
+      setMinimized(false);
       if (session && (dirty.current || (session.mode === mode && session.threadId === threadId))) return;
       dirty.current = false;
       setSession({ key: Date.now(), mode, threadId, accountHint, draftId: null });
@@ -57,6 +60,7 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
 
   const openDraft = useCallback(
     (draftId: string) => {
+      setMinimized(false);
       if (session && (dirty.current || session.draftId === draftId)) return;
       dirty.current = false;
       setSession({ key: Date.now(), mode: "new", threadId: null, accountHint: null, draftId });
@@ -66,6 +70,7 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
 
   const close = useCallback(() => {
     dirty.current = false;
+    setMinimized(false);
     setSession(null);
   }, []);
 
@@ -120,7 +125,16 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
     <ComposeContext.Provider value={value}>
       {children}
       {session ? (
-        <ComposePanel key={session.key} session={session} dirtyRef={dirty} onClose={close} onSent={sent} onNotice={notify} />
+        <ComposePanel
+          key={session.key}
+          session={session}
+          dirtyRef={dirty}
+          minimized={minimized}
+          setMinimized={setMinimized}
+          onClose={close}
+          onSent={sent}
+          onNotice={notify}
+        />
       ) : null}
     </ComposeContext.Provider>
   );
@@ -178,12 +192,16 @@ function cancelUpload(job: UploadJob) {
 function ComposePanel({
   session,
   dirtyRef,
+  minimized,
+  setMinimized,
   onClose,
   onSent,
   onNotice,
 }: {
   session: Session;
   dirtyRef: React.RefObject<boolean>;
+  minimized: boolean;
+  setMinimized: (minimized: boolean) => void;
   onClose: () => void;
   /** `workThreadId`: the reply went to a Work thread, which the toast can then finish. */
   onSent: (notice: string, workThreadId: string | null) => void;
@@ -286,8 +304,7 @@ function ComposePanel({
         cc,
         bcc,
         subject,
-        // Drop the empty paragraph the editor keeps at the end.
-        html: !editor || editor.isEmpty ? "" : editor.getHTML().replace(/(<p><\/p>)+$/, ""),
+        html: bodyHtml(editor),
         attachmentIds: init!.attachments.filter((a) => !dropped.has(a.id)).map((a) => a.id),
         draftId: draftIdRef.current,
       }),
@@ -431,15 +448,31 @@ function ComposePanel({
     close();
   };
 
+  const minimize = () => {
+    setLinkOpen(false);
+    setMinimized(true);
+  };
+  const restore = () => setMinimized(false);
+  // Back from the bar, by a click or by compose being asked for again: the body takes the keys.
+  const wasMinimized = useRef(minimized);
+  useEffect(() => {
+    if (wasMinimized.current && !minimized) editor?.commands.focus();
+    wasMinimized.current = minimized;
+  }, [minimized, editor]);
+
   const sendKey = useShortcut("compose.send");
+  const minimizeKey = useShortcut("compose.minimize");
+  const open = () => !minimized;
   useKeys(
     [
-      { id: "compose.send", allowInInput: true, run: send },
-      { id: "compose.close", allowInInput: true, run: escape },
-      { id: "compose.link", allowInInput: true, run: () => setLinkOpen((o) => !o) },
-      { id: "compose.attach", allowInInput: true, run: () => attachInput.current?.click() },
+      { id: "compose.send", allowInInput: true, when: open, run: send },
+      { id: "compose.close", allowInInput: true, when: open, run: escape },
+      { id: "compose.link", allowInInput: true, when: open, run: () => setLinkOpen((o) => !o) },
+      { id: "compose.attach", allowInInput: true, when: open, run: () => attachInput.current?.click() },
+      { id: "compose.minimize", allowInInput: true, run: () => (minimized ? restore() : minimize()) },
     ],
-    { exclusive: true },
+    // Minimized, the app's own keys work again. Open, only the palette reaches past compose.
+    { exclusive: !minimized, except: ["palette"] },
   );
 
   const modeLabel = MODE_LABELS[session.mode];
@@ -454,7 +487,10 @@ function ComposePanel({
     <div
       role="dialog"
       aria-label={`${modeLabel} message`}
-      className="fixed inset-0 z-40 flex flex-col bg-surface-top md:inset-auto md:right-4 md:bottom-status md:max-h-compose-h md:w-compose md:rounded-md md:border md:border-border"
+      className={cn(
+        "fixed z-40 flex flex-col bg-surface-top md:inset-auto md:right-4 md:w-compose md:rounded-md md:border md:border-border",
+        minimized ? "inset-x-0 bottom-compose-min border-y border-border md:bottom-compose-min" : "inset-0 md:bottom-status md:max-h-compose-h",
+      )}
       // Files dropped anywhere on compose are attached. The body takes images itself, inline, and
       // marks the drop handled.
       onDragEnter={(e) => {
@@ -486,6 +522,33 @@ function ComposePanel({
           <span className="rounded-sm bg-surface-raised px-2 py-1 text-11 text-text">drop to attach</span>
         </div>
       ) : null}
+      {minimized ? (
+        // The bar: a click anywhere but close brings compose back.
+        <div className="flex h-touch shrink-0 items-center gap-3 px-3 md:h-row">
+          <button
+            type="button"
+            onClick={restore}
+            title={minimizeKey ? `open  ${minimizeKey}` : "open"}
+            className="flex h-full min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:text-accent"
+          >
+            <span className="shrink-0 font-medium">{modeLabel}</span>
+            {account ? <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: account.color }} /> : null}
+            <span className={cn("min-w-0 flex-1 truncate", subject ? "text-text-muted" : "text-text-dim")}>{subject || "no subject"}</span>
+          </button>
+          <span role="status" className="shrink-0 text-11">
+            {footerNote}
+          </span>
+          <button
+            type="button"
+            onClick={close}
+            aria-label="close"
+            title="close, the draft is kept"
+            className="-mr-1 flex size-touch shrink-0 items-center justify-center text-text-muted transition-colors duration-80 ease-snap hover:text-text focus-visible:text-accent md:size-6"
+          >
+            <X aria-hidden className="size-3" strokeWidth={1.5} />
+          </button>
+        </div>
+      ) : (
       <header className="flex h-touch shrink-0 items-center gap-3 border-b border-border px-3 md:h-row">
         <button
           type="button"
@@ -503,15 +566,25 @@ function ComposePanel({
           </span>
         ) : null}
         <KeyHints className="ml-auto text-11 text-text-dim" hints={[["escape", "close"]]} />
-        <Button variant="primary" onClick={send} disabled={!init || sending} className="ml-auto md:hidden">
+        <button
+          type="button"
+          onClick={minimize}
+          aria-label="minimize"
+          title={minimizeKey ? `minimize  ${minimizeKey}` : "minimize"}
+          className="flex size-touch shrink-0 items-center justify-center text-text-muted transition-colors duration-80 ease-snap hover:text-text focus-visible:text-accent max-md:ml-auto md:-mr-1 md:size-6"
+        >
+          <Minus aria-hidden className="size-3" strokeWidth={1.5} />
+        </button>
+        <Button variant="primary" onClick={send} disabled={!init || sending} className="md:hidden">
           {sending ? "sending" : "send"}
         </Button>
       </header>
+      )}
 
       {loadError ? (
-        <p className="p-3 text-danger">{loadError}</p>
+        <p className={cn("p-3 text-danger", minimized && "hidden")}>{loadError}</p>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", minimized && "hidden")}>
           {!threadMode && init ? (
             <div role="radiogroup" aria-label="from" className={field}>
               <span className={fieldLabel}>from</span>
@@ -681,7 +754,7 @@ function ComposePanel({
         </div>
       )}
 
-      <footer className="box-content flex h-touch shrink-0 items-center gap-2 border-t border-border px-3 pb-safe md:h-row md:pb-0">
+      <footer className={cn("box-content flex h-touch shrink-0 items-center gap-2 border-t border-border px-3 pb-safe md:h-row md:pb-0", minimized && "hidden")}>
         <Button variant="primary" shortcut={sendKey} onClick={send} disabled={!init || sending} className="hidden md:inline-flex">
           {sending ? "sending" : "send"}
         </Button>
