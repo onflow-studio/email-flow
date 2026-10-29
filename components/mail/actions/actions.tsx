@@ -9,10 +9,11 @@ import type { ActionResult, MovableBucket, SenderAction, ThreadAction } from "@/
 
 import { useCompose } from "../compose/compose";
 import { useKeys, type KeyBinding } from "../keys/keymap";
+import { projectName } from "../projects-context";
 import { useMailSelection } from "../selection";
 import { markLeaving } from "../thread-list";
 import { fullTime } from "../time";
-import { findView, mailHref, type ViewSlug } from "../views";
+import { findView, isProjectSlug, mailHref, type ViewSlug } from "../views";
 import { DeadlinePicker, SnoozePicker } from "./snooze-picker";
 import { useUndo } from "./undo";
 
@@ -27,6 +28,7 @@ export type ActionTarget = {
   needsReply: boolean;
   deadlineAt: string | null;
   staleReason: "work" | "reply" | "triage" | null;
+  projectId: string | null;
 };
 
 type ThreadActions = {
@@ -86,6 +88,8 @@ export function describeAction(action: ThreadAction | SenderAction, count: numbe
       return `${n}marked unread`;
     case "move":
       return `${n}${kept ? "kept in" : "moved to"} ${BUCKET_NAMES[action.bucket]}`;
+    case "project":
+      return action.projectId ? `${n}moved to ${projectName(action.projectId)}` : `${n}out of the project`;
     case "snooze":
       return `${n}snoozed until ${fullTime(action.until)}${action.needsReply ? ", needs reply" : ""}`;
     case "unsnooze":
@@ -130,6 +134,13 @@ const STAYS_STARRED = new Set<string>(["star", "read", "unread", "flag", "unsnoo
 /** Whether the action takes the thread out of the current view. */
 function leavesView(action: ThreadAction | SenderAction, view: ViewSlug, target?: ActionTarget) {
   const bucket = findView(view)?.bucket;
+  // A project holds its archived history too; anything else that empties a bucket view empties it.
+  if (isProjectSlug(view)) {
+    if (action.type === "project") return action.projectId !== target?.projectId || action.projectId === null;
+    if (["archive", "unarchive", "done", "restore"].includes(action.type)) return false;
+    if (action.type === "move") return true;
+    return leavesView(action, "inbox", target);
+  }
   // Sent keeps every thread written in, wherever it went, until it is deleted or marked spam.
   if (view === "sent") return action.type === "trash" || action.type === "spam";
   // Whatever sends a starred thread somewhere takes it out of Starred; marks and screener moves leave it be.
@@ -164,6 +175,8 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug, target?
       return true;
     case "move":
       return !!bucket && bucket !== action.bucket;
+    case "project":
+      return !!bucket && !!action.projectId;
     // Screener moves change the bucket only; work and snoozed cut across buckets.
     case "letIn":
       return bucket === "triage";

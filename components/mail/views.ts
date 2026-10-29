@@ -2,21 +2,29 @@ import type { Bucket } from "@/lib/db/schema";
 
 import type { CommandId } from "./keys/commands";
 
-export type ViewSlug = "inbox" | "news" | "paper-trail" | "receipts" | "triage" | "work" | "starred" | "snoozed" | "digest" | "sent" | "drafts" | "trash";
+type FixedSlug = "inbox" | "news" | "paper-trail" | "receipts" | "triage" | "work" | "starred" | "snoozed" | "digest" | "sent" | "drafts" | "trash";
+/** A project's view lives under /p/<slug>. */
+export type ProjectSlug = `p/${string}`;
+export type ViewSlug = FixedSlug | ProjectSlug;
+
+/** What the mail views know of a project. */
+export type ProjectRef = { id: string; name: string; slug: string };
 
 export type View = {
   slug: ViewSlug;
   label: string;
   /** Set for bucket views; work, starred, snoozed, digest, sent and trash cut across buckets. Drafts lists drafts, not threads. */
   bucket?: Bucket;
-  /** The go-to command; its keys live in the command registry. */
-  command: CommandId;
-  /** Rail group: act on now, later, or the dim bottom of the rail. */
-  group: "act" | "later" | "bottom";
+  /** Set for a project's view: a bucket the owner named. */
+  project?: ProjectRef;
+  /** The go-to command; its keys live in the command registry. Projects have none. */
+  command?: CommandId;
+  /** Rail group: act on now, the owner's projects, later, or the dim bottom of the rail. */
+  group: "act" | "projects" | "later" | "bottom";
 };
 
-/** In rail order. */
-export const VIEWS: View[] = [
+/** In rail order, projects aside. */
+export const VIEWS: (View & { command: CommandId })[] = [
   { slug: "triage", command: "go.triage", label: "triage", bucket: "triage", group: "act" },
   { slug: "inbox", command: "go.inbox", label: "inbox", bucket: "inbox", group: "act" },
   { slug: "work", command: "go.work", label: "work", group: "act" },
@@ -31,9 +39,15 @@ export const VIEWS: View[] = [
   { slug: "trash", command: "go.trash", label: "trash", group: "bottom" },
 ];
 
-export function findView(slug: string): View | undefined {
-  return VIEWS.find((v) => v.slug === slug);
+export function projectView(p: ProjectRef): View {
+  return { slug: `p/${p.slug}`, label: p.name, project: p, group: "projects" };
 }
+
+export function findView(slug: string, projects: ProjectRef[] = []): View | undefined {
+  return VIEWS.find((v) => v.slug === slug) ?? projects.map(projectView).find((v) => v.slug === slug);
+}
+
+export const isProjectSlug = (slug: ViewSlug): slug is ProjectSlug => slug.startsWith("p/");
 
 export function mailHref(view: ViewSlug, opts: { threadId?: string | null } = {}) {
   return opts.threadId ? `/${view}/${opts.threadId}` : `/${view}`;

@@ -11,6 +11,8 @@ const state = (over: Partial<ThreadState> = {}): ThreadState => ({
   bucketSource: "ai",
   bucketConfidence: 0.9,
   bucketSuggested: false,
+  projectId: null,
+  projectSource: null,
   seenAt: new Date("2026-09-23T02:00:00Z"),
   snoozedUntil: null,
   needsReply: false,

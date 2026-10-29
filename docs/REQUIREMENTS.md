@@ -89,7 +89,7 @@ AI-gated:
 
 ## Keyboard
 
-Full keyboard triage in phase 1: navigate, archive, reply, snooze, move to bucket, open cmd+k. No user-defined split inboxes (redundant with AI buckets).
+Full keyboard triage in phase 1: navigate, archive, reply, snooze, move to bucket, open cmd+k. No user-defined split inboxes (redundant with AI buckets). Revised 2026-10-29: the owner names projects, buckets of their own mirrored to Gmail labels; see TECH-PLAN.
 
 Every shortcut has a default and can be rebound in settings (keyboard): single keys, modifiers, two-key sequences, or unbound. A few structural keys are fixed (esc, enter, arrows, mod+enter in compose, mod+z). Two actions never share a key in the same scope.
 

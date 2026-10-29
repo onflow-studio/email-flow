@@ -13,6 +13,8 @@ export type ThreadAction =
   | { type: "read" }
   | { type: "unread" }
   | { type: "move"; bucket: MovableBucket }
+  /** Into a project, or out of every project (null) back to its bucket. */
+  | { type: "project"; projectId: string | null }
   | { type: "snooze"; until: string; needsReply?: boolean; deadline?: string | null }
   | { type: "unsnooze" }
   | { type: "work" }
@@ -43,6 +45,8 @@ export const STATE_COLUMNS = [
   "bucketSource",
   "bucketConfidence",
   "bucketSuggested",
+  "projectId",
+  "projectSource",
   "seenAt",
   "snoozedUntil",
   "needsReply",
@@ -58,7 +62,7 @@ export const STATE_COLUMNS = [
 export type ThreadState = Pick<Thread, (typeof STATE_COLUMNS)[number]>;
 
 /** Columns mirrored to Gmail; a change to any of them enqueues writeback. */
-export const MIRRORED_COLUMNS = new Set<keyof ThreadState>(["bucket", "archived", "seenAt", "trashed", "spam", "starredAt"]);
+export const MIRRORED_COLUMNS = new Set<keyof ThreadState>(["bucket", "projectId", "archived", "seenAt", "trashed", "spam", "starredAt"]);
 
 export type ActionResult = {
   /** Undo token. Null when nothing changed. */

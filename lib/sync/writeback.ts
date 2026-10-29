@@ -4,6 +4,7 @@ import type { Db } from "@/lib/db";
 import { threads, type Bucket, type Job } from "@/lib/db/schema";
 
 import type { JobContext } from "./jobs";
+import { projectLabelState } from "./projects";
 
 // The slice of the Gmail client writeback needs. lib/gmail adapts to it; tests mock it.
 export interface GmailLabelsPort {
@@ -89,6 +90,11 @@ export async function writeBucket(
   }
 }
 
+/** The project labels on the account: the thread's own, null outside a project, and all of them. */
+export type ProjectLabels = { own: string | null; all: string[] };
+
+const NO_PROJECTS: ProjectLabels = { own: null, all: [] };
+
 export type MirroredState = {
   bucket: Bucket;
   archived: boolean;
@@ -98,10 +104,14 @@ export type MirroredState = {
   starred: boolean;
 };
 
-// Full mirrored state in one modify: bucket label, inbox, read, trash, spam, star.
-// A starred thread is out of our Inbox, so it leaves Gmail's too.
-export function mirrorChange(state: MirroredState, ids: LabelIds) {
-  const { addLabelIds, removeLabelIds } = labelChange(state.bucket, state.archived, ids);
+// Full mirrored state in one modify: bucket or project label, inbox, read, trash, spam, star.
+// A starred thread is out of our Inbox, so it leaves Gmail's too. A project thread carries its
+// project's label in place of a bucket label, out of the inbox; every other project label goes.
+export function mirrorChange(state: MirroredState, ids: LabelIds, project: ProjectLabels = NO_PROJECTS) {
+  const { addLabelIds, removeLabelIds } = project.own
+    ? { addLabelIds: [project.own], removeLabelIds: [...Object.values(ids), INBOX_LABEL] }
+    : labelChange(state.bucket, state.archived, ids);
+  for (const id of project.all) if (id !== project.own) removeLabelIds.push(id);
   const flag = (label: string, on: boolean) => (on ? addLabelIds : removeLabelIds).push(label);
   if (state.trashed || state.spam || state.starred) {
     const i = addLabelIds.indexOf(INBOX_LABEL);
@@ -118,10 +128,11 @@ export function mirrorChange(state: MirroredState, ids: LabelIds) {
 export async function writeThread(
   thread: MirroredState & { accountId: string; gmailThreadId: string },
   gmail: GmailLabelsPort,
+  project: ProjectLabels = NO_PROJECTS,
 ) {
   const ids = await ensureLabels(thread.accountId, gmail);
   try {
-    await gmail.modifyThread(thread.gmailThreadId, mirrorChange(thread, ids));
+    await gmail.modifyThread(thread.gmailThreadId, mirrorChange(thread, ids, project));
   } catch (error) {
     clearLabelCache(thread.accountId);
     throw error;
@@ -139,6 +150,7 @@ async function loadThread(db: Db, threadId: string) {
       trashed: threads.trashed,
       spam: threads.spam,
       starredAt: threads.starredAt,
+      projectId: threads.projectId,
     })
     .from(threads)
     .where(eq(threads.id, threadId));
@@ -151,5 +163,7 @@ export async function writebackJob(job: Job, ctx: JobContext) {
   if (!threadId) throw new Error("writeback job without threadId");
   const thread = await loadThread(ctx.db, threadId);
   if (!thread) return;
-  await writeThread({ ...thread, seen: thread.seenAt !== null, starred: thread.starredAt !== null }, await ctx.gmail(thread.accountId));
+  const gmail = await ctx.gmail(thread.accountId);
+  const project = await projectLabelState(ctx.db, thread.accountId, thread.projectId, gmail);
+  await writeThread({ ...thread, seen: thread.seenAt !== null, starred: thread.starredAt !== null }, gmail, project);
 }

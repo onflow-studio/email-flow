@@ -14,7 +14,7 @@ import { Glider } from "./glider";
 import { useListScroll, useMailSelection } from "./selection";
 import { fullTime, Time } from "./time";
 import { UnreadDot } from "./unread-dot";
-import { mailHref } from "./views";
+import { isProjectSlug, mailHref } from "./views";
 
 // Thread ids each view has shown this session, so a thread that turns up later can glow as new.
 // Undone threads coming back are not new, so ids are only ever added.
@@ -141,6 +141,8 @@ export function ThreadList({
   const digest = sel.view === "digest";
   const sectionAt = (i: number) => (digest && grouped && blocks[i] ? blocks[i].threads[0].digestSection : null);
   const sectionSize = (s: DigestSection) => threads.filter((t) => t.digestSection === s).length;
+  // A project lists its archived history under its live threads.
+  const firstArchived = isProjectSlug(sel.view) && grouped ? blocks.findIndex((b) => b.threads[0].archived) : -1;
 
   const row = (t: ThreadListItem, nested = false) => (
     // A hairline under every thread, so each one reads as its own box where it starts and ends.
@@ -191,6 +193,7 @@ export function ThreadList({
             {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
             {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
             {whenAt(i) && whenAt(i) !== whenAt(i - 1) ? <GroupLabel>{whenAt(i)}</GroupLabel> : null}
+            {i === firstArchived ? <GroupLabel>archived</GroupLabel> : null}
             {sectionAt(i) && sectionAt(i) !== sectionAt(i - 1) ? (
               <GroupLabel>
                 {SECTION_LABELS[sectionAt(i)!]} · {sectionSize(sectionAt(i)!)}
