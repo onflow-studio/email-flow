@@ -69,6 +69,8 @@ export const COMMANDS = [
   { id: "move.news", label: "move to news", group: "triage", scope: "mail", keys: [] },
   { id: "move.paper_trail", label: "move to paper trail", group: "triage", scope: "mail", keys: [] },
   { id: "move.receipts", label: "move to receipts", group: "triage", scope: "mail", keys: [] },
+  { id: "project.yes", label: "into the suggested project", group: "triage", scope: "mail", keys: ["y"] },
+  { id: "project.no", label: "not the suggested project", group: "triage", scope: "mail", keys: ["n"] },
 
   { id: "compose", label: "compose", group: "write", scope: "mail", keys: ["c"] },
   { id: "reply", label: "reply", group: "write", scope: "mail", keys: ["r"] },

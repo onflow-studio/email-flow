@@ -12,7 +12,8 @@ import {
 import { db } from "@/lib/db";
 import { searchThreadIds, searchThreads, type SearchHit } from "@/lib/search";
 
-import { BULK_ACTIONS, BULK_KEEP_OUT, BULK_SNOOZE } from "./_lib/bulk";
+import { BULK_KEEP_OUT, BULK_SNOOZE, bulkActions } from "./_lib/bulk";
+import { listProjects } from "./_lib/queries";
 import { scope } from "./_lib/scope";
 
 const MAX_QUERY = 500;
@@ -22,8 +23,8 @@ function query(input: unknown): string {
   return input.slice(0, MAX_QUERY);
 }
 
-function bulkAction(key: unknown): ThreadAction {
-  const found = BULK_ACTIONS.find((a) => a.key === key);
+async function bulkAction(key: unknown): Promise<ThreadAction> {
+  const found = bulkActions(await listProjects()).find((a) => a.key === key);
   if (!found) throw new Error("invalid action");
   return found.action;
 }
@@ -50,7 +51,8 @@ export type PaletteSearch = {
 export async function paletteSearch(input: string, { semantic = false }: { semantic?: boolean } = {}): Promise<PaletteSearch> {
   const q = query(input);
   const s = await scope();
-  const [result, ids] = await Promise.all([searchThreads(db, q, s, 50, { semantic }), searchThreadIds(db, q, s)]);
+  const [result, ids, projects] = await Promise.all([searchThreads(db, q, s, 50, { semantic }), searchThreadIds(db, q, s), listProjects()]);
+  const BULK_ACTIONS = bulkActions(projects);
   const snooze: ThreadAction = { type: "snooze", until: new Date(Date.now() + SAMPLE_SNOOZE_MS).toISOString() };
   const [counts, keepOut] = await Promise.all([
     countThreadActions(db, ids, [...BULK_ACTIONS.map((a) => a.action), snooze]),
@@ -70,7 +72,7 @@ export async function paletteSearch(input: string, { semantic = false }: { seman
 
 /** The threads a bulk action on the query's results would change. Execute with runThreadAction. */
 export async function previewSearchAction(input: string, key: string): Promise<ActionPreview> {
-  return previewThreadAction(db, await searchThreadIds(db, query(input), await scope()), bulkAction(key));
+  return previewThreadAction(db, await searchThreadIds(db, query(input), await scope()), await bulkAction(key));
 }
 
 /** The threads snoozing the query's results would change. Execute with runThreadAction. */

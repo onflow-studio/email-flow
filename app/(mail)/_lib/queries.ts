@@ -46,9 +46,18 @@ function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefin
   // A snoozed Work thread hides until its snooze ends, then comes back here.
   if (view.slug === "work") return and(live(), unstarred(), isNotNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
   // A project is a bucket of its own: its live threads as a bucket view holds them, then its archived history.
+  // The live threads it suggests sit on top, to check, while they stay in their own view too.
   if (view.project) {
     const open = and(eq(threads.archived, false), isNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
-    return and(eq(threads.trashed, false), eq(threads.spam, false), unstarred(), eq(threads.projectId, view.project.id), or(open, eq(threads.archived, true)));
+    return and(
+      eq(threads.trashed, false),
+      eq(threads.spam, false),
+      unstarred(),
+      or(
+        and(eq(threads.projectId, view.project.id), or(open, eq(threads.archived, true))),
+        and(isNull(threads.projectId), eq(threads.projectSuggestedId, view.project.id), open),
+      ),
+    );
   }
   // Work and project threads leave every bucket view.
   const inBucket = and(eq(threads.bucket, view.bucket!), isNull(threads.snoozedUntil), isNull(threads.workAt), isNull(threads.projectId));
@@ -160,6 +169,7 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
       senderId: threads.senderId,
       bucket: threads.bucket,
       projectId: threads.projectId,
+      projectSuggestedId: threads.projectSuggestedId,
       archived: threads.archived,
       createdAt: threads.createdAt,
       subject: threads.subject,
@@ -207,6 +217,7 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
           ? [desc(lastSentAt())]
           : view.project
           ? [
+            asc(sql`${threads.projectId} is not null`),
             asc(threads.archived),
             desc(sql`coalesce(${resurfaced()}, false)`),
             desc(sql`coalesce(${unseen()}, false)`),
@@ -266,6 +277,7 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
     senderId: r.senderId,
     bucket: r.bucket,
     projectId: r.projectId,
+    projectSuggestedId: r.projectId ? null : r.projectSuggestedId,
     archived: r.archived,
     subject: r.subject || "(no subject)",
     // Sent names who it went to.
@@ -407,6 +419,8 @@ export async function getThread(id: string) {
     bucketConfidence: thread.bucketConfidence,
     // The project it sits in, which is its view while live.
     project: thread.project ? { id: thread.project.id, name: thread.project.name, slug: thread.project.slug } : null,
+    // A project the app asks about: confirm or dismiss.
+    projectSuggestedId: thread.project ? null : thread.projectSuggestedId,
     senderId: thread.senderId,
     // Who let in and keep out decide on, in thread order.
     judged: judgedSenders(ids, states, thread.senderId).map((id) => {
