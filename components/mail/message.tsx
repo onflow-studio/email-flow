@@ -10,6 +10,7 @@ import { attachmentUrl, opensInline } from "@/lib/mail/remote";
 import { cn } from "@/lib/utils";
 
 import { EmailFrame } from "./email-frame";
+import { AddressList, PersonName } from "./person-card";
 import { QuoteFold } from "./quote-fold";
 import { fullTime, Time } from "./time";
 
@@ -25,7 +26,11 @@ export function MessageContent({ message: m, quoteLabel = null }: { message: Mes
     <div className="flex flex-col gap-3">
       <div className="flex min-w-0 flex-col">
         <div className="group/header flex min-w-0 items-baseline gap-2">
-          <span className="min-w-0 truncate font-medium text-text">{displayName(m)}</span>
+          {m.isInbound ? (
+            <PersonName address={{ name: m.fromName ?? "", email: m.fromEmail }} className="font-medium text-text" />
+          ) : (
+            <span className="min-w-0 truncate font-medium text-text">{displayName(m)}</span>
+          )}
           {m.fromName || !m.isInbound ? (
             <span className="hidden min-w-0 shrink-2 truncate text-12 text-text-muted md:inline">{m.fromEmail}</span>
           ) : null}
@@ -33,8 +38,12 @@ export function MessageContent({ message: m, quoteLabel = null }: { message: Mes
           <Time iso={m.date} format="full" className="shrink-0 text-12 text-text-muted" />
         </div>
         <span className="truncate text-11 text-text-muted">
-          to {formatAddresses(m.to)}
-          {m.cc.length ? `, cc ${formatAddresses(m.cc)}` : ""}
+          to <AddressList list={m.to} />
+          {m.cc.length ? (
+            <>
+              , cc <AddressList list={m.cc} />
+            </>
+          ) : null}
         </span>
       </div>
 

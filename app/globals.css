@@ -121,6 +121,7 @@
   --spacing-row: 32px;
   --spacing-touch: 44px;
   --spacing-status: 32px;
+  --spacing-person-card: 320px;
   /* Minimized compose: above the status line and the reading pane's action dock. */
   --spacing-compose-min: 96px;
   --spacing-radio-panel: 280px;
