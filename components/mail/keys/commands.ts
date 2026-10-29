@@ -83,7 +83,8 @@ export const COMMANDS = [
 
   { id: "compose.send", label: "send", group: "compose", scope: "compose", keys: [], fixed: ["mod+enter"] },
   { id: "compose.close", label: "close compose", group: "compose", scope: "compose", keys: [], fixed: ["escape"] },
-  { id: "compose.link", label: "link", group: "compose", scope: "compose", keys: ["mod+k"] },
+  { id: "compose.link", label: "link", group: "compose", scope: "compose", keys: ["mod+shift+k"] },
+  { id: "compose.minimize", label: "minimize compose", group: "compose", scope: "compose", keys: [] },
   { id: "compose.attach", label: "attach files", group: "compose", scope: "compose", keys: ["mod+o"] },
 ] as const satisfies readonly Command[];
 

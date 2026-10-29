@@ -10,6 +10,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { useShortcut } from "../keys/keymap";
+
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 // Mail clients draw a bare blockquote as an indent at best, so the sent HTML carries its rule inline.
@@ -181,6 +183,7 @@ export function ComposeToolbar({
   attachInput: React.RefObject<HTMLInputElement | null>;
   onAttach: (files: File[]) => void;
 }) {
+  const linkKey = useShortcut("compose.link");
   const active = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -206,7 +209,7 @@ export function ComposeToolbar({
     { key: "b", label: "b", title: "bold  mod+b", on: !!active?.bold, action: () => run((c) => c.toggleBold()) },
     { key: "i", label: "i", title: "italic  mod+i", on: !!active?.italic, action: () => run((c) => c.toggleItalic()) },
     { key: "u", label: "u", title: "underline  mod+u", on: !!active?.underline, action: () => run((c) => c.toggleUnderline()) },
-    { key: "link", label: "link", title: "link  mod+k", on: !!active?.link || linkOpen, action: () => setLinkOpen(!linkOpen) },
+    { key: "link", label: "link", title: linkKey ? `link  ${linkKey}` : "link", on: !!active?.link || linkOpen, action: () => setLinkOpen(!linkOpen) },
   ];
 
   return (
