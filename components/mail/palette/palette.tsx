@@ -31,7 +31,8 @@ import { useAccountToggles } from "../account-toggles";
 import { useCompose } from "../compose/compose";
 import { useMailSelection } from "../selection";
 import { fullTime, Time } from "../time";
-import { mailHref, VIEWS, type ViewSlug } from "../views";
+import { useProjects } from "../projects-context";
+import { mailHref, projectView, VIEWS, type View, type ViewSlug } from "../views";
 import { Highlight, Snippet } from "./highlight";
 
 const SEARCH_DELAY_MS = 120;
@@ -228,7 +229,8 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
   const colorOf = new Map(accounts.map((a) => [a.id, a.color]));
 
   const overrides = useOverrides();
-  const views = VIEWS.filter((v) => matches(v.label, query));
+  const projects = useProjects();
+  const views = [...VIEWS, ...projects.map(projectView)].filter((v: View) => matches(v.label, query));
   const actions = [
     { key: "compose", label: "compose", keys: shortcutOf("compose", overrides), run: () => compose.open("new", null, sel.account) },
     {
@@ -451,7 +453,7 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
                           <Highlight text={v.label} words={query ? [query] : []} />
                         </span>
                         {!dim && counts[v.slug] ? <span className="text-11 text-text-muted">{counts[v.slug]}</span> : null}
-                        <CommandKbd id={v.command} />
+                        {v.command ? <CommandKbd id={v.command} /> : null}
                       </Item>
                     );
                   })}
