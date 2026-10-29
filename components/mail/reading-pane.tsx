@@ -7,6 +7,7 @@ import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
 
 import { useThreadActions } from "./actions/actions";
 import { AiNote } from "./actions/ai-note";
+import { ProjectNote } from "./actions/project-note";
 import { ActionBar } from "./actions/action-bar";
 import { BucketBadge } from "./actions/bucket-badge";
 import { StarToggle } from "./actions/star-toggle";
@@ -98,6 +99,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
         </header>
       ) : <header className="flex flex-col gap-2">
         <AiNote thread={thread} />
+        <ProjectNote thread={thread} />
         <Subject thread={thread} />
         <div className="flex flex-wrap items-center gap-2 text-11 text-text-muted">
           {thread.accounts.map((a) => (

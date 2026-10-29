@@ -74,7 +74,7 @@ The rail includes Triage, Inbox, Work, Starred, Snoozed and Digest for action, f
 - `embeddings`: id, message id, thread id, account id, 0-based chunk, embedded text, attachment metadata on chunk 0, model, 512-dimensional vector, created at. One row per message chunk; quoted replies are excluded.
 - `actions_log`: id, thread id, action, payload, undone at. Powers undo.
 - `keybindings`: command id, keys (text array, empty unbinds), updated at. Only overrides of the defaults in code.
-- `projects`: id, name, slug (the view's address, `/p/<slug>`), label name (the Gmail label it mirrors to, adopted when an account has it), since (mail older than this is never sorted in by the app; null for all history; threads the owner labelled join whatever their age), created and updated at. `project_labels`: project id, account id, the label's Gmail id there. `threads.project_id` and `project_source` (ai, user, rule) place a thread in a project, which takes it out of every bucket view the way Work does; its bucket stays underneath for when it leaves. Moving to a bucket takes it out of its project.
+- `projects`: id, name, slug (the view's address, `/p/<slug>`), label name (the Gmail label it mirrors to, adopted when an account has it), since (mail older than this is never sorted in by the app; null for all history; threads the owner labelled join whatever their age), created and updated at. `project_labels`: project id, account id, the label's Gmail id there. `threads.project_suggested_id` is a project sorting asks about, and `project_checked_at` when sorting last read the thread (null: read it next pass). `project_dismissals`: project id and thread id the owner said no to, never sorted or asked again. `threads.project_id` and `project_source` (ai, user, rule) place a thread in a project, which takes it out of every bucket view the way Work does; its bucket stays underneath for when it leaves. Moving to a bucket takes it out of its project.
 - `settings`: key (text primary key), value (jsonb), updated at. The `stale` value stores Work, reply and Triage day thresholds; `digest` stores the hour (0 to 23) and time zone the daily digest is made at.
 - `compose_uploads`: id, part, filename, mime type, data (bytea), created at. Files attached in compose, uploaded in 4 MB parts (Vercel caps a request body at 4.5 MB) and joined on send, then deleted. Leftovers expire after a day.
 
@@ -118,6 +118,16 @@ User moves write a correction row and set bucket source user. Rules are entered 
 ## Semantic layer
 
 `lib/sync/entities.ts` reads people, projects and companies out of placed Inbox and Receipts mail: one Claude Haiku call per conversation (`lib/ai/entities.ts`), run as an `entities` job, on the messages since the last read (`entities_message_at`), with known entities as candidates (those linked to the participants, or named in the mail). Twin copies are read once and linked on every copy. A proposal resolves to a known id, then a person's known sender address (so one person across accounts and addresses is one entity), then a matching name or alias of the same type, else a new entity; the user's own addresses are never an entity. When the model is unsure a new entity is a known one, it opens a yes/no "same as?" question instead of guessing. Each sync pass queues up to 20 threads from the last 30 days, and only with `ANTHROPIC_API_KEY` set; older mail goes through `pnpm entities [--since] [--limit] [--rate] [--account] [--dry-run]`, run on purpose after a `--dry-run` estimate. Corrections stick: a user edit freezes name, aliases and summary; a merged or deleted entity stays as a tombstone so its names resolve to the winner or to nothing; a removed link stays as a rejected row; a pair is never asked twice.
+
+## Project sorting
+
+`lib/classify/projects.ts`, once per sync pass and account after ingest, on up to 200 threads outside every project that sorting has not read (`project_checked_at` null). No model call. The evidence is only the owner's own placements (`project_source` user, Gmail labels and searches included) and threads left outside every project, so the app never learns from itself; twins count once:
+
+- sender: of this sender's other threads, how many sit in each project. Sure at 3 or more and 80%; asked at 1 and 50%.
+- domain: the same for the sender's organisation (personal mail providers excluded). Sure at 5 and 85%; asked at 3 and 50%.
+- meaning: with embeddings, the threads of the 40 nearest chunks within 0.45 cosine distance. Asked at 3 and 60%, never sure. Only searched for live threads with nothing sure.
+
+A sure call moves the thread and its twins in (`project_source` ai) and queues writeback; an unsure one on a live thread sets `project_suggested_id`, archived history is never asked about. A project's `since` and the owner's dismissals rule it out. Making a project, from a label or a search, marks every thread since its `since` unread for sorting (`resortProjects`). Taking a thread out of a project, or answering no, writes a dismissal.
 
 ## Write back to Gmail
 

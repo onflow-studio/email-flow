@@ -1,7 +1,9 @@
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
 import { accounts, messages, projectLabels, projects, threads } from "@/lib/db/schema";
+
+import { enqueueWriteback } from "./jobs";
 
 import type { GmailLabelsPort } from "./writeback";
 
@@ -115,6 +117,33 @@ export async function seedProject(
     }
   }
   return joined;
+}
+
+/**
+ * The owner's own placement of threads into a project, twins included: those outside every project
+ * join, and their Gmail label follows. Returns how many conversations joined.
+ */
+export async function placeThreads(db: Db, projectId: string, threadIds: string[]): Promise<number> {
+  if (!threadIds.length) return 0;
+  return db.transaction(async (tx) => {
+    const picked = await tx
+      .select({ id: threads.id, groupId: threads.groupId })
+      .from(threads)
+      .where(and(inArray(threads.id, threadIds), isNull(threads.projectId)));
+    const groups = [...new Set(picked.flatMap((t) => (t.groupId ? [t.groupId] : [])))];
+    const placed = await tx
+      .update(threads)
+      .set({ projectId, projectSource: "user", projectSuggestedId: null })
+      .where(
+        and(
+          isNull(threads.projectId),
+          or(inArray(threads.id, picked.map((t) => t.id)), groups.length ? inArray(threads.groupId, groups) : undefined),
+        ),
+      )
+      .returning({ id: threads.id, accountId: threads.accountId, groupId: threads.groupId });
+    for (const t of placed) await enqueueWriteback(tx, t);
+    return new Set(placed.map((t) => t.groupId ?? t.id)).size;
+  });
 }
 
 /** A readable address for a project: lowercase words joined by hyphens. */

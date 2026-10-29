@@ -12,6 +12,16 @@ export const BULK_ACTIONS: { key: string; label: string; action: ThreadAction }[
   { key: "trash", label: "delete", action: { type: "trash" } },
 ];
 
+/** The bulk actions with a move into each project, after the bucket moves. */
+export function bulkActions(projects: { id: string; name: string }[]) {
+  const at = BULK_ACTIONS.findIndex((a) => a.key === "move-receipts") + 1;
+  return [
+    ...BULK_ACTIONS.slice(0, at),
+    ...projects.map((p) => ({ key: `project-${p.id}`, label: `move to ${p.name}`, action: { type: "project", projectId: p.id } as ThreadAction })),
+    ...BULK_ACTIONS.slice(at),
+  ];
+}
+
 /** Snooze asks until when first, then previews like the rest. */
 export const BULK_SNOOZE = { key: "snooze", label: "snooze" };
 
