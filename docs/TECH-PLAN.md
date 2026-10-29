@@ -163,7 +163,7 @@ u             unsubscribe (one-click, else mailto, else opens the page)
 #             delete (to trash)
 z / cmd+z     undo last
 g then i/t/n/p/r  go to bucket, g w work, g d trash (snoozed and settings bindable, unbound)
-cmd+k         palette
+cmd+k         palette (also over compose)
 /             search
 c             compose
 ?             show this map
