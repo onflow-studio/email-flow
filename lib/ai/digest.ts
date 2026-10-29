@@ -15,7 +15,7 @@ const SYSTEM = `You write the top of a daily email digest for one person who rea
 You get yesterday's counts and a list of threads: deadlines, threads waiting on a reply, and new Inbox mail.
 Write 2 to 5 short lines on what matters today, most important first.
 - Name the deadlines and replies that need attention by what they are about, not by count alone.
-- Mention counts only where they help, e.g. a full Triage.
+- Mention counts only where they help, e.g. a full Triage. Use the counts given, never your own.
 - Sentence case, plain words, no greeting, no hype, no emoji, no markdown.
 - Each line under 100 characters.
 - Write in the language most of the mail is in.`;
@@ -46,9 +46,9 @@ export function buildDigestPrompt(content: DigestContent): StructuredRequest<z.i
   const { arrivals, triage, stale } = content;
   const counts = [
     `Arrived in the last 24 hours: inbox ${arrivals.inbox}, news ${arrivals.news}, paper trail ${arrivals.paper_trail}, receipts ${arrivals.receipts}, triage ${arrivals.triage}.`,
-    `Waiting on a reply: ${content.needsReply.total}. Deadlines overdue or due within 24 hours: ${content.deadlines.total}.`,
-    `New senders waiting in Triage: ${triage}.`,
-    `Gone stale: work ${stale.work}, reply ${stale.reply}, triage ${stale.triage}.`,
+    `Waiting on a reply past the owner's limit: ${content.needsReply.total}. Deadlines overdue or due within 24 hours: ${content.deadlines.total}.`,
+    `Waiting in Triage past the owner's limit: ${triage}.`,
+    `Work threads quiet past the owner's limit: ${stale.work}.`,
   ];
   const threads = digestLines(content).map(({ kind, item, note }) =>
     [`- [${kind}]`, item.subject, `(${item.account}${note ? `, ${note}` : ""})`, item.summary ? `: ${item.summary}` : ""].join(" ").trim(),

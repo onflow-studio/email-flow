@@ -159,7 +159,7 @@ describe("buildDigestPrompt", () => {
       }),
     );
     expect(prompt).toContain("inbox 2, news 5, paper trail 1, receipts 0, triage 1");
-    expect(prompt).toContain("New senders waiting in Triage: 3.");
+    expect(prompt).toContain("Waiting in Triage past the owner's limit: 3.");
     const lines = prompt.split("\n").filter((l) => l.startsWith("- ["));
     expect(lines).toHaveLength(DIGEST_LINE_LIMIT);
     expect(lines[0]).toBe(`- [deadline] Thread d1 (personal, due ${now.toISOString()}) : about d1`);

@@ -5,7 +5,7 @@ import { CLUSTER_VIEWS, clusterOf, clusterOrder, isMachine, type ClusterInput } 
 import { VIEWS } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import type { StaleCutoffs } from "@/lib/sync/stale";
-import { staleReason } from "@/lib/sync/stale";
+import { DIGEST_SECTIONS, digestSection, staleReason } from "@/lib/sync/stale";
 import { aiAllowedSenders, currentChoice, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
 import { accounts, attachments, digests, drafts, messages, senderAccounts, senders, threads, type Address } from "@/lib/db/schema";
 import { mergeTimeline, shownCopy } from "@/lib/sync/twins";
@@ -17,6 +17,8 @@ const resurfaced = () => lte(threads.snoozedUntil, sql`now()`);
 const unseen = () => or(isNull(threads.seenAt), resurfaced());
 
 const snoozed = () => gt(threads.snoozedUntil, sql`now()`);
+
+const DAY = 24 * 60 * 60 * 1000;
 
 // Threads the user wrote in, by their latest message from us.
 const wroteIn = () => sql`exists (select 1 from ${messages} m where m.thread_id = ${threads.id} and not m.is_inbound)`;
@@ -31,6 +33,7 @@ function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefin
   if (view.slug === "digest") return and(
     live(), unstarred(), or(isNull(threads.snoozedUntil), lte(threads.snoozedUntil, now)),
     or(
+      lte(threads.deadlineAt, new Date(now.getTime() + DAY)),
       lt(threads.workAt, cutoffs.work),
       and(eq(threads.needsReply, true), isNull(threads.deadlineAt), lt(threads.lastMessageAt, cutoffs.reply)),
       and(eq(threads.bucket, "triage"), lt(threads.createdAt, cutoffs.triage)),
@@ -75,9 +78,9 @@ export async function listAccounts() {
 
 export type AccountSummary = Awaited<ReturnType<typeof listAccounts>>[number];
 
-/** The newest daily digest: today's once made, until then the one before. */
-export async function latestDigest() {
-  const [row] = await db.select().from(digests).orderBy(desc(digests.day)).limit(1);
+/** The daily digest of one local day, null until it is made. */
+export async function digestOf(day: string) {
+  const [row] = await db.select().from(digests).where(eq(digests.day, day)).limit(1);
   return row ?? null;
 }
 
@@ -246,11 +249,17 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
     snoozedUntil: r.snoozedUntil?.toISOString() ?? null,
     needsReply: r.needsReply,
     staleReason: staleReason(r, cutoffs, now),
+    digestSection: view.slug === "digest" ? digestSection(r, cutoffs, now) : null,
     deadlineAt: r.deadlineAt?.toISOString() ?? null,
     work: r.workAt !== null,
     starred: r.starredAt !== null,
     messageCount: r.messageCount,
   }));
+  // The digest shows its sections in order, deadlines soonest first; the rest keep the query's order.
+  if (view.slug === "digest") {
+    const rank = (t: (typeof items)[number]) => DIGEST_SECTIONS.indexOf(t.digestSection!);
+    items.sort((a, b) => rank(a) - rank(b) || (a.digestSection === "deadline" ? a.deadlineAt!.localeCompare(b.deadlineAt!) : 0));
+  }
   const byId = new Map(items.map((t) => [t.id, t]));
   const keys = Object.fromEntries(items.flatMap((t) => (t.cluster ? [[t.id, t.cluster.key]] : [])));
   return clusterOrder(items.map((t) => t.id), keys).map((id) => byId.get(id)!);
