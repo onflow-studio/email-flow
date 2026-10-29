@@ -43,6 +43,14 @@ export function ProjectsSection({ projects, labels }: { projects: ProjectRow[]; 
             aria-label="gmail label"
             className={cn(input, "h-row min-w-0 flex-1")}
           />
+          <input
+            name="search"
+            maxLength={500}
+            autoComplete="off"
+            placeholder="start with a search, e.g. from:ayalaehijo.net"
+            aria-label="start with the threads a search finds"
+            className={cn(input, "h-row min-w-0 flex-1")}
+          />
           <datalist id="project-labels">
             {labels.map((l) => (
               <option key={l} value={l} />
