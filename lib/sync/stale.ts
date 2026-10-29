@@ -21,6 +21,17 @@ export type StaleThread = {
   snoozedUntil: Date | null;
 };
 
+export type DigestSection = "reply" | "deadline" | "triage" | "work";
+/** The digest's sections, in the order they show. */
+export const DIGEST_SECTIONS: DigestSection[] = ["reply", "deadline", "triage", "work"];
+
+/** Where a thread sits on the digest: a deadline due within a day or overdue, else why it went stale; null when it is not there. */
+export function digestSection(thread: StaleThread, cutoffs: StaleCutoffs, now: Date): DigestSection | null {
+  if (thread.snoozedUntil && thread.snoozedUntil > now) return null;
+  if (thread.deadlineAt && thread.deadlineAt.getTime() <= now.getTime() + DAY) return "deadline";
+  return staleReason(thread, cutoffs, now)?.kind ?? null;
+}
+
 export function staleReason(thread: StaleThread, cutoffs: StaleCutoffs, now: Date): { kind: "work" | "reply" | "triage"; days: number } | null {
   if (thread.snoozedUntil && thread.snoozedUntil > now) return null;
   const aged = (at: Date) => Math.floor((now.getTime() - at.getTime()) / DAY);
