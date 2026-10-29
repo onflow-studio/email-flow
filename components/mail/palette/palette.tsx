@@ -49,27 +49,36 @@ const BUCKET_VIEW: Record<Bucket, ViewSlug> = {
   out: "triage",
 };
 
-const PaletteContext = createContext<(() => void) | null>(null);
+const PaletteContext = createContext<((query?: string) => void) | null>(null);
 
-/** Opens the palette from a button, for touch where there is no cmd+k. */
+/** Opens the palette from a button, for touch where there is no cmd+k; with a query, already searching it. */
 export function useOpenPalette() {
   const open = useContext(PaletteContext);
   if (!open) throw new Error("useOpenPalette must be used inside <PaletteProvider>");
   return open;
 }
 
+/** The same, or null outside the palette's provider (the card works there too, without "their mail"). */
+export function usePaletteOpener() {
+  return useContext(PaletteContext);
+}
+
 /** cmd+k or `/`: one entry point for going somewhere, finding mail, and acting on it. */
 export function PaletteProvider({ counts, children }: { counts: Record<ViewSlug, number>; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const [openPalette] = useState(() => () => setOpen(true));
+  const [initial, setInitial] = useState("");
+  const [openPalette] = useState(() => (query?: string) => {
+    setInitial(query ?? "");
+    setOpen(true);
+  });
   useKeys([
-    { id: "palette", allowInInput: true, run: () => setOpen((o) => !o) },
-    { id: "search", run: openPalette },
+    { id: "palette", allowInInput: true, run: () => (open ? setOpen(false) : openPalette()) },
+    { id: "search", run: () => openPalette() },
   ]);
   return (
     <PaletteContext.Provider value={openPalette}>
       {children}
-      {open ? <PaletteDialog counts={counts} onClose={() => setOpen(false)} /> : null}
+      {open ? <PaletteDialog counts={counts} initial={initial} onClose={() => setOpen(false)} /> : null}
     </PaletteContext.Provider>
   );
 }
@@ -102,7 +111,7 @@ const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&
 const matches = (text: string, query: string) =>
   !query || new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(query)}`, "iu").test(text);
 
-function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; onClose: () => void }) {
+function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, number>; initial: string; onClose: () => void }) {
   const { accounts, toggle, appliedKey } = useAccountToggles();
   const sel = useMailSelection();
   const compose = useCompose();
@@ -111,7 +120,7 @@ function PaletteDialog({ counts, onClose }: { counts: Record<ViewSlug, number>; 
   const inputRef = useRef<HTMLInputElement>(null);
   const helpId = useId();
   const [pane, setPane] = useState<{ key: string; name: "threads" | "actions" } | null>(null);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initial);
   const [search, setSearch] = useState<
     { input: string; result: PaletteSearch; error?: never } | { input: string; result: null; error: string } | null
   >(null);
