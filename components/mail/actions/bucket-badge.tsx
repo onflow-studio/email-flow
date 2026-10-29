@@ -9,6 +9,7 @@ import type { MovableBucket } from "@/lib/actions/types";
 import { cn } from "@/lib/utils";
 
 import { useKeys } from "../keys/keymap";
+import { useProjects } from "../projects-context";
 import { useMailSelection } from "../selection";
 import { useThreadActions } from "./actions";
 
@@ -21,10 +22,10 @@ const NAMES: Record<ThreadDetail["bucket"], string> = {
   out: "out",
 };
 
-type Destination = MovableBucket | "work" | "starred";
+type Destination = MovableBucket | "work" | "starred" | `project:${string}`;
 
 /** The move targets in rail order, each keyed by its `g` go-to letter; starred by its star key. */
-const TARGETS: { destination: Destination; key: string }[] = [
+const BUCKET_TARGETS: { destination: Destination; key: string; label?: string }[] = [
   { destination: "inbox", key: "i" },
   { destination: "work", key: "w" },
   { destination: "starred", key: "*" },
@@ -40,15 +41,29 @@ const TARGETS: { destination: Destination; key: string }[] = [
 export function BucketBadge({ thread }: { thread: ThreadDetail }) {
   const sel = useMailSelection();
   const { run } = useThreadActions();
+  const projects = useProjects();
+  // Projects follow Work and Starred, as in the rail; the menu keys them 1 to 9.
+  const TARGETS = [
+    ...BUCKET_TARGETS.slice(0, 3),
+    ...projects.slice(0, 9).map((p, i) => ({ destination: `project:${p.id}` as Destination, key: String(i + 1), label: p.name })),
+    ...BUCKET_TARGETS.slice(3),
+  ];
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const returnTo = useRef<HTMLElement | null>(null);
 
-  const doubt = thread.bucketSuggested && thread.bucketSource === "ai";
+  const doubt = !thread.project && thread.bucketSuggested && thread.bucketSource === "ai";
   const pct = doubt && thread.bucketConfidence !== null ? `${Math.round(thread.bucketConfidence * 100)}%` : null;
-  const where: Destination | ThreadDetail["bucket"] = thread.starred ? "starred" : thread.work ? "work" : thread.bucket;
+  const where: Destination | ThreadDetail["bucket"] = thread.starred
+    ? "starred"
+    : thread.work
+      ? "work"
+      : thread.project
+        ? `project:${thread.project.id}`
+        : thread.bucket;
+  const name = thread.project?.name ?? NAMES[thread.bucket];
   const current = Math.max(
     TARGETS.findIndex((t) => t.destination === where),
     0,
@@ -68,7 +83,13 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
     close();
     const ids = sel.selectedIds.includes(thread.id) ? sel.selectedIds : [thread.id];
     void run(
-      destination === "work" ? { type: "work" } : destination === "starred" ? { type: "star" } : { type: "move", bucket: destination },
+      destination === "work"
+        ? { type: "work" }
+        : destination === "starred"
+          ? { type: "star" }
+          : destination.startsWith("project:")
+            ? { type: "project", projectId: destination.slice("project:".length) }
+            : { type: "move", bucket: destination as MovableBucket },
       ids,
     );
   };
@@ -87,6 +108,8 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
           { keys: "arrowdown", run: () => focusRow(1) },
           { keys: "arrowup", run: () => focusRow(-1) },
           { keys: "escape", run: close },
+          // The handlers run on a keypress, never while rendering.
+          // eslint-disable-next-line react-hooks/refs
           ...TARGETS.map((t) => ({ keys: t.key, run: () => pick(t.destination) })),
         ]
       : [],
@@ -116,7 +139,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={pct ? `${NAMES[thread.bucket]}, AI ${pct} sure, move to` : `${NAMES[thread.bucket]}, move to`}
+        aria-label={pct ? `${name}, AI ${pct} sure, move to` : `${name}, move to`}
         onClick={(e) => {
           if (open) close();
           // Opened from the keyboard (enter or space): start on the current bucket.
@@ -127,7 +150,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
           doubt ? "outline-1 outline-info outline-dashed" : "outline-1 outline-transparent hover:outline-accent",
         )}
       >
-        {NAMES[thread.bucket]}
+        {name}
         {pct ? <span className="text-info">{pct}</span> : null}
       </button>
       {open ? (
@@ -160,7 +183,9 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
                 <span className="flex size-3 items-center justify-center text-accent">
                   {here ? <Check aria-hidden className="size-3" strokeWidth={1.5} /> : null}
                 </span>
-                <span className="flex-1 pr-2">{t.destination === "work" || t.destination === "starred" ? t.destination : NAMES[t.destination]}</span>
+                <span className="flex-1 pr-2">
+                  {t.label ?? (t.destination === "work" || t.destination === "starred" ? t.destination : NAMES[t.destination as MovableBucket])}
+                </span>
                 <Kbd keys={t.key} />
               </button>
             );
