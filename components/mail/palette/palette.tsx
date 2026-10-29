@@ -353,7 +353,7 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
     ...(ask.status === "error" || ask.status === "key" ? ["ask:retry"] : []),
     ...(ask.list?.hits.map((hit) => `thread:${hit.id}`) ?? []),
     ...ask.sources.map((source) => `source:${source.id}`),
-    ...(ask.list ? BULK_ACTIONS.filter((a) => askCounts?.[a.key]).map((a) => `act:${a.key}`) : []),
+    ...(ask.list ? bulkActions(projects).filter((a) => askCounts?.[a.key]).map((a) => `act:${a.key}`) : []),
   ] : [];
   const value = mode.kind === "preview"
     ? (mode.preview?.count && !busy ? "confirm" : "")

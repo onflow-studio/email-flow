@@ -3,13 +3,14 @@
 import { Command } from "cmdk";
 import { useEffect, useRef } from "react";
 
-import { BULK_ACTIONS } from "@/app/(mail)/_lib/bulk";
+import { bulkActions } from "@/app/(mail)/_lib/bulk";
 import { KeyHints } from "@/components/ui/kbd";
 import type { AskEvent, AskSource } from "@/lib/ai/ask";
 import { parseCitations } from "@/lib/ai/citations";
 import { cn } from "@/lib/utils";
 
 import { AccountSquare } from "../account-square";
+import { useProjects } from "../projects-context";
 import { Time } from "../time";
 import { Highlight, Snippet } from "./highlight";
 
@@ -50,6 +51,7 @@ export function AskPane({
   onRetry: () => void;
   onBack: () => void;
 }) {
+  const projects = useProjects();
   const focusRef = useRef<HTMLInputElement>(null);
   useEffect(() => focusRef.current?.focus(), []);
   const cited = parseCitations(ask.answer, ask.sources.length);
@@ -112,7 +114,7 @@ export function AskPane({
       {list ? <div className="palette-pane palette-pane-actions flex min-h-0 min-w-0 flex-col" data-active="true">
         <div className="palette-pane-heading shrink-0"><Heading name="act on results" /><p className="px-3 pb-2 text-11 text-text-muted">bulk actions preview before running</p></div>
         <div className="palette-pane-scroll min-h-0 overflow-y-auto overscroll-contain pb-1"><Command.Group heading={<span className="sr-only">bulk previews</span>}>
-          {BULK_ACTIONS.map((action) => {
+          {bulkActions(projects).map((action) => {
             const n = counts?.[action.key] ?? 0;
             return <Item key={action.key} value={`act:${action.key}`} disabled={!n} onSelect={() => onBulk(action.key, action.label)}>
               <span className="flex-1">{action.label}</span><span className={cn("text-11", n > 1 ? "text-info" : "text-text-dim")}>{counts ? n ? plural(n) : "nothing to change" : "counting"}</span>

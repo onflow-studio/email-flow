@@ -39,12 +39,13 @@ async function scopedIds(input: unknown): Promise<string[]> {
 }
 
 export async function countIdsActions(ids: string[]): Promise<Record<string, number>> {
-  const counts = await countThreadActions(db, await scopedIds(ids), BULK_ACTIONS.map((a) => a.action));
-  return Object.fromEntries(BULK_ACTIONS.map((a, i) => [a.key, counts[i]]));
+  const actions = bulkActions(await listProjects());
+  const counts = await countThreadActions(db, await scopedIds(ids), actions.map((a) => a.action));
+  return Object.fromEntries(actions.map((a, i) => [a.key, counts[i]]));
 }
 
 export async function previewIdsAction(ids: string[], key: string): Promise<ActionPreview> {
-  const action = bulkAction(key);
+  const action = await bulkAction(key);
   return previewThreadAction(db, await scopedIds(ids), action);
 }
 
