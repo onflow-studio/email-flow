@@ -42,10 +42,13 @@ export type KeyLayerOptions = {
    * modals and the palette so `j` or `e` never leak through to the list.
    */
   exclusive?: boolean;
+  /** Commands of earlier layers that still fire under this exclusive one, like the palette over compose. */
+  except?: CommandId[];
 };
 
 type Layer = {
   exclusive: boolean;
+  except: string[];
   bindings: () => KeyBinding[];
 };
 
@@ -54,8 +57,8 @@ const SEQUENCE_TIMEOUT_MS = 1000;
 class KeyRegistry {
   private layers: Layer[] = [];
 
-  add(bindings: () => KeyBinding[], exclusive: boolean) {
-    const layer: Layer = { exclusive, bindings };
+  add(bindings: () => KeyBinding[], exclusive: boolean, except: string[] = []) {
+    const layer: Layer = { exclusive, except, bindings };
     this.layers = [...this.layers, layer];
     return () => {
       this.layers = this.layers.filter((l) => l !== layer);
@@ -68,10 +71,18 @@ class KeyRegistry {
     this.layers.forEach((l, i) => {
       if (l.exclusive) start = i;
     });
-    return this.layers
-      .slice(start)
+    const except = new Set(this.layers[start]?.except ?? []);
+    const below = this.layers
+      .slice(0, start)
       .reverse()
-      .flatMap((l) => l.bindings());
+      .flatMap((l) => l.bindings().filter((b) => b.id && except.has(b.id)));
+    return [
+      ...this.layers
+        .slice(start)
+        .reverse()
+        .flatMap((l) => l.bindings()),
+      ...below,
+    ];
   }
 }
 
@@ -224,7 +235,8 @@ export function useKeys(bindings: KeyBinding[], options: KeyLayerOptions = {}) {
     ref.current = bindings;
   });
   const exclusive = options.exclusive ?? false;
-  useEffect(() => registry.add(() => ref.current, exclusive), [registry, exclusive]);
+  const except = (options.except ?? []).join(" ");
+  useEffect(() => registry.add(() => ref.current, exclusive, except ? except.split(" ") : []), [registry, exclusive, except]);
 }
 
 /** Pending sequence tokens, for the status line hint. */
