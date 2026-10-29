@@ -37,6 +37,9 @@ function threadAction(a: unknown): ThreadAction {
   const action = a as ThreadAction;
   if (SIMPLE.has(action?.type)) return { type: action.type } as ThreadAction;
   if (action?.type === "move" && MOVABLE.has(action.bucket)) return { type: "move", bucket: action.bucket };
+  if (action?.type === "project" && (action.projectId === null || (typeof action.projectId === "string" && UUID.test(action.projectId)))) {
+    return { type: "project", projectId: action.projectId };
+  }
   if (action?.type === "snooze" && isDate(action.until) && (action.deadline == null || isDate(action.deadline))) {
     return { type: "snooze", until: action.until, needsReply: !!action.needsReply, deadline: action.deadline ?? null };
   }

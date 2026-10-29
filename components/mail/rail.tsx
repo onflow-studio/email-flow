@@ -1,6 +1,6 @@
 "use client";
 
-import { BriefcaseBusiness, Clock, FilePen, Inbox, ListTodo, Newspaper, Receipt, ScrollText, Send, Settings, ShieldQuestionMark, Star, Trash2, type LucideIcon } from "lucide-react";
+import { BriefcaseBusiness, Clock, FilePen, Folder, Inbox, ListTodo, Newspaper, Receipt, ScrollText, Send, Settings, ShieldQuestionMark, Star, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -9,12 +9,13 @@ import type { ViewCounts } from "@/app/(mail)/_lib/queries";
 import { cn } from "@/lib/utils";
 
 import { Glider } from "./glider";
+import { useProjects } from "./projects-context";
 import { useKeys } from "./keys/keymap";
 import { useMailSelection } from "./selection";
 import { UnreadDot } from "./unread-dot";
-import { mailHref, VIEWS, type View, type ViewSlug } from "./views";
+import { mailHref, projectView, VIEWS, type View, type ViewSlug } from "./views";
 
-const ICONS: Record<ViewSlug, LucideIcon> = {
+const ICONS: Partial<Record<ViewSlug, LucideIcon>> = {
   inbox: Inbox,
   news: Newspaper,
   "paper-trail": ScrollText,
@@ -29,25 +30,39 @@ const ICONS: Record<ViewSlug, LucideIcon> = {
   trash: Trash2,
 };
 
-type RailItem = { key: string; label: string; href: string; icon: LucideIcon; count?: number; strong?: boolean; unread?: boolean };
+type RailItem = {
+  key: string;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  count?: number;
+  strong?: boolean;
+  unread?: boolean;
+  /** Holds unseen mail: the row lights up. */
+  fresh?: boolean;
+};
 
 export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
   const sel = useMailSelection();
   const router = useRouter();
   const focused = sel.pane === "rail";
 
+  const projects = useProjects();
   const item = (v: View): RailItem => ({
     key: v.slug,
-    label: sentenceCase(v.label),
+    // A project keeps the name its owner gave it.
+    label: v.project ? v.label : sentenceCase(v.label),
     href: mailHref(v.slug),
-    icon: ICONS[v.slug],
+    icon: ICONS[v.slug] ?? Folder,
     // Trash and sent carry no count; drafts shows how many wait.
     count: v.group === "bottom" && v.slug !== "drafts" ? undefined : counts.n[v.slug],
     // Bucket and Work counts are what is left to do; snoozed only waits.
-    strong: !!v.bucket || v.slug === "work" || v.slug === "digest",
+    strong: !!v.bucket || !!v.project || v.slug === "work" || v.slug === "digest",
     unread: counts.unread[v.slug],
+    fresh: v.group !== "bottom" && !!counts.unseen[v.slug],
   });
   const act = VIEWS.filter((v) => v.group === "act").map(item);
+  const own = projects.map(projectView).map(item);
   const later = VIEWS.filter((v) => v.group === "later").map(item);
   const bottom = [
     ...VIEWS.filter((v) => v.group === "bottom").map(item),
@@ -55,7 +70,7 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
   ];
 
   // Keyboard items in screen order.
-  const items = [...act, ...later, ...bottom];
+  const items = [...act, ...own, ...later, ...bottom];
   const [cursor, setCursor] = useState<number | null>(null);
   const currentHref = mailHref(view);
   const navRef = useRef<HTMLElement>(null);
@@ -112,12 +127,13 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
             )}
             strokeWidth={1.5}
           />
-          <span className="hidden min-w-0 flex-1 truncate rail:inline">{it.label}</span>
+          <span className={cn("hidden min-w-0 flex-1 truncate rail:inline", it.fresh && "font-medium")}>{it.label}</span>
           {it.count !== undefined && (it.count > 0 || it.key === "inbox" || it.key === "triage") ? (
             <span
               className={cn(
                 "hidden items-center gap-1 text-12 tabular-nums rail:flex",
-                active || (it.strong && it.count > 0) ? "text-text" : "text-text-muted",
+                // Unseen mail lights the count up, so a view with something new is found at a glance.
+                it.fresh ? "rounded-sm bg-accent-dim px-1 font-medium text-text" : active || (it.strong && it.count > 0) ? "text-text" : "text-text-muted",
               )}
             >
               {it.unread ? <UnreadDot /> : null}
@@ -142,10 +158,16 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
       {/* The open view's bar glides from the view you left to this one. */}
       <Glider root={navRef} selector='[aria-current="page"]' memory="rail" watch={currentHref} className="bg-linear-to-b from-accent to-info" />
       <ul className="flex flex-col gap-1">{act.map((it, i) => row(it, i))}</ul>
+      {own.length ? (
+        <>
+          <div aria-hidden className="rail-rule mx-3 h-px shrink-0" />
+          <ul aria-label="projects" className="flex flex-col gap-1">{own.map((it, i) => row(it, act.length + i))}</ul>
+        </>
+      ) : null}
       <div aria-hidden className="rail-rule mx-3 h-px shrink-0" />
-      <ul className="flex flex-col gap-1">{later.map((it, i) => row(it, act.length + i))}</ul>
+      <ul className="flex flex-col gap-1">{later.map((it, i) => row(it, act.length + own.length + i))}</ul>
 
-      <ul className="mt-auto flex flex-col gap-1">{bottom.map((it, i) => row(it, act.length + later.length + i, true))}</ul>
+      <ul className="mt-auto flex flex-col gap-1">{bottom.map((it, i) => row(it, act.length + own.length + later.length + i, true))}</ul>
     </nav>
   );
 }
