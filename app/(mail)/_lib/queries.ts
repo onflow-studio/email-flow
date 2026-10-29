@@ -2,12 +2,12 @@ import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, or,
 
 import type { View, ViewSlug } from "@/components/mail/views";
 import { CLUSTER_VIEWS, clusterOf, clusterOrder, isMachine, type ClusterInput } from "@/components/mail/clusters";
-import { VIEWS } from "@/components/mail/views";
+import { VIEWS, type View as MailView } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import type { StaleCutoffs } from "@/lib/sync/stale";
 import { DIGEST_SECTIONS, digestSection, staleReason } from "@/lib/sync/stale";
 import { aiAllowedSenders, currentChoice, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
-import { accounts, attachments, digests, drafts, messages, senderAccounts, senders, threads, type Address } from "@/lib/db/schema";
+import { accounts, attachments, digests, drafts, messages, projects, senderAccounts, senders, threads, type Address } from "@/lib/db/schema";
 import { mergeTimeline, shownCopy } from "@/lib/sync/twins";
 
 const live = () => and(eq(threads.archived, false), eq(threads.trashed, false), eq(threads.spam, false));
@@ -45,10 +45,19 @@ function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefin
   if (view.slug === "trash") return and(eq(threads.trashed, true), eq(threads.spam, false));
   // A snoozed Work thread hides until its snooze ends, then comes back here.
   if (view.slug === "work") return and(live(), unstarred(), isNotNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
-  // Work threads leave every bucket view.
-  const inBucket = and(eq(threads.bucket, view.bucket!), isNull(threads.snoozedUntil), isNull(threads.workAt));
-  // Resurfaced snoozes sit at the top of Inbox whatever their bucket.
-  return and(live(), unstarred(), view.bucket === "inbox" ? or(inBucket, and(isNull(threads.workAt), resurfaced())) : inBucket);
+  // A project is a bucket of its own: its live threads as a bucket view holds them, then its archived history.
+  if (view.project) {
+    const open = and(eq(threads.archived, false), isNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
+    return and(eq(threads.trashed, false), eq(threads.spam, false), unstarred(), eq(threads.projectId, view.project.id), or(open, eq(threads.archived, true)));
+  }
+  // Work and project threads leave every bucket view.
+  const inBucket = and(eq(threads.bucket, view.bucket!), isNull(threads.snoozedUntil), isNull(threads.workAt), isNull(threads.projectId));
+  // Resurfaced snoozes sit at the top of Inbox whatever their bucket, unless their project holds them.
+  return and(
+    live(),
+    unstarred(),
+    view.bucket === "inbox" ? or(inBucket, and(isNull(threads.workAt), isNull(threads.projectId), resurfaced())) : inBucket,
+  );
 }
 
 /**
@@ -78,6 +87,11 @@ export async function listAccounts() {
 
 export type AccountSummary = Awaited<ReturnType<typeof listAccounts>>[number];
 
+/** The owner's projects, in the order they were made. */
+export async function listProjects() {
+  return db.select({ id: projects.id, name: projects.name, slug: projects.slug }).from(projects).orderBy(asc(projects.createdAt));
+}
+
 /** The daily digest of one local day, null until it is made. */
 export async function digestOf(day: string) {
   const [row] = await db.select().from(digests).where(eq(digests.day, day)).limit(1);
@@ -89,26 +103,30 @@ export type ViewCounts = {
   n: Record<ViewSlug, number>;
   /** Views where a thread has an unread reply that the count does not show: work. */
   unread: Partial<Record<ViewSlug, boolean>>;
+  /** Unseen threads per view, which the rail lights up. */
+  unseen: Partial<Record<ViewSlug, number>>;
 };
 
-export async function viewCounts(on: string[] | null, cutoffs: StaleCutoffs, now: Date): Promise<ViewCounts> {
+export async function viewCounts(on: string[] | null, cutoffs: StaleCutoffs, now: Date, extra: MailView[] = []): Promise<ViewCounts> {
   const rows = await Promise.all(
-    VIEWS.map(async (view) => {
+    [...VIEWS, ...extra].map(async (view) => {
       if (view.slug === "drafts") {
         const [row] = await db.select({ n: count() }).from(drafts).where(on ? inArray(drafts.accountId, on) : undefined);
-        return { slug: view.slug, n: row.n, unread: false };
+        return { slug: view.slug, n: row.n, unread: false, unseen: 0 };
       }
-      const unseenOnly = view.slug === "news" || view.slug === "paper-trail" || view.slug === "receipts";
+      // A project counts what is unseen in it, as News does; its archived history counts nowhere.
+      const unseenOnly = view.slug === "news" || view.slug === "paper-trail" || view.slug === "receipts" || !!view.project;
       const [row] = await db
         .select({ n: count(), unseen: count(sql`case when ${unseen()} then 1 end`) })
         .from(threads)
-        .where(and(viewFilter(view, cutoffs, now), accountFilter(on), unseenOnly ? unseen() : undefined));
-      return { slug: view.slug, n: row.n, unread: view.slug === "work" && row.unseen > 0 };
+        .where(and(viewFilter(view, cutoffs, now), accountFilter(on), unseenOnly ? unseen() : undefined, view.project ? eq(threads.archived, false) : undefined));
+      return { slug: view.slug, n: row.n, unread: view.slug === "work" && row.unseen > 0, unseen: row.unseen };
     }),
   );
   return {
     n: Object.fromEntries(rows.map((r) => [r.slug, r.n])) as Record<ViewSlug, number>,
     unread: Object.fromEntries(rows.filter((r) => r.unread).map((r) => [r.slug, true])),
+    unseen: Object.fromEntries(rows.filter((r) => r.unseen > 0).map((r) => [r.slug, r.unseen])),
   };
 }
 
@@ -141,6 +159,8 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
       accountId: threads.accountId,
       senderId: threads.senderId,
       bucket: threads.bucket,
+      projectId: threads.projectId,
+      archived: threads.archived,
       createdAt: threads.createdAt,
       subject: threads.subject,
       participants: threads.participantsSummary,
@@ -185,6 +205,13 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
           ? [desc(threads.starredAt)]
           : view.slug === "sent"
           ? [desc(lastSentAt())]
+          : view.project
+          ? [
+            asc(threads.archived),
+            desc(sql`coalesce(${resurfaced()}, false)`),
+            desc(sql`coalesce(${unseen()}, false)`),
+            desc(threads.lastMessageAt),
+            ]
           : [
             desc(sql`coalesce(${resurfaced()}, false)`),
             desc(sql`coalesce(${unseen()}, false)`),
@@ -238,6 +265,8 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
     accountIds: r.accountIds,
     senderId: r.senderId,
     bucket: r.bucket,
+    projectId: r.projectId,
+    archived: r.archived,
     subject: r.subject || "(no subject)",
     // Sent names who it went to.
     sender: r.sentTo ? sentLabel(r.sentTo) : r.participants || r.fromName || r.fromEmail || "unknown",
@@ -314,6 +343,7 @@ export type DraftListItem = Awaited<ReturnType<typeof listDrafts>>[number];
 const threadWith = {
   account: { columns: { id: true, email: true, label: true, color: true } },
   sender: { columns: { id: true, email: true, displayName: true, imagesAllowed: true, screenerDecision: true, decidedBy: true } },
+  project: { columns: { id: true, name: true, slug: true } },
   messages: {
     orderBy: asc(messages.date),
     columns: {
@@ -375,6 +405,8 @@ export async function getThread(id: string) {
     bucketSource: thread.bucketSource,
     bucketSuggested: thread.bucketSuggested,
     bucketConfidence: thread.bucketConfidence,
+    // The project it sits in, which is its view while live.
+    project: thread.project ? { id: thread.project.id, name: thread.project.name, slug: thread.project.slug } : null,
     senderId: thread.senderId,
     // Who let in and keep out decide on, in thread order.
     judged: judgedSenders(ids, states, thread.senderId).map((id) => {

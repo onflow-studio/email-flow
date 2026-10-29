@@ -19,7 +19,8 @@ import { StatusLine } from "@/components/mail/status-line";
 import { ThreadList } from "@/components/mail/thread-list";
 import { TriageQueue } from "@/components/mail/triage-queue";
 import { UnreadDot } from "@/components/mail/unread-dot";
-import { findView, mailHref, VIEWS, type ViewSlug } from "@/components/mail/views";
+import { ProjectsProvider } from "@/components/mail/projects-context";
+import { findView, mailHref, projectView, VIEWS, type ViewSlug } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import { loadDigestSettings, loadStaleSettings } from "@/lib/db/settings";
 import { localTime } from "@/lib/sync/digest";
@@ -28,17 +29,23 @@ import { staleCutoffs } from "@/lib/sync/stale";
 import { cn } from "@/lib/utils";
 
 import { accountsOff, accountsOn } from "../../_lib/account-filter";
-import { digestOf, getThread, listAccounts, listDrafts, listThreads, viewCounts } from "../../_lib/queries";
+import { digestOf, getThread, listAccounts, listDrafts, listProjects, listThreads, viewCounts } from "../../_lib/queries";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function MailPage({ params }: PageProps<"/[view]/[[...thread]]">) {
-  const { view: slug, thread } = await params;
+  const { view: first, thread: rest } = await params;
+  const projects = await listProjects();
+  // A project's view is /p/<slug>, its threads /p/<slug>/<id>.
+  const inProject = first === "p";
+  const slug = inProject ? `p/${rest?.[0] ?? ""}` : first;
+  const thread = inProject ? rest?.slice(1) : rest;
 
-  const view = findView(slug);
+  const view = findView(slug, projects);
   if (!view) notFound();
-  if (thread && (thread.length > 1 || !UUID.test(thread[0]) || view.slug === "drafts")) notFound();
+  if (thread?.length && (thread.length > 1 || !UUID.test(thread[0]) || view.slug === "drafts")) notFound();
   const threadId = thread?.[0] ?? null;
+  const projectViews = projects.map(projectView);
 
   const [accounts, off] = await Promise.all([listAccounts(), accountsOff()]);
   const on = accountsOn(accounts, off);
@@ -47,7 +54,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   const cutoffs = staleCutoffs(now, await loadStaleSettings(db));
 
   const [counts, threads, drafts, detail, digest] = await Promise.all([
-    viewCounts(on, cutoffs, now),
+    viewCounts(on, cutoffs, now, projectViews),
     listThreads(view, on, cutoffs, now),
     view.slug === "drafts" ? listDrafts(on) : [],
     threadId ? getThread(threadId) : null,
@@ -75,6 +82,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
     needsReply: t.needsReply,
     deadlineAt: t.deadlineAt,
     staleReason: t.staleReason?.kind ?? null,
+    projectId: t.projectId,
   }));
   // An open thread may have left the list (e.g. opened from a link); it is still a target.
   if (detail && !targets.some((t) => t.id === detail.id)) {
@@ -88,6 +96,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       needsReply: detail.needsReply,
       deadlineAt: detail.deadlineAt,
       staleReason: null,
+      projectId: detail.project?.id ?? null,
     });
   }
   const accountColors = Object.fromEntries(accounts.map((a) => [a.id, a.color]));
@@ -105,6 +114,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       <NavKeys />
       <ComposeKeys />
       <ActionsProvider targets={targets}>
+        <ProjectsProvider projects={projects}>
         <AccountTogglesProvider
           accounts={accounts.map((a) => ({ id: a.id, label: a.label, email: a.email, color: a.color, on: isOn(a.id) }))}
         >
@@ -126,7 +136,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                 )}
               >
                 <nav aria-label="views" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 md:hidden">
-                  {VIEWS.map((v) => (
+                  {[...VIEWS, ...projectViews].map((v) => (
                     <Link
                       key={v.slug}
                       href={mailHref(v.slug)}
@@ -153,7 +163,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                       <h1 className="font-medium">{view.label}</h1>
                       <span className="flex items-center gap-2">
                         <span className="text-11 text-text-muted">
-                          {view.bucket
+                          {view.bucket || view.project
                             ? `${unseen} unseen`
                             : view.slug === "drafts"
                               ? `${drafts.length} ${drafts.length === 1 ? "draft" : "drafts"}`
@@ -171,7 +181,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                           threads={threads}
                           accountColors={accountColors}
                           accountNames={accountNames}
-                          emptyLabel={view.bucket || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
+                          emptyLabel={view.bucket || view.project || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
                         />
                       )}
                     </div>
@@ -221,6 +231,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
           </div>
         </PaletteProvider>
         </AccountTogglesProvider>
+        </ProjectsProvider>
       </ActionsProvider>
     </SelectionProvider>
   );
@@ -228,6 +239,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
 
 function homeView(t: {
   bucket: string;
+  project: { slug: string } | null;
   trashed: boolean;
   archived: boolean;
   spam: boolean;
@@ -236,10 +248,14 @@ function homeView(t: {
   snoozedUntil: string | null;
 }): ViewSlug | null {
   if (t.trashed) return "trash";
-  if (t.archived || t.spam) return null;
+  if (t.spam) return null;
+  // A project lists its archived history; elsewhere archived threads have no view.
+  if (t.archived) return t.project ? `p/${t.project.slug}` : null;
   if (t.starred) return "starred";
   if (t.snoozedUntil && Date.parse(t.snoozedUntil) > Date.now()) return "snoozed";
   if (t.work) return "work";
+  // A project holds its threads, resurfaced snoozes included.
+  if (t.project) return `p/${t.project.slug}`;
   // A past-due snooze has resurfaced at the top of Inbox.
   if (t.snoozedUntil) return "inbox";
   return VIEWS.find((v) => v.bucket === t.bucket)?.slug ?? null;

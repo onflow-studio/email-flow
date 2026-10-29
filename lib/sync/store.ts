@@ -21,6 +21,7 @@ import { rewriteCidImages } from "@/lib/mail/remote";
 import type { GmailSyncPort } from "./gmail";
 import { PRIORITY_LIVE, enqueueClassify, enqueueEmbed, enqueueSummary } from "./jobs";
 import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt, starChange } from "./mirror";
+import { accountProjectLabels, projectFromLabels } from "./projects";
 import { linkTwins, reconcileGroup, starGroup } from "./twins";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -136,7 +137,7 @@ export async function ingestThread(
   }: { classifyPriority?: number; classifyArchived?: boolean } = {},
 ): Promise<IngestResult> {
   const [existing] = await db
-    .select({ id: threads.id, bucket: threads.bucket, seenAt: threads.seenAt, starredAt: threads.starredAt })
+    .select({ id: threads.id, bucket: threads.bucket, seenAt: threads.seenAt, starredAt: threads.starredAt, projectId: threads.projectId })
     .from(threads)
     .where(and(eq(threads.accountId, account.id), eq(threads.gmailThreadId, gmailThreadId)));
 
@@ -169,10 +170,18 @@ export async function ingestThread(
   const inGmailInbox = live.some((m) => m.labelIds.includes(LABEL.inbox));
   // Old mail archived in Gmail stays archived here, whichever bucket its categories give it.
   const archivedHistory = !classifyArchived && !inGmailInbox;
+  // A project label put on in Gmail moves the thread into that project; taken off, out of it.
+  const labelProject = projectFromLabels(
+    live.flatMap((m) => m.labelIds),
+    await accountProjectLabels(db, account.id),
+    existing?.projectId ?? null,
+  );
+  const project = labelProject === undefined ? (existing?.projectId ?? null) : labelProject;
   const mirror = mirrorState(
     live.map((m) => m.labelIds),
     existing?.bucket ?? initialBucket(live.flatMap((m) => m.labelIds)),
     !!existing?.starredAt,
+    !!project,
   );
   // Before the stored labels are updated below.
   const star = starChange(existing ? local.map((m) => m.gmailLabels) : null, live.map((m) => m.labelIds));
@@ -204,6 +213,7 @@ export async function ingestThread(
           trashed: mirror.trashed,
           spam: mirror.spam,
           seenAt: nextSeenAt(mirror.unread, null, now),
+          ...(project ? { projectId: project, projectSource: "user" as const } : {}),
         })
         // Backfill and live sync can meet on the same new thread; the second one just joins it.
         .onConflictDoNothing()
@@ -294,6 +304,7 @@ export async function ingestThread(
             trashed: mirror.trashed,
             spam: mirror.spam,
             seenAt: nextSeenAt(mirror.unread, existing?.seenAt ?? null, now),
+            ...(labelProject === undefined ? {} : { projectId: labelProject, projectSource: labelProject ? ("user" as const) : null }),
           };
 
     await tx

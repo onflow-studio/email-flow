@@ -121,6 +121,37 @@ export const accounts = pgTable("accounts", {
   updatedAt: updatedAt(),
 });
 
+// Projects the owner names: buckets of their own, each mirrored to one Gmail label. A thread in a
+// project leaves every bucket view and keeps its bucket underneath, for when it leaves the project.
+export const projects = pgTable("projects", {
+  id: id(),
+  name: text().notNull(),
+  // The view's address, /p/<slug>.
+  slug: text().notNull().unique(),
+  // The Gmail label it mirrors to on every account; an existing label is adopted as it is.
+  labelName: text().notNull().unique(),
+  // Mail older than this is never sorted into it by the app; null for all history. Threads the
+  // owner labelled in Gmail join whatever their age.
+  since: timestamp({ withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+// The project's label id on each account, once found or created there.
+export const projectLabels = pgTable(
+  "project_labels",
+  {
+    projectId: uuid()
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    accountId: uuid()
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    gmailLabelId: text().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.accountId] }), uniqueIndex().on(t.accountId, t.gmailLabelId)],
+);
+
 export const senders = pgTable(
   "senders",
   {
@@ -184,6 +215,9 @@ export const threads = pgTable(
     bucketConfidence: real(),
     // Below threshold: bucket applied but shown as an AI suggestion.
     bucketSuggested: boolean().notNull().default(false),
+    // The project the thread is in, which takes it out of its bucket's view. Null for none.
+    projectId: uuid().references(() => projects.id, { onDelete: "set null" }),
+    projectSource: bucketSource(),
     seenAt: timestamp({ withTimezone: true }),
     snoozedUntil: timestamp({ withTimezone: true }),
     needsReply: boolean().notNull().default(false),
@@ -214,6 +248,7 @@ export const threads = pgTable(
     uniqueIndex().on(t.accountId, t.gmailThreadId),
     index().on(t.groupId),
     index().on(t.bucket, t.lastMessageAt),
+    index().on(t.projectId, t.lastMessageAt),
     index().on(t.accountId, t.lastMessageAt),
     index().on(t.senderId),
     index().on(t.snoozedUntil),
@@ -586,6 +621,7 @@ export const threadsRelations = relations(threads, ({ one, many }) => ({
     references: [accounts.id],
   }),
   sender: one(senders, { fields: [threads.senderId], references: [senders.id] }),
+  project: one(projects, { fields: [threads.projectId], references: [projects.id] }),
   messages: many(messages),
   classifications: many(classifications),
   corrections: many(corrections),
@@ -662,6 +698,8 @@ export type NewAccount = typeof accounts.$inferInsert;
 export type Sender = typeof senders.$inferSelect;
 export type NewSender = typeof senders.$inferInsert;
 export type SenderAccount = typeof senderAccounts.$inferSelect;
+export type Project = typeof projects.$inferSelect;
+export type ProjectLabel = typeof projectLabels.$inferSelect;
 export type Thread = typeof threads.$inferSelect;
 export type NewThread = typeof threads.$inferInsert;
 export type Message = typeof messages.$inferSelect;

@@ -36,14 +36,20 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
     case "move":
       // Moving to the current bucket confirms an AI placement; Paper Trail and Receipts also clear unread attention.
       // A move, a snooze or Work sends a starred thread somewhere, so it leaves Starred.
+      // A move to a bucket also takes the thread out of its project.
       return {
         ...UNSTARRED,
+        projectId: null,
+        projectSource: null,
         bucket: action.bucket,
         bucketSource: "user",
         bucketConfidence: 1,
         bucketSuggested: false,
         ...(action.bucket === "paper_trail" || action.bucket === "receipts" ? { seenAt: t.seenAt ?? now } : {}),
       };
+    // Like a move: the thread leaves its bucket's view (or comes back to it), a live one stays live.
+    case "project":
+      return { ...UNSTARRED, projectId: action.projectId, projectSource: action.projectId ? "user" : null };
     case "snooze": {
       const until = new Date(action.until);
       if (Number.isNaN(until.getTime()) || until <= now) return null;
