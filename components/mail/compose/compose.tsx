@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 import { UNDO_MS, useUndo } from "../actions/undo";
 import { useKeys, useShortcut } from "../keys/keymap";
-import { ComposeBody, ComposeToolbar, useComposeEditor } from "./editor";
+import { bodyHtml, ComposeBody, ComposeToolbar, useComposeEditor } from "./editor";
 import { readLastAccount, rememberAccount } from "./last-account";
 import { RecipientInput } from "./recipient-input";
 
@@ -286,8 +286,7 @@ function ComposePanel({
         cc,
         bcc,
         subject,
-        // Drop the empty paragraph the editor keeps at the end.
-        html: !editor || editor.isEmpty ? "" : editor.getHTML().replace(/(<p><\/p>)+$/, ""),
+        html: bodyHtml(editor),
         attachmentIds: init!.attachments.filter((a) => !dropped.has(a.id)).map((a) => a.id),
         draftId: draftIdRef.current,
       }),
