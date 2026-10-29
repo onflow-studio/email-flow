@@ -18,14 +18,22 @@ import { bodyHtml, ComposeBody, ComposeToolbar, useComposeEditor } from "./edito
 import { readLastAccount, rememberAccount } from "./last-account";
 import { RecipientInput } from "./recipient-input";
 
-type Session = { key: number; mode: ComposeMode; threadId: string | null; accountHint: string | null; draftId: string | null };
+type Session = {
+  key: number;
+  mode: ComposeMode;
+  threadId: string | null;
+  accountHint: string | null;
+  draftId: string | null;
+  /** Recipients to start a new message with, e.g. from a person card. */
+  to?: string;
+};
 
 // Quiet time after the last keystroke before the draft is saved to Gmail.
 const AUTOSAVE_MS = 1500;
 
 type ComposeContextValue = {
   /** Opens compose. While an edited draft is open it only brings that one back, so it is never lost. */
-  open: (mode: ComposeMode, threadId?: string | null, accountHint?: string | null) => void;
+  open: (mode: ComposeMode, threadId?: string | null, accountHint?: string | null, to?: string) => void;
   /** Resumes a saved draft. Same rule as `open`. */
   openDraft: (draftId: string) => void;
   isOpen: boolean;
@@ -49,11 +57,11 @@ export function ComposeProvider({ children }: { children: React.ReactNode }) {
   const dirty = useRef(false);
 
   const open = useCallback(
-    (mode: ComposeMode, threadId: string | null = null, accountHint: string | null = null) => {
+    (mode: ComposeMode, threadId: string | null = null, accountHint: string | null = null, to?: string) => {
       setMinimized(false);
-      if (session && (dirty.current || (session.mode === mode && session.threadId === threadId))) return;
+      if (session && (dirty.current || (session.mode === mode && session.threadId === threadId && !to))) return;
       dirty.current = false;
-      setSession({ key: Date.now(), mode, threadId, accountHint, draftId: null });
+      setSession({ key: Date.now(), mode, threadId, accountHint, draftId: null, to });
     },
     [session],
   );
@@ -252,7 +260,7 @@ function ComposePanel({
         if (!result) return setLoadError("thread not found, close and reload");
         setInit(result);
         setAccountId(result.accountId ?? defaultAccount(result.accounts, session.accountHint));
-        setTo(result.to);
+        setTo(session.to || result.to);
         setCc(result.cc);
         setShowCc(!!result.cc);
         setBcc(result.bcc);
