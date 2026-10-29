@@ -28,7 +28,7 @@ import { staleCutoffs } from "@/lib/sync/stale";
 import { cn } from "@/lib/utils";
 
 import { accountsOff, accountsOn } from "../../_lib/account-filter";
-import { getThread, latestDigest, listAccounts, listDrafts, listThreads, viewCounts } from "../../_lib/queries";
+import { digestOf, getThread, listAccounts, listDrafts, listThreads, viewCounts } from "../../_lib/queries";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -46,13 +46,13 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   const now = new Date();
   const cutoffs = staleCutoffs(now, await loadStaleSettings(db));
 
-  const [counts, threads, drafts, detail, digest, digestSettings] = await Promise.all([
+  const [counts, threads, drafts, detail, digest] = await Promise.all([
     viewCounts(on, cutoffs, now),
     listThreads(view, on, cutoffs, now),
     view.slug === "drafts" ? listDrafts(on) : [],
     threadId ? getThread(threadId) : null,
-    view.slug === "digest" ? latestDigest() : null,
-    view.slug === "digest" ? loadDigestSettings(db) : null,
+    // Only today's briefing: an older one would talk about mail that has moved on.
+    view.slug === "digest" ? loadDigestSettings(db).then((s) => digestOf(localTime(now, s.timeZone).day)) : null,
   ]);
   if (threadId && !detail) notFound();
   // A thread opened under a view it no longer belongs to (an old link, a thread snoozed elsewhere) moves to its
@@ -163,9 +163,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                       </span>
                     </header>
                     <div className="min-h-0 flex-1 overflow-y-auto">
-                      {digest && digestSettings ? (
-                        <DigestSummary digest={digest} today={digest.day === localTime(now, digestSettings.timeZone).day} />
-                      ) : null}
+                      {digest ? <DigestSummary digest={digest} /> : null}
                       {view.slug === "drafts" ? (
                         <DraftList drafts={drafts} accountColors={accountColors} accountNames={accountNames} />
                       ) : (

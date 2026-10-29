@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 
 import { summarizeDigest } from "@/lib/ai/digest";
 import type { Db } from "@/lib/db";
@@ -113,8 +113,12 @@ export function shapeDigest(rows: Rows, now: Date, cutoffs: ReturnType<typeof st
   };
 }
 
-/** What the digest covers, across all accounts: one row per twin group throughout. */
+/**
+ * What the digest covers, across all accounts: one row per twin group throughout. Replies, deadlines
+ * and Triage follow the digest view's sections, so the summary talks about the threads listed under it.
+ */
 export async function gatherDigest(db: Pick<Db, "select">, now: Date): Promise<DigestContent> {
+  const cutoffs = staleCutoffs(now, await loadStaleSettings(db));
   const since = new Date(now.getTime() - DAY);
   const until = new Date(now.getTime() + DAY);
   const total = sql<number>`count(*)::int`;
@@ -124,9 +128,10 @@ export async function gatherDigest(db: Pick<Db, "select">, now: Date): Promise<D
       .from(threads)
       .innerJoin(accounts, eq(accounts.id, threads.accountId));
 
-  const needsReplyWhere = and(live(), shownCopy(null), eq(threads.needsReply, true), notSnoozed(now));
-  const deadlinesWhere = and(live(), shownCopy(null), isNotNull(threads.deadlineAt), lte(threads.deadlineAt, until));
-  const [arrivals, inbox, needsReply, [replyCount], deadlines, [deadlineCount], [triage], stale, settings] = await Promise.all([
+  const onDigest = and(live(), shownCopy(null), isNull(threads.starredAt), notSnoozed(now));
+  const needsReplyWhere = and(onDigest, eq(threads.needsReply, true), isNull(threads.deadlineAt), lt(threads.lastMessageAt, cutoffs.reply));
+  const deadlinesWhere = and(onDigest, isNotNull(threads.deadlineAt), lte(threads.deadlineAt, until));
+  const [arrivals, inbox, needsReply, [replyCount], deadlines, [deadlineCount], [triage], stale] = await Promise.all([
     db
       .select({ bucket: threads.bucket, n: sql<number>`count(distinct ${groupKey})::int` })
       .from(threads)
@@ -143,11 +148,11 @@ export async function gatherDigest(db: Pick<Db, "select">, now: Date): Promise<D
     db.select({ n: total }).from(threads).where(needsReplyWhere),
     listed().where(deadlinesWhere).orderBy(asc(threads.deadlineAt)).limit(DIGEST_LIST_LIMIT),
     db.select({ n: total }).from(threads).where(deadlinesWhere),
-    // As the Triage view counts it.
+    // Waiting in Triage past its threshold.
     db
       .select({ n: total })
       .from(threads)
-      .where(and(live(), shownCopy(null), eq(threads.bucket, "triage"), isNull(threads.starredAt), isNull(threads.workAt), isNull(threads.snoozedUntil))),
+      .where(and(onDigest, eq(threads.bucket, "triage"), lt(threads.createdAt, cutoffs.triage))),
     // Candidates for the digest view's stale list; staleReason decides.
     db
       .select({
@@ -168,7 +173,6 @@ export async function gatherDigest(db: Pick<Db, "select">, now: Date): Promise<D
           or(isNotNull(threads.workAt), eq(threads.needsReply, true), eq(threads.bucket, "triage")),
         ),
       ),
-    loadStaleSettings(db),
   ]);
 
   return shapeDigest(
@@ -183,7 +187,7 @@ export async function gatherDigest(db: Pick<Db, "select">, now: Date): Promise<D
       stale,
     },
     now,
-    staleCutoffs(now, settings),
+    cutoffs,
   );
 }
 
