@@ -14,6 +14,7 @@ import { Glider } from "./glider";
 import { useListScroll, useMailSelection } from "./selection";
 import { fullTime, Time } from "./time";
 import { UnreadDot } from "./unread-dot";
+import { useProjects } from "./projects-context";
 import { isProjectSlug, mailHref } from "./views";
 
 // Thread ids each view has shown this session, so a thread that turns up later can glow as new.
@@ -142,7 +143,11 @@ export function ThreadList({
   const sectionAt = (i: number) => (digest && grouped && blocks[i] ? blocks[i].threads[0].digestSection : null);
   const sectionSize = (s: DigestSection) => threads.filter((t) => t.digestSection === s).length;
   // A project lists its archived history under its live threads.
-  const firstArchived = isProjectSlug(sel.view) && grouped ? blocks.findIndex((b) => b.threads[0].archived) : -1;
+  const inProject = isProjectSlug(sel.view) && grouped;
+  const firstArchived = inProject ? blocks.findIndex((b) => b.threads[0].archived && b.threads[0].projectId) : -1;
+  // Suggested threads sit on top of a project, to check; its own live threads follow.
+  const toCheck = inProject ? threads.filter((t) => !t.projectId).length : 0;
+  const firstOwn = toCheck ? blocks.findIndex((b) => b.threads[0].projectId) : -1;
 
   const row = (t: ThreadListItem, nested = false) => (
     // A hairline under every thread, so each one reads as its own box where it starts and ends.
@@ -193,6 +198,8 @@ export function ThreadList({
             {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
             {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
             {whenAt(i) && whenAt(i) !== whenAt(i - 1) ? <GroupLabel>{whenAt(i)}</GroupLabel> : null}
+            {toCheck && i === 0 ? <GroupLabel>to check · {toCheck}</GroupLabel> : null}
+            {i === firstOwn && firstOwn !== firstArchived ? <GroupLabel>in the project</GroupLabel> : null}
             {i === firstArchived ? <GroupLabel>archived</GroupLabel> : null}
             {sectionAt(i) && sectionAt(i) !== sectionAt(i - 1) ? (
               <GroupLabel>
@@ -401,8 +408,9 @@ function ThreadRow({
   nested?: boolean;
 }) {
   const [now] = useState(() => Date.now());
+  const suggested = useProjects().find((p) => p.id === t.projectSuggestedId);
   const overdue = !!t.deadlineAt && new Date(t.deadlineAt).getTime() < now;
-  const status = [t.resurfaced && "back", t.needsReply && "needs reply", overdue && "overdue", (work || digest) && t.deadlineAt && !overdue && `due ${fullTime(t.deadlineAt)}`, digest && t.staleReason && `${t.staleReason.kind} ${t.staleReason.days}d`].filter(Boolean);
+  const status = [t.resurfaced && "back", suggested && `${suggested.name}?`, t.needsReply && "needs reply", overdue && "overdue", (work || digest) && t.deadlineAt && !overdue && `due ${fullTime(t.deadlineAt)}`, digest && t.staleReason && `${t.staleReason.kind} ${t.staleReason.days}d`].filter(Boolean);
   const person = byKind && t.kind === "person";
   // The user wrote last: the next move is theirs, so the row steps back.
   const theirTurn = person && t.lastFromMe && !t.unseen;
@@ -451,6 +459,7 @@ function ThreadRow({
         {t.messageCount > 1 ? <span className="shrink-0 font-normal text-text-dim tabular-nums">{t.messageCount}</span> : null}
       </span>
       {t.resurfaced ? <span aria-hidden><Badge>back</Badge></span> : null}
+      {suggested ? <span aria-hidden><Badge className="text-info">{suggested.name}?</Badge></span> : null}
       <span className="hidden min-w-0 flex-1 truncate @min-[320px]:block">
         <span className={t.unseen ? "font-semibold text-text" : "text-text-muted"}>{t.subject}</span>
         {preview ? <span className="text-text-dim"> · {preview}</span> : null}

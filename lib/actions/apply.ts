@@ -14,7 +14,7 @@ import {
   type ThreadMove,
 } from "@/lib/classify/screener";
 import type { Db } from "@/lib/db";
-import { actionsLog, senders, threads, type Bucket } from "@/lib/db/schema";
+import { actionsLog, projectDismissals, senders, threads, type Bucket } from "@/lib/db/schema";
 import { enqueueWriteback } from "@/lib/sync/jobs";
 import { withTwins } from "@/lib/sync/twins";
 
@@ -80,6 +80,11 @@ export async function threadActionIn(tx: Tx, batchId: string, threadIds: string[
     changed.add(t.groupId ?? t.id);
 
     await tx.update(threads).set(patch).where(eq(threads.id, t.id));
+    // Taken out of a project by the owner: never sorted back into it. Put into one: no question left to ask.
+    if (t.projectId && patch.projectId !== undefined && patch.projectId !== t.projectId) {
+      await tx.insert(projectDismissals).values({ projectId: t.projectId, threadId: t.id }).onConflictDoNothing();
+    }
+    if (patch.projectId) await tx.update(threads).set({ projectSuggestedId: null }).where(eq(threads.id, t.id));
 
     const payload: LogPayload = { before: before(t, patch) };
     if (action.type === "move") {

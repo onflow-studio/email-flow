@@ -1,5 +1,6 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { refresh } from "next/cache";
 
 import {
@@ -18,6 +19,7 @@ import {
 import { setSenderMachine } from "@/lib/classify/machine";
 import { SENDER_CHOICES } from "@/lib/classify/screener";
 import { db } from "@/lib/db";
+import { projectDismissals, threads } from "@/lib/db/schema";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BULK = 1000;
@@ -65,6 +67,21 @@ export async function runThreadAction(threadIds: string[], action: ThreadAction)
   const result = await applyThreadAction(db, ids(threadIds), threadAction(action));
   refresh();
   return result;
+}
+
+/** "Not this project": the question goes away on every copy, and the thread is never sorted there. */
+export async function dismissProjectSuggestion(threadId: string) {
+  const [id] = ids([threadId]);
+  await db.transaction(async (tx) => {
+    const [t] = await tx.select({ suggested: threads.projectSuggestedId, groupId: threads.groupId }).from(threads).where(eq(threads.id, id));
+    if (!t?.suggested) return;
+    const copies = t.groupId ? await tx.select({ id: threads.id }).from(threads).where(eq(threads.groupId, t.groupId)) : [{ id }];
+    for (const c of copies) {
+      await tx.insert(projectDismissals).values({ projectId: t.suggested, threadId: c.id }).onConflictDoNothing();
+      await tx.update(threads).set({ projectSuggestedId: null }).where(eq(threads.id, c.id));
+    }
+  });
+  refresh();
 }
 
 export async function runSenderAction(threadId: string, action: SenderAction): Promise<ActionResult> {

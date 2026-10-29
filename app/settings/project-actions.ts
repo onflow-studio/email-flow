@@ -6,8 +6,10 @@ import { refresh } from "next/cache";
 import { db } from "@/lib/db";
 import { projects, threads } from "@/lib/db/schema";
 import { getGmailLabelsAdapter } from "@/lib/gmail/client";
+import { resortProjects } from "@/lib/classify/projects";
+import { searchThreadIds } from "@/lib/search";
 import { enqueueWriteback } from "@/lib/sync/jobs";
-import { projectSlug, seedProject } from "@/lib/sync/projects";
+import { placeThreads, projectSlug, seedProject } from "@/lib/sync/projects";
 
 export type ProjectState = { ok: boolean; message: string } | null;
 
@@ -25,11 +27,13 @@ async function freeSlug(name: string) {
 
 /**
  * A new project, mirrored to a Gmail label (adopted when an account already has it). It starts
- * with the threads that label already carries, back to the chosen point.
+ * with the threads that label already carries and those a search finds, then sorting reads the
+ * rest of the mail back to the chosen point.
  */
 export async function createProject(_prev: ProjectState, form: FormData): Promise<ProjectState> {
   const name = String(form.get("name") ?? "").trim().replace(/\s+/g, " ");
   const labelName = String(form.get("label") ?? "").trim() || name;
+  const search = String(form.get("search") ?? "").trim().slice(0, 500);
   const from = String(form.get("from") ?? "all");
   if (!name || name.length > MAX_NAME) return { ok: false, message: `name must be 1 to ${MAX_NAME} characters` };
   if (labelName.length > 225 || RESERVED.test(labelName)) return { ok: false, message: "pick another gmail label" };
@@ -40,9 +44,12 @@ export async function createProject(_prev: ProjectState, form: FormData): Promis
   const [taken] = await db.select({ id: projects.id }).from(projects).where(eq(projects.labelName, labelName));
   if (taken) return { ok: false, message: `a project already uses the label ${labelName}` };
   const [project] = await db.insert(projects).values({ name, slug: await freeSlug(name), labelName, since }).returning();
-  const joined = await seedProject(db, project, getGmailLabelsAdapter);
+  const labelled = await seedProject(db, project, getGmailLabelsAdapter);
+  const found = search ? await placeThreads(db, project.id, await searchThreadIds(db, search)) : 0;
+  const joined = labelled + found;
+  await resortProjects(db, since);
   refresh();
-  return { ok: true, message: joined ? `${name} made, ${joined} ${joined === 1 ? "thread" : "threads"} from its label` : `${name} made` };
+  return { ok: true, message: joined ? `${name} made, ${joined} ${joined === 1 ? "thread" : "threads"} in it` : `${name} made` };
 }
 
 export async function renameProject(id: string, name: string) {
