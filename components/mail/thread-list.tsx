@@ -108,7 +108,7 @@ export function ThreadList({
   const picking = selected.size > 0;
   const ordered = sel.allIds.flatMap((id) => byId.get(id) ?? []);
   const work = sel.view === "work";
-  // Inbox and Work light a person's sender even once seen; the other buckets are nearly all machine mail.
+  // Inbox and Work tell people from machine mail, and say who wrote last.
   const byKind = sel.view === "inbox" || work;
   const accountSlots = Object.keys(accountColors).length;
 
@@ -284,10 +284,10 @@ function ClusterRow({
         <span className="sr-only">group of {threads.length} threads, {fresh} unseen, newest {head.subject}; </span>
         <Chevron aria-hidden className="absolute left-2 size-3 text-text-muted" strokeWidth={1.5} />
         <AccountSlot colors={accountColors} slots={accountSlots} />
-        <span className={cn("w-sender shrink-0 truncate @min-[560px]:w-judged", fresh ? "font-medium text-text" : "text-text-muted")}>
+        <span className={cn("w-sender shrink-0 truncate @min-[560px]:w-judged", fresh ? "font-semibold text-text" : "text-text-muted")}>
           {label} <span className="font-normal text-text-dim tabular-nums">{threads.length}</span>
         </span>
-        <span aria-hidden className={cn("hidden min-w-0 flex-1 truncate @min-[320px]:block", fresh ? "text-text" : "text-text-muted")}>{head.subject}</span>
+        <span aria-hidden className={cn("hidden min-w-0 flex-1 truncate @min-[320px]:block", fresh ? "font-semibold text-text" : "text-text-muted")}>{head.subject}</span>
         <span className="flex-1 @min-[320px]:hidden" />
         <Time iso={head.lastMessageAt} className="min-w-time shrink-0 text-right text-11 tabular-nums text-text-muted" />
       </button>
@@ -375,7 +375,7 @@ function ThreadRow({
   digest: boolean;
   /** Work rows show the deadline and needs reply, and mark an unread reply with the dot. */
   work: boolean;
-  /** Rows set by who wrote: a person's sender stays lit, whose turn it is on the sender. */
+  /** Rows set by who wrote: whose turn it is on the sender. */
   byKind: boolean;
   /** Inside an open group: indented past the group's guide line. */
   nested?: boolean;
@@ -388,7 +388,6 @@ function ThreadRow({
   const theirTurn = person && t.lastFromMe && !t.unseen;
   const others = theirTurn ? t.sender.split(", ").filter((n) => n !== "me").join(", ") : t.sender;
   const today = new Date(t.lastMessageAt).toDateString() === new Date(now).toDateString();
-  const lit = t.unseen || (person && !theirTurn);
   const time = showSnooze && t.snoozedUntil ? t.snoozedUntil : t.lastMessageAt;
   const preview = (t.summary || t.snippet)?.trim();
 
@@ -423,7 +422,7 @@ function ThreadRow({
     >
       {label}
       <AccountSlot colors={accountColors} slots={accountSlots} />
-      <span className={cn("flex w-sender shrink-0 items-center gap-1 @min-[560px]:w-judged", t.unseen && "font-medium", lit ? "text-text" : "text-text-muted")}>
+      <span className={cn("flex w-sender shrink-0 items-center gap-1 @min-[560px]:w-judged", t.unseen ? "font-semibold text-text" : "text-text-muted")}>
         {work && t.unseen ? <UnreadDot /> : null}
         <span className="min-w-0 truncate">
           {theirTurn ? <span className="font-normal text-text-dim">{others ? "you, " : "you"}</span> : null}
@@ -433,7 +432,7 @@ function ThreadRow({
       </span>
       {t.resurfaced ? <span aria-hidden><Badge>back</Badge></span> : null}
       <span className="hidden min-w-0 flex-1 truncate @min-[320px]:block">
-        <span className={t.unseen ? "font-medium text-text" : "text-text-muted"}>{t.subject}</span>
+        <span className={t.unseen ? "font-semibold text-text" : "text-text-muted"}>{t.subject}</span>
         {preview ? <span className="text-text-dim"> · {preview}</span> : null}
       </span>
       <span className="flex-1 @min-[320px]:hidden" />
@@ -442,7 +441,7 @@ function ThreadRow({
         {t.needsReply ? <Badge className="bg-signal/15 text-signal">reply</Badge> : null}
         {overdue ? <Badge className="text-warning">overdue</Badge> : work && t.deadlineAt ? <Badge>due <Time iso={t.deadlineAt} /></Badge> : null}
       </span>
-      <Time iso={time} className={cn("min-w-time shrink-0 text-right text-11 tabular-nums", person && lit && today ? "text-text" : "text-text-muted")} />
+      <Time iso={time} className={cn("min-w-time shrink-0 text-right text-11 tabular-nums", t.unseen && today ? "text-text" : "text-text-muted")} />
     </Link>
   );
 }
