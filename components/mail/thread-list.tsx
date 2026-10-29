@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ThreadListItem } from "@/app/(mail)/_lib/queries";
+import type { DigestSection } from "@/lib/sync/stale";
 import { cn } from "@/lib/utils";
 
 import { AccountSquare } from "./account-square";
@@ -136,6 +137,10 @@ export function ThreadList({
     return at >= weekStart ? "this week" : at >= lastWeekStart ? "last week" : "older";
   };
   const whenAt = (i: number) => (work && grouped && blocks[i] ? when(blocks[i].threads[0]) : null);
+  // The digest groups by section, each headed by its count; an empty one has no rows and no label.
+  const digest = sel.view === "digest";
+  const sectionAt = (i: number) => (digest && grouped && blocks[i] ? blocks[i].threads[0].digestSection : null);
+  const sectionSize = (s: DigestSection) => threads.filter((t) => t.digestSection === s).length;
 
   const row = (t: ThreadListItem, nested = false) => (
     // A hairline under every thread, so each one reads as its own box where it starts and ends.
@@ -154,7 +159,7 @@ export function ThreadList({
           sel.focus(t.id);
         }}
         showSnooze={sel.view === "snoozed"}
-        digest={sel.view === "digest"}
+        digest={digest}
         work={work}
         byKind={byKind}
         nested={nested}
@@ -186,6 +191,11 @@ export function ThreadList({
             {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
             {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
             {whenAt(i) && whenAt(i) !== whenAt(i - 1) ? <GroupLabel>{whenAt(i)}</GroupLabel> : null}
+            {sectionAt(i) && sectionAt(i) !== sectionAt(i - 1) ? (
+              <GroupLabel>
+                {SECTION_LABELS[sectionAt(i)!]} · {sectionSize(sectionAt(i)!)}
+              </GroupLabel>
+            ) : null}
           </>
         );
         if (!b.cluster) {
@@ -340,6 +350,13 @@ function startOfWeek(d: Date, weeksBack: number): number {
   return monday.getTime();
 }
 
+const SECTION_LABELS: Record<DigestSection, string> = {
+  reply: "needs reply",
+  deadline: "deadlines",
+  triage: "triage waiting",
+  work: "stale in work",
+};
+
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return <div className="px-3 pt-2 pb-1 text-11 text-text-dim">{children}</div>;
 }
@@ -382,7 +399,7 @@ function ThreadRow({
 }) {
   const [now] = useState(() => Date.now());
   const overdue = !!t.deadlineAt && new Date(t.deadlineAt).getTime() < now;
-  const status = [t.resurfaced && "back", t.needsReply && "needs reply", overdue && "overdue", work && t.deadlineAt && !overdue && `due ${fullTime(t.deadlineAt)}`, digest && t.staleReason && `${t.staleReason.kind} ${t.staleReason.days}d`].filter(Boolean);
+  const status = [t.resurfaced && "back", t.needsReply && "needs reply", overdue && "overdue", (work || digest) && t.deadlineAt && !overdue && `due ${fullTime(t.deadlineAt)}`, digest && t.staleReason && `${t.staleReason.kind} ${t.staleReason.days}d`].filter(Boolean);
   const person = byKind && t.kind === "person";
   // The user wrote last: the next move is theirs, so the row steps back.
   const theirTurn = person && t.lastFromMe && !t.unseen;
@@ -439,7 +456,7 @@ function ThreadRow({
       <span className="flex shrink-0 items-center gap-1" aria-hidden>
         {digest && t.staleReason ? <Badge>{t.staleReason.kind} {t.staleReason.days}d</Badge> : null}
         {t.needsReply ? <Badge className="bg-signal/15 text-signal">reply</Badge> : null}
-        {overdue ? <Badge className="text-warning">overdue</Badge> : work && t.deadlineAt ? <Badge>due <Time iso={t.deadlineAt} /></Badge> : null}
+        {overdue ? <Badge className="text-warning">overdue</Badge> : (work || digest) && t.deadlineAt ? <Badge>due <Time iso={t.deadlineAt} /></Badge> : null}
       </span>
       <Time iso={time} className={cn("min-w-time shrink-0 text-right text-11 tabular-nums", t.unseen && today ? "text-text" : "text-text-muted")} />
     </Link>
