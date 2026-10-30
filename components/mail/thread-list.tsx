@@ -123,8 +123,10 @@ export function ThreadList({
     else blocks.push({ key: t.cluster ? `c:${t.cluster.key}` : t.id, cluster: t.cluster, threads: [t] });
   }
   const blockUnseen = (b: Block) => b.threads.some((t) => t.unseen);
-  // Work keeps its own order (deadlines, then by date), so it has no unseen and seen groups.
-  const unseen = work || sel.view === "digest" ? 0 : threads.filter((t) => t.unseen).length;
+  // A project lists its threads in sections: to check, in the project, archived.
+  const inProject = isProjectSlug(sel.view);
+  // Work keeps its own order (deadlines, then by date), so it has no unseen and seen groups; a project has its sections.
+  const unseen = work || sel.view === "digest" || inProject ? 0 : threads.filter((t) => t.unseen).length;
   // Group labels only hold while rows sit in server order (unseen first).
   const grouped = ordered.every((t, i) => t.id === threads[i]?.id);
   const firstUnseen = grouped ? 0 : -1;
@@ -142,12 +144,8 @@ export function ThreadList({
   const digest = sel.view === "digest";
   const sectionAt = (i: number) => (digest && grouped && blocks[i] ? blocks[i].threads[0].digestSection : null);
   const sectionSize = (s: DigestSection) => threads.filter((t) => t.digestSection === s).length;
-  // A project lists its archived history under its live threads.
-  const inProject = isProjectSlug(sel.view) && grouped;
-  const firstArchived = inProject ? blocks.findIndex((b) => b.threads[0].archived && b.threads[0].projectId) : -1;
-  // Suggested threads sit on top of a project, to check; its own live threads follow.
-  const toCheck = inProject ? threads.filter((t) => !t.projectId).length : 0;
-  const firstOwn = toCheck ? blocks.findIndex((b) => b.threads[0].projectId) : -1;
+  const sectionOf = (i: number) => (inProject && blocks[i] ? sel.sectionOf(blocks[i].threads[0].id) : null);
+  const sectionCount = (k: string) => threads.filter((t) => sel.sectionOf(t.id) === k).length;
 
   const row = (t: ThreadListItem, nested = false) => (
     // A hairline under every thread, so each one reads as its own box where it starts and ends.
@@ -198,9 +196,14 @@ export function ThreadList({
             {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
             {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
             {whenAt(i) && whenAt(i) !== whenAt(i - 1) ? <GroupLabel>{whenAt(i)}</GroupLabel> : null}
-            {toCheck && i === 0 ? <GroupLabel>to check · {toCheck}</GroupLabel> : null}
-            {i === firstOwn && firstOwn !== firstArchived ? <GroupLabel>in the project</GroupLabel> : null}
-            {i === firstArchived ? <GroupLabel>archived</GroupLabel> : null}
+            {sectionOf(i) && sectionOf(i) !== sectionOf(i - 1) ? (
+              <SectionHeader
+                label={PROJECT_SECTION_LABELS[sectionOf(i)!] ?? sectionOf(i)!}
+                count={sectionCount(sectionOf(i)!)}
+                collapsed={sel.isSectionCollapsed(sectionOf(i)!)}
+                onToggle={() => sel.toggleSection(sectionOf(i)!)}
+              />
+            ) : null}
             {sectionAt(i) && sectionAt(i) !== sectionAt(i - 1) ? (
               <GroupLabel>
                 {SECTION_LABELS[sectionAt(i)!]} · {sectionSize(sectionAt(i)!)}
@@ -208,6 +211,14 @@ export function ThreadList({
             ) : null}
           </>
         );
+        // A folded section shows its header, and the thread being read.
+        if (sectionOf(i) && sel.isSectionCollapsed(sectionOf(i)!) && b.threads[0].id !== sel.openId) {
+          return sectionOf(i) !== sectionOf(i - 1) ? (
+            <li key={b.key} className="flex flex-col">
+              {labels}
+            </li>
+          ) : null;
+        }
         if (!b.cluster) {
           return (
             <li key={b.key} className="flex flex-col">
@@ -366,6 +377,30 @@ const SECTION_LABELS: Record<DigestSection, string> = {
   triage: "triage waiting",
   work: "stale in work",
 };
+
+const PROJECT_SECTION_LABELS: Record<string, string> = {
+  check: "to check",
+  own: "in the project",
+  archived: "archived",
+};
+
+/** A group label that folds its rows away. */
+function SectionHeader({ label, count, collapsed, onToggle }: { label: string; count: number; collapsed: boolean; onToggle: () => void }) {
+  const Chevron = collapsed ? ChevronRight : ChevronDown;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      className="flex items-center gap-1 px-3 pt-2 pb-1 text-left text-11 text-text-dim transition-colors duration-80 ease-snap hover:text-text-muted focus-visible:text-text"
+    >
+      <Chevron aria-hidden className="size-3 shrink-0" strokeWidth={1.5} />
+      <span>
+        {label} · <span className="tabular-nums">{count}</span>
+      </span>
+    </button>
+  );
+}
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return <div className="px-3 pt-2 pb-1 text-11 text-text-dim">{children}</div>;

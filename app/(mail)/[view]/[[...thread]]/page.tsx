@@ -110,6 +110,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       account={on?.length === 1 ? on[0] : null}
       threadIds={threads.map((t) => t.id)}
       clusters={Object.fromEntries(threads.flatMap((t) => (t.cluster ? [[t.id, t.cluster.key]] : [])))}
+      sections={view.project ? projectSections(threads) : undefined}
       openId={threadId}
     >
       <NavKeys />
@@ -236,6 +237,12 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       </ActionsProvider>
     </SelectionProvider>
   );
+}
+
+/** A project lists what it asks about, then its own live threads, then its archived history. */
+function projectSections(threads: { id: string; projectId: string | null; archived: boolean }[]) {
+  const of = (t: (typeof threads)[number]) => (!t.projectId ? "check" : t.archived ? "archived" : "own");
+  return ["check", "own", "archived"].map((key) => ({ key, ids: threads.filter((t) => of(t) === key).map((t) => t.id) }));
 }
 
 function homeView(t: {
