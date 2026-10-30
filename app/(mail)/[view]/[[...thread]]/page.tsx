@@ -64,9 +64,10 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   if (threadId && !detail) notFound();
   // A thread opened under a view it no longer belongs to (an old link, a thread snoozed elsewhere) moves to its
   // own view, so the list always holds the open thread. Archived and kept-out threads have no view and stay put.
-  // Sent holds any thread written in, whatever its own view.
-  const inDigest = view.slug === "digest" && threads.some((t) => t.id === detail?.id || detail?.copyIds.includes(t.id));
-  const home = detail && !(view.slug === "sent" && detail.wroteIn) && !inDigest ? homeView(detail) : null;
+  // A view that lists it keeps it: Sent holds any thread written in, the digest the threads it talks about, a
+  // project the threads it asks about.
+  const listsIt = threads.some((t) => t.id === detail?.id || detail?.copyIds.includes(t.id));
+  const home = detail && !(view.slug === "sent" && detail.wroteIn) && !listsIt ? homeView(detail) : null;
   if (detail && home && home !== view.slug) redirect(mailHref(home, { threadId: detail.id }));
   // The list shows one copy per conversation; open that copy so the row and the pane line up.
   const listed = detail && !threads.some((t) => t.id === detail.id) ? threads.find((t) => detail.copyIds.includes(t.id)) : null;
