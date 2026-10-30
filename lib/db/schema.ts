@@ -58,8 +58,6 @@ export const screenerDecision = pgEnum("screener_decision", [
 export const decidedBy = pgEnum("decided_by", ["ai", "user"]);
 export const jobType = pgEnum("job_type", ["classify", "writeback", "backfill", "digest", "entities", "embed"]);
 export const entityType = pgEnum("entity_type", ["person", "project", "company"]);
-// What a starred thread goes back to when unstarred.
-export const starredFrom = pgEnum("starred_from", ["bucket", "archived", "snoozed", "work"]);
 export const jobStatus = pgEnum("job_status", [
   "pending",
   "running",
@@ -73,7 +71,6 @@ export type ScreenerDecision = (typeof screenerDecision.enumValues)[number];
 export type JobType = (typeof jobType.enumValues)[number];
 export type EntityType = (typeof entityType.enumValues)[number];
 export type EntityQuestionStatus = "open" | "same" | "different" | "dismissed";
-export type StarredFrom = (typeof starredFrom.enumValues)[number];
 export type JobStatus = (typeof jobStatus.enumValues)[number];
 
 export type Address = { name: string | null; email: string };
@@ -244,10 +241,8 @@ export const threads = pgTable(
     // When the thread entered Work, null when it is not there. Client-only, never written to Gmail.
     // Stored under its old name, pinned_at.
     workAt: timestamp("pinned_at", { withTimezone: true }),
-    // When the thread was starred, null when it is not. Mirrored to Gmail's STARRED label.
+    // When the thread was starred, null when it is not: pinned on top of the list that holds it. Mirrored to Gmail's STARRED label.
     starredAt: timestamp({ withTimezone: true }),
-    // Where unstarring puts it back. Set while starred.
-    starredFrom: starredFrom(),
     archived: boolean().notNull().default(false),
     trashed: boolean().notNull().default(false),
     spam: boolean().notNull().default(false),

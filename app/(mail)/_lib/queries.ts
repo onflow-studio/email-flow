@@ -24,14 +24,10 @@ const DAY = 24 * 60 * 60 * 1000;
 const wroteIn = () => sql`exists (select 1 from ${messages} m where m.thread_id = ${threads.id} and not m.is_inbound)`;
 const lastSentAt = () => sql`(select max(m.date) from ${messages} m where m.thread_id = ${threads.id} and not m.is_inbound)`;
 
-// Starred threads leave every other view but Sent and Trash, whatever else they are.
-const unstarred = () => isNull(threads.starredAt);
-
 function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefined {
-  if (view.slug === "starred") return and(live(), isNotNull(threads.starredAt));
-  if (view.slug === "snoozed") return and(live(), snoozed(), unstarred());
+  if (view.slug === "snoozed") return and(live(), snoozed());
   if (view.slug === "digest") return and(
-    live(), unstarred(), or(isNull(threads.snoozedUntil), lte(threads.snoozedUntil, now)),
+    live(), isNull(threads.starredAt), or(isNull(threads.snoozedUntil), lte(threads.snoozedUntil, now)),
     or(
       lte(threads.deadlineAt, new Date(now.getTime() + DAY)),
       lt(threads.workAt, cutoffs.work),
@@ -44,7 +40,7 @@ function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefin
   if (view.slug === "drafts") return sql`false`;
   if (view.slug === "trash") return and(eq(threads.trashed, true), eq(threads.spam, false));
   // A snoozed Work thread hides until its snooze ends, then comes back here.
-  if (view.slug === "work") return and(live(), unstarred(), isNotNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
+  if (view.slug === "work") return and(live(), isNotNull(threads.workAt), or(isNull(threads.snoozedUntil), resurfaced()));
   // A project is a bucket of its own: its live threads as a bucket view holds them, then its archived history.
   // The live threads it suggests sit on top, to check, while they stay in their own view too.
   if (view.project) {
@@ -52,7 +48,6 @@ function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefin
     return and(
       eq(threads.trashed, false),
       eq(threads.spam, false),
-      unstarred(),
       or(
         and(eq(threads.projectId, view.project.id), or(open, eq(threads.archived, true))),
         and(isNull(threads.projectId), eq(threads.projectSuggestedId, view.project.id), open),
@@ -64,7 +59,6 @@ function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefin
   // Resurfaced snoozes sit at the top of Inbox whatever their bucket, unless their project holds them.
   return and(
     live(),
-    unstarred(),
     view.bucket === "inbox" ? or(inBucket, and(isNull(threads.workAt), isNull(threads.projectId), resurfaced())) : inBucket,
   );
 }
@@ -203,6 +197,8 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
     .leftJoinLateral(last, sql`true`)
     .where(and(viewFilter(view, cutoffs, now), accountFilter(on)))
     .orderBy(
+      // Starred threads are pinned on top of the list that holds them, latest starred first.
+      ...(view.slug === "sent" || view.slug === "digest" ? [] : [asc(sql`${threads.starredAt} is null`), desc(threads.starredAt)]),
       ...(view.slug === "work"
         ? workOrder()
         : view.slug === "digest"
@@ -211,9 +207,7 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
               when ${threads.needsReply} and ${threads.deadlineAt} is null and ${lt(threads.lastMessageAt, cutoffs.reply)} then ${threads.lastMessageAt} - ${cutoffs.reply.toISOString()}::timestamptz
               else ${threads.createdAt} - ${cutoffs.triage.toISOString()}::timestamptz
             end`), asc(threads.id)]
-        : view.slug === "starred"
-          ? [desc(threads.starredAt)]
-          : view.slug === "sent"
+        : view.slug === "sent"
           ? [desc(lastSentAt())]
           : view.project
           ? [
@@ -250,7 +244,8 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
       : null,
   );
   // Machine mail from one source folds into a group once it has two threads here.
-  const found = CLUSTER_VIEWS.includes(view.slug) ? latest.map((m) => (m ? clusterOf(m) : null)) : [];
+  // A starred thread stays out of them, pinned on its own.
+  const found = CLUSTER_VIEWS.includes(view.slug) ? latest.map((m, i) => (m && !rows[i].starredAt ? clusterOf(m) : null)) : [];
   const sizes = new Map<string, number>();
   // One name per group, its newest thread's.
   const labels = new Map<string, string>();

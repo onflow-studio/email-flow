@@ -41,7 +41,6 @@ export const COMMANDS = [
   go("triage", "triage", ["g t"]),
   go("inbox", "inbox", ["g i"]),
   go("work", "work", ["g w"]),
-  go("starred", "starred"),
   go("snoozed", "snoozed"),
   go("digest", "digest"),
   go("news", "news", ["g n"]),

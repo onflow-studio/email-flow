@@ -180,7 +180,6 @@ export async function ingestThread(
   const mirror = mirrorState(
     live.map((m) => m.labelIds),
     existing?.bucket ?? initialBucket(live.flatMap((m) => m.labelIds)),
-    !!existing?.starredAt,
     !!project,
   );
   // Before the stored labels are updated below.

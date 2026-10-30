@@ -153,7 +153,6 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
         run: () => void run({ type: "move", bucket: m.bucket }, ids),
       })),
       ...(!thread.work ? [work] : []),
-      ...(!thread.starred ? [{ ...star, label: "starred" }] : []),
     ],
   };
 
@@ -174,8 +173,6 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
       return pick([reply, archive, snooze], [unsnooze, del], [replyAll, forward, work, star, unsub, unread, kind, spam]);
     case "work":
       return pick([work, reply], [snooze, del], [replyAll, forward, star, needsReply, deadline, unsnooze, unsub, unread, kind, spam]);
-    case "starred":
-      return pick([reply, star], [archive, del], [replyAll, forward, snooze, work, unsub, unread, kind, spam]);
     case "trash":
       return pick([del], [], [work, reply, forward, spam]);
     default:
