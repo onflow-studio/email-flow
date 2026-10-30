@@ -19,10 +19,11 @@ import { StatusLine } from "@/components/mail/status-line";
 import { ThreadList } from "@/components/mail/thread-list";
 import { TriageQueue } from "@/components/mail/triage-queue";
 import { UnreadDot } from "@/components/mail/unread-dot";
+import { WorkProvider } from "@/components/mail/work-context";
 import { ProjectsProvider } from "@/components/mail/projects-context";
 import { findView, mailHref, projectView, VIEWS, type View, type ViewSlug } from "@/components/mail/views";
 import { db } from "@/lib/db";
-import { loadDigestSettings, loadStaleSettings } from "@/lib/db/settings";
+import { loadDigestSettings, loadStaleSettings, loadWorkOn } from "@/lib/db/settings";
 import { localTime } from "@/lib/sync/digest";
 import { accessExpiryFromEnv } from "@/lib/sync/expiry";
 import { staleCutoffs } from "@/lib/sync/stale";
@@ -43,6 +44,8 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
 
   const view = findView(slug, projects);
   if (!view) notFound();
+  const workOn = await loadWorkOn(db);
+  if (!workOn && view.slug === "work") redirect(mailHref("inbox"));
   if (thread?.length && (thread.length > 1 || !UUID.test(thread[0]) || view.slug === "drafts")) notFound();
   const threadId = thread?.[0] ?? null;
   const projectViews = projects.map(projectView);
@@ -67,7 +70,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   // A view that lists it keeps it: Sent holds any thread written in, the digest the threads it talks about, a
   // project the threads it asks about.
   const listsIt = threads.some((t) => t.id === detail?.id || detail?.copyIds.includes(t.id));
-  const home = detail && !(view.slug === "sent" && detail.wroteIn) && !listsIt ? homeView(detail) : null;
+  const home = detail && !(view.slug === "sent" && detail.wroteIn) && !listsIt ? homeView({ ...detail, work: workOn && detail.work }) : null;
   if (detail && home && home !== view.slug) redirect(mailHref(home, { threadId: detail.id }));
   // The list shows one copy per conversation; open that copy so the row and the pane line up.
   const listed = detail && !threads.some((t) => t.id === detail.id) ? threads.find((t) => detail.copyIds.includes(t.id)) : null;
@@ -105,6 +108,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   const unseen = threads.filter((t) => t.unseen).length;
 
   return (
+    <WorkProvider on={workOn}>
     <SelectionProvider
       view={view.slug}
       account={on?.length === 1 ? on[0] : null}
@@ -138,7 +142,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                 )}
               >
                 <nav aria-label="views" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 md:hidden">
-                  {[...VIEWS, ...projectViews].map((v) => (
+                  {[...VIEWS.filter((v) => workOn || v.slug !== "work"), ...projectViews].map((v) => (
                     <Link
                       key={v.slug}
                       href={mailHref(v.slug)}
@@ -236,6 +240,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
         </ProjectsProvider>
       </ActionsProvider>
     </SelectionProvider>
+    </WorkProvider>
   );
 }
 

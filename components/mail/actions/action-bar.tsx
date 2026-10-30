@@ -15,6 +15,7 @@ import { useKeys, useOverrides, shortcutOf } from "../keys/keymap";
 import { useMailSelection } from "../selection";
 import type { ViewSlug } from "../views";
 import type { CommandId } from "../keys/commands";
+import { useWorkOn } from "../work-context";
 import { useThreadActions } from "./actions";
 import { useUndo } from "./undo";
 
@@ -92,6 +93,7 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
   const overrides = useOverrides();
   const key = (id: CommandId) => shortcutOf(id, overrides);
   const ids = [thread.id];
+  const workOn = useWorkOn();
 
   const reply: BarAction = { id: "reply", label: "reply", keys: key("reply"), run: () => compose.open("reply", thread.id) };
   const replyAll: BarAction = { id: "reply-all", label: "reply all", keys: key("reply-all"), run: () => compose.open("reply-all", thread.id) };
@@ -101,7 +103,7 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
   const unsnooze: BarAction | null = thread.snoozedUntil
     ? { id: "unsnooze", label: "unsnooze", run: () => void run({ type: "unsnooze" }, ids) }
     : null;
-  const work: BarAction = {
+  const work: BarAction | null = !workOn ? null : {
     id: "work",
     label: view === "work" && thread.work ? "done" : "work",
     keys: key("work"),
@@ -152,7 +154,7 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
         keys: key(`move.${m.bucket}`),
         run: () => void run({ type: "move", bucket: m.bucket }, ids),
       })),
-      ...(!thread.work ? [work] : []),
+      ...(work && !thread.work ? [work] : []),
     ],
   };
 

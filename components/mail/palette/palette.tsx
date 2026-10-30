@@ -34,7 +34,8 @@ import { useCompose } from "../compose/compose";
 import { useMailSelection } from "../selection";
 import { fullTime, Time } from "../time";
 import { useProjects } from "../projects-context";
-import { mailHref, projectView, VIEWS, type View, type ViewSlug } from "../views";
+import { mailHref, projectView, type View, type ViewSlug } from "../views";
+import { useViews, useWorkOn } from "../work-context";
 import { Highlight, Snippet } from "./highlight";
 import { looksLikeQuestion, readAsk } from "./ask";
 import { AskPane, type AskState } from "./ask-pane";
@@ -97,8 +98,10 @@ const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 const unitOf = (p: Preview) => (isKeepOut(p) ? "sender" : "thread");
 
 /** Every bulk row the results pane lists: thread actions (project moves among them), snooze, then keep out per sender. */
-const bulkRows = (projects: { id: string; name: string }[]) => [
-  ...bulkActions(projects).map((a) => ({ key: a.key, label: a.label, unit: "thread" })),
+const bulkRows = (projects: { id: string; name: string }[], workOn: boolean) => [
+  ...bulkActions(projects)
+    .filter((a) => workOn || a.key !== "work")
+    .map((a) => ({ key: a.key, label: a.label, unit: "thread" })),
   { ...BULK_SNOOZE, unit: "thread" },
   ...BULK_KEEP_OUT.map((a) => ({ key: a.key, label: a.label, unit: "sender" })),
 ];
@@ -311,8 +314,10 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
 
   const overrides = useOverrides();
   const projects = useProjects();
-  const BULK_ROWS = bulkRows(projects);
-  const views = [...VIEWS, ...projects.map(projectView)].filter((v: View) => matches(v.label, query));
+  const workOn = useWorkOn();
+  const fixedViews = useViews();
+  const BULK_ROWS = bulkRows(projects, workOn);
+  const views = [...fixedViews, ...projects.map(projectView)].filter((v: View) => matches(v.label, query));
   const actions = [
     { key: "compose", label: "compose", keys: shortcutOf("compose", overrides), run: () => compose.open("new", null, sel.account) },
     {

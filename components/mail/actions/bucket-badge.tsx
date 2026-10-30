@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useKeys } from "../keys/keymap";
 import { useProjects } from "../projects-context";
 import { useMailSelection } from "../selection";
+import { useWorkOn } from "../work-context";
 import { useThreadActions } from "./actions";
 
 const NAMES: Record<ThreadDetail["bucket"], string> = {
@@ -42,8 +43,9 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
   const { run } = useThreadActions();
   const projects = useProjects();
   // Projects follow Work, as in the rail; the menu keys them 1 to 9.
+  const workOn = useWorkOn();
   const TARGETS = [
-    ...BUCKET_TARGETS.slice(0, 2),
+    ...BUCKET_TARGETS.slice(0, 2).filter((t) => workOn || t.destination !== "work"),
     ...projects.slice(0, 9).map((p, i) => ({ destination: `project:${p.id}` as Destination, key: String(i + 1), label: p.name })),
     ...BUCKET_TARGETS.slice(2),
   ];

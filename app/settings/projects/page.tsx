@@ -2,10 +2,12 @@ import { asc, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 
 import { db } from "@/lib/db";
+import { loadWorkOn } from "@/lib/db/settings";
 import { accounts, messages, projects, threads } from "@/lib/db/schema";
 import { getGmailLabelsAdapter } from "@/lib/gmail/client";
 
 import { ProjectsSection } from "../projects-section";
+import { WorkSection } from "../work-section";
 
 export const metadata: Metadata = { title: "projects · settings · email-flow" };
 
@@ -44,7 +46,7 @@ async function gmailLabels() {
 }
 
 export default async function ProjectsPage() {
-  const [rows, labels] = await Promise.all([
+  const [rows, labels, workOn] = await Promise.all([
     db
       .select({
         id: projects.id,
@@ -64,12 +66,16 @@ export default async function ProjectsPage() {
       .groupBy(projects.id)
       .orderBy(asc(projects.createdAt)),
     gmailLabels(),
+    loadWorkOn(db),
   ]);
   const used = new Set(rows.map((p) => p.labelName));
   return (
-    <ProjectsSection
-      projects={rows.map((p) => ({ ...p, since: p.since?.toISOString() ?? null }))}
-      labels={labels.filter((l) => !used.has(l.name))}
-    />
+    <div className="flex flex-col gap-8">
+      <ProjectsSection
+        projects={rows.map((p) => ({ ...p, since: p.since?.toISOString() ?? null }))}
+        labels={labels.filter((l) => !used.has(l.name))}
+      />
+      <WorkSection on={workOn} />
+    </div>
   );
 }

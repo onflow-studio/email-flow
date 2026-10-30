@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RADIO_TOGGLE_EVENT } from "@/components/radio";
 
 import { useMailSelection } from "../selection";
-import { VIEWS } from "../views";
+import { useViews } from "../work-context";
 import { useKeyMap, useKeys, type KeyBinding } from "./keymap";
 
 /** Pane focus is a desktop idea; phone shows one pane at a time. */
@@ -20,6 +20,7 @@ export function NavKeys() {
   const sel = useMailSelection();
   const map = useKeyMap();
   const router = useRouter();
+  const views = useViews();
 
   // With a thread open, j/k step through threads in reading mode. A plain step keeps the picks but ends the shift range.
   const step = (dir: 1 | -1) => {
@@ -66,7 +67,7 @@ export function NavKeys() {
     },
     { keys: "escape", when: () => sel.selectedIds.length > 0, run: () => sel.clearSelected() },
     { id: "thread.close", when: () => !!sel.openId, run: () => sel.close() },
-    ...VIEWS.map<KeyBinding>((v) => ({ id: v.command, run: () => sel.go(v.slug) })),
+    ...views.map<KeyBinding>((v) => ({ id: v.command, run: () => sel.go(v.slug) })),
     { id: "go.settings", run: () => router.push("/settings") },
     { id: "radio", run: () => window.dispatchEvent(new Event(RADIO_TOGGLE_EVENT)) },
     { id: "key-map", run: () => map.setOpen(!map.open) },
