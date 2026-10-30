@@ -13,7 +13,8 @@ import { useProjects } from "./projects-context";
 import { useKeys } from "./keys/keymap";
 import { useMailSelection } from "./selection";
 import { UnreadDot } from "./unread-dot";
-import { mailHref, projectView, VIEWS, type View, type ViewSlug } from "./views";
+import { mailHref, projectView, type View, type ViewSlug } from "./views";
+import { useViews } from "./work-context";
 
 const ICONS: Partial<Record<ViewSlug, LucideIcon>> = {
   inbox: Inbox,
@@ -47,6 +48,7 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
   const focused = sel.pane === "rail";
 
   const projects = useProjects();
+  const views = useViews();
   const item = (v: View): RailItem => ({
     key: v.slug,
     // A project keeps the name its owner gave it.
@@ -60,11 +62,11 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
     unread: counts.unread[v.slug],
     fresh: v.group !== "bottom" && !!counts.unseen[v.slug],
   });
-  const act = VIEWS.filter((v) => v.group === "act").map(item);
+  const act = views.filter((v) => v.group === "act").map(item);
   const own = projects.map(projectView).map(item);
-  const later = VIEWS.filter((v) => v.group === "later").map(item);
+  const later = views.filter((v) => v.group === "later").map(item);
   const bottom = [
-    ...VIEWS.filter((v) => v.group === "bottom").map(item),
+    ...views.filter((v) => v.group === "bottom").map(item),
     { key: "settings", label: "Settings", href: "/settings", icon: Settings },
   ];
 

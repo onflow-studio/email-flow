@@ -14,6 +14,7 @@ import { useMailSelection } from "../selection";
 import { markLeaving } from "../thread-list";
 import { fullTime } from "../time";
 import { findView, isProjectSlug, mailHref, type ViewSlug } from "../views";
+import { useWorkOn } from "../work-context";
 import { DeadlinePicker, SnoozePicker } from "./snooze-picker";
 import { useUndo } from "./undo";
 
@@ -193,6 +194,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
 
   const byId = useMemo(() => new Map(targets.map((t) => [t.id, t])), [targets]);
   const target = sel.target ? (byId.get(sel.target) ?? null) : null;
+  const workOn = useWorkOn();
 
   // The picker shows a snooze still ahead, so rescheduling never looks like nothing was set.
   const [openedAt, setOpenedAt] = useState(0);
@@ -349,7 +351,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
   useKeys([
     { id: "archive", when: () => !!target, run: () => void run({ type: "archive" }) },
     { id: "snooze", when: () => !!target, run: openSnooze },
-    { id: "work", when: () => !!target, run: () => void toggleWork() },
+    { id: "work", when: () => workOn && !!target, run: () => void toggleWork() },
     { id: "star", when: () => !!target, run: () => void toggleStar() },
     move("inbox"),
     move("news"),

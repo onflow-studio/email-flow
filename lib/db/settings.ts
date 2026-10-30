@@ -67,3 +67,16 @@ export async function saveDigestSettings(conn: Pick<Db, "insert">, value: Digest
     set: { value: valid, updatedAt: new Date() },
   });
 }
+
+/** Whether the Work list is on. Owners whose projects hold their work can turn it off. */
+export async function loadWorkOn(conn: Pick<Db, "select">): Promise<boolean> {
+  const on = (await load(conn, "work")).on;
+  return typeof on === "boolean" ? on : true;
+}
+
+export async function saveWorkOn(conn: Pick<Db, "insert">, on: boolean): Promise<void> {
+  await conn.insert(settings).values({ key: "work", value: { on } }).onConflictDoUpdate({
+    target: settings.key,
+    set: { value: { on }, updatedAt: new Date() },
+  });
+}
