@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { refresh } from "next/cache";
 
 import { db } from "@/lib/db";
@@ -30,16 +30,61 @@ async function freeSlug(name: string) {
  * with the threads that label already carries and those a search finds, then sorting reads the
  * rest of the mail back to the chosen point.
  */
+/** When sorting starts: all history, a date, or now. Undefined when the form's date is missing or bad. */
+function sinceOf(form: FormData): Date | null | undefined {
+  const from = String(form.get("from") ?? "all");
+  if (from === "new") return new Date();
+  if (from !== "since") return null;
+  const date = new Date(String(form.get("since") ?? ""));
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+export type SearchPreview = { count: number; subjects: string[] };
+
+/** What a search would put in a project: threads in no project yet, newest first. */
+export async function previewSearch(search: string): Promise<SearchPreview> {
+  const query = search.trim().slice(0, 500);
+  if (!query) return { count: 0, subjects: [] };
+  const ids = await searchThreadIds(db, query);
+  if (!ids.length) return { count: 0, subjects: [] };
+  const free = await db
+    .select({ subject: threads.subject })
+    .from(threads)
+    .where(and(inArray(threads.id, ids), isNull(threads.projectId), eq(threads.trashed, false)))
+    .orderBy(desc(threads.lastMessageAt));
+  return { count: free.length, subjects: free.slice(0, 3).map((t) => t.subject?.trim() || "(no subject)") };
+}
+
+/** Puts the threads a search finds into a project. */
+export async function addFromSearch(_prev: ProjectState, form: FormData): Promise<ProjectState> {
+  const id = String(form.get("project") ?? "");
+  const search = String(form.get("search") ?? "").trim().slice(0, 500);
+  if (!id || !search) return { ok: false, message: "type a search" };
+  const placed = await placeThreads(db, id, await searchThreadIds(db, search));
+  refresh();
+  return { ok: true, message: placed ? `${placed} ${placed === 1 ? "thread" : "threads"} added` : "nothing new to add" };
+}
+
+/** Moves the point sorting reads back to, and sorts again from there. */
+export async function setProjectSince(_prev: ProjectState, form: FormData): Promise<ProjectState> {
+  const id = String(form.get("project") ?? "");
+  const since = sinceOf(form);
+  if (!id) return null;
+  if (since === undefined) return { ok: false, message: "pick a date to sort from" };
+  await db.update(projects).set({ since }).where(eq(projects.id, id));
+  await resortProjects(db, since);
+  refresh();
+  return { ok: true, message: "sorting again" };
+}
+
 export async function createProject(_prev: ProjectState, form: FormData): Promise<ProjectState> {
   const name = String(form.get("name") ?? "").trim().replace(/\s+/g, " ");
   const labelName = String(form.get("label") ?? "").trim() || name;
   const search = String(form.get("search") ?? "").trim().slice(0, 500);
-  const from = String(form.get("from") ?? "all");
   if (!name || name.length > MAX_NAME) return { ok: false, message: `name must be 1 to ${MAX_NAME} characters` };
   if (labelName.length > 225 || RESERVED.test(labelName)) return { ok: false, message: "pick another gmail label" };
-  const sinceDate = from === "since" ? new Date(String(form.get("since") ?? "")) : null;
-  if (from === "since" && (!sinceDate || Number.isNaN(sinceDate.getTime()))) return { ok: false, message: "pick a date to sort from" };
-  const since = from === "new" ? new Date() : from === "since" ? sinceDate : null;
+  const since = sinceOf(form);
+  if (since === undefined) return { ok: false, message: "pick a date to sort from" };
 
   const [taken] = await db.select({ id: projects.id }).from(projects).where(eq(projects.labelName, labelName));
   if (taken) return { ok: false, message: `a project already uses the label ${labelName}` };
