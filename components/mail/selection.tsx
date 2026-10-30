@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { clusterOrder } from "./clusters";
 import { rememberMailPath } from "./return-path";
@@ -28,6 +28,11 @@ export type MailSelection = {
   /** True when the group's rows are folded into its first one. */
   isCollapsed: (key: string) => boolean;
   toggleCluster: (key: string) => void;
+  /** The section a thread is listed under, if the view has sections. */
+  sectionOf: (id: string) => string | null;
+  /** True when the section's rows are folded under its header. */
+  isSectionCollapsed: (key: string) => boolean;
+  toggleSection: (key: string) => void;
   /** What keyboard actions act on: the picks, else a collapsed group's every thread, else `target`. */
   targetIds: string[];
   focusedId: string | null;
@@ -74,6 +79,9 @@ type FocusStore = {
   /** Groups opened up in a view; every other group stays collapsed. */
   expanded: (key: string) => string[];
   setExpanded: (key: string, clusters: string[]) => void;
+  /** Sections folded in a view, remembered in this browser. */
+  folded: (key: string) => string[];
+  setFolded: (key: string, sections: string[]) => void;
   /** The list's scroll position: the page remounts when the open thread changes, and the list must not move. */
   listScroll: (key: string) => number | undefined;
   setListScroll: (key: string, top: number) => void;
@@ -89,6 +97,32 @@ type FocusStore = {
 };
 
 const FocusStoreContext = createContext<FocusStore | null>(null);
+
+const FOLDED_KEY = "superfer.foldedSections";
+
+// Folded sections, per browser. Blocked storage keeps them for the session.
+let foldedMemory = "{}";
+const foldedListeners = new Set<() => void>();
+function readFolded() {
+  try {
+    return localStorage.getItem(FOLDED_KEY) ?? foldedMemory;
+  } catch {
+    return foldedMemory;
+  }
+}
+function writeFolded(raw: string) {
+  foldedMemory = raw;
+  try {
+    localStorage.setItem(FOLDED_KEY, raw);
+  } catch {
+    // Private mode or blocked storage.
+  }
+  for (const l of foldedListeners) l();
+}
+function subscribeFolded(l: () => void) {
+  foldedListeners.add(l);
+  return () => foldedListeners.delete(l);
+}
 
 const sameIds = (a: string[] | undefined, b: string[]) => !!a && a.length === b.length && a.every((id, i) => id === b[i]);
 
@@ -128,6 +162,21 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
   const setExpanded = useCallback(
     (key: string, clusters: string[]) => setExpandedState((prev) => ({ ...prev, [key]: clusters })),
     [],
+  );
+  // The server renders every section open; the browser's saved folds apply after hydration.
+  const foldedRaw = useSyncExternalStore(subscribeFolded, readFolded, () => "{}");
+  const foldedState = useMemo(() => {
+    try {
+      const saved: unknown = JSON.parse(foldedRaw);
+      return saved && typeof saved === "object" ? (saved as Record<string, string[]>) : {};
+    } catch {
+      return {};
+    }
+  }, [foldedRaw]);
+  const folded = useCallback((key: string) => foldedState[key] ?? [], [foldedState]);
+  const setFolded = useCallback(
+    (key: string, sections: string[]) => writeFolded(JSON.stringify({ ...foldedState, [key]: sections })),
+    [foldedState],
   );
   const lastViewRef = useRef<string | null>(null);
   const autoOpenedRef = useRef<string | null>(null);
@@ -171,6 +220,8 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       setRange,
       expanded,
       setExpanded,
+      folded,
+      setFolded,
       listScroll,
       setListScroll,
       pane,
@@ -180,7 +231,7 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       isAutoOpened,
       clearAutoOpened,
     }),
-    [picked, order, set, setOrder, range, setRange, expanded, setExpanded, listScroll, setListScroll, pane, switchedTo, setAutoOpened, isAutoOpened, clearAutoOpened],
+    [picked, order, set, setOrder, range, setRange, expanded, setExpanded, folded, setFolded, listScroll, setListScroll, pane, switchedTo, setAutoOpened, isAutoOpened, clearAutoOpened],
   );
   return <FocusStoreContext.Provider value={value}>{children}</FocusStoreContext.Provider>;
 }
@@ -208,6 +259,7 @@ export function SelectionProvider({
   account,
   threadIds: serverIds,
   clusters = {},
+  sections = [],
   openId,
   children,
 }: {
@@ -217,6 +269,8 @@ export function SelectionProvider({
   threadIds: string[];
   /** Thread id to its group key, for threads in a group. */
   clusters?: Record<string, string>;
+  /** Sections in list order, each with its threads; rows are listed section by section. */
+  sections?: { key: string; ids: string[] }[];
   openId: string | null;
   children: React.ReactNode;
 }) {
@@ -228,11 +282,20 @@ export function SelectionProvider({
   const prevOrder = store.order(key);
   const serverKey = serverIds.join();
   const clusterKey = JSON.stringify(clusters);
-  // A group stays together even when new mail joins it.
-  const allIds = useMemo(
-    () => clusterOrder(stableOrder(prevOrder, serverKey ? serverKey.split(",") : []), JSON.parse(clusterKey)),
-    [prevOrder, serverKey, clusterKey],
+  const sectionKey = JSON.stringify(sections);
+  const sectionOf = useMemo(
+    () => new Map((JSON.parse(sectionKey) as typeof sections).flatMap((s) => s.ids.map((id) => [id, s.key] as const))),
+    [sectionKey],
   );
+  // A group stays together even when new mail joins it. A thread that changes section (a suggestion
+  // confirmed) moves under its new header.
+  const allIds = useMemo(() => {
+    const ids = clusterOrder(stableOrder(prevOrder, serverKey ? serverKey.split(",") : []), JSON.parse(clusterKey));
+    if (!sectionOf.size) return ids;
+    const rank = new Map([...new Set(sectionOf.values())].map((k, i) => [k, i]));
+    const at = (id: string) => rank.get(sectionOf.get(id) ?? "") ?? rank.size;
+    return ids.map((id, i) => ({ id, i })).sort((a, b) => at(a.id) - at(b.id) || a.i - b.i).map((x) => x.id);
+  }, [prevOrder, serverKey, clusterKey, sectionOf]);
   const { setOrder } = store;
   useEffect(() => setOrder(key, allIds), [setOrder, key, allIds]);
 
@@ -248,9 +311,22 @@ export function SelectionProvider({
     (k: string) => !opened.includes(k) && !(openId && clusters[openId] === k && heads.get(k) !== openId),
     [opened, openId, clusters, heads],
   );
+  const foldedSections = store.folded(key);
+  const { setFolded } = store;
+  const sectionCollapsed = useCallback((k: string) => foldedSections.includes(k), [foldedSections]);
+  const toggleSection = useCallback(
+    (k: string) => setFolded(key, foldedSections.includes(k) ? foldedSections.filter((x) => x !== k) : [...foldedSections, k]),
+    [setFolded, key, foldedSections],
+  );
   const threadIds = useMemo(
-    () => allIds.filter((id) => !clusters[id] || !collapsed(clusters[id]) || heads.get(clusters[id]) === id),
-    [allIds, clusters, collapsed, heads],
+    () =>
+      allIds.filter(
+        (id) =>
+          // A folded section keeps the thread being read.
+          (id === openId || !(sectionOf.has(id) && sectionCollapsed(sectionOf.get(id)!))) &&
+          (!clusters[id] || !collapsed(clusters[id]) || heads.get(clusters[id]) === id),
+      ),
+    [allIds, clusters, collapsed, heads, sectionOf, sectionCollapsed, openId],
   );
   const toggleCluster = useCallback(
     (k: string) => setExpanded(key, opened.includes(k) ? opened.filter((x) => x !== k) : [...opened, k]),
@@ -365,6 +441,9 @@ export function SelectionProvider({
       clusterOf: (id) => clusters[id] ?? null,
       isCollapsed: collapsed,
       toggleCluster,
+      sectionOf: (id) => sectionOf.get(id) ?? null,
+      isSectionCollapsed: sectionCollapsed,
+      toggleSection,
       targetIds,
       focusedId,
       openId,
@@ -386,7 +465,7 @@ export function SelectionProvider({
       },
       go: (next) => router.push(mailHref(next)),
     }),
-    [view, account, threadIds, allIds, clusters, collapsed, toggleCluster, targetIds, target, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, toggleSelected, endRange, clearSelected, open, router],
+    [view, account, threadIds, allIds, clusters, collapsed, toggleCluster, sectionOf, sectionCollapsed, toggleSection, targetIds, target, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, toggleSelected, endRange, clearSelected, open, router],
   );
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
