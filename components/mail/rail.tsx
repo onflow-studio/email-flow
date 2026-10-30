@@ -161,11 +161,11 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
       <ul className="flex flex-col gap-1">{act.map((it, i) => row(it, i))}</ul>
       {own.length ? (
         <>
-          <div aria-hidden className="rail-rule mx-3 h-px shrink-0" />
+          <div aria-hidden className="rail-rule mx-3 shrink-0" />
           <ul aria-label="projects" className="flex flex-col gap-1">{own.map((it, i) => row(it, act.length + i))}</ul>
         </>
       ) : null}
-      <div aria-hidden className="rail-rule mx-3 h-px shrink-0" />
+      <div aria-hidden className="rail-rule mx-3 shrink-0" />
       <ul className="flex flex-col gap-1">{later.map((it, i) => row(it, act.length + own.length + i))}</ul>
 
       <ul className="mt-auto flex flex-col gap-1">{bottom.map((it, i) => row(it, act.length + own.length + later.length + i, true))}</ul>

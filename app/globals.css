@@ -226,9 +226,11 @@
   background: var(--surface-raised);
 }
 
-/* Between rail groups: a hairline that fades out to the right. */
+/* Between rail groups: a hairline that fades out to the right. A border, not a 1px fill, so zoomed
+   out it still draws a device pixel wherever it lands. */
 @utility rail-rule {
-  background: linear-gradient(to right, var(--accent), color-mix(in srgb, var(--info) 40%, transparent) 50%, transparent);
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(to right, var(--accent), color-mix(in srgb, var(--info) 40%, transparent) 50%, transparent) 1;
 }
 
 /* Motion. Each fires once on a change, except the logo cursor. Reduced motion stills them all. */
