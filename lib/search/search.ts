@@ -41,7 +41,9 @@ function filters(q: ParsedQuery, scope: SearchScope): SQL | undefined {
     eq(threads.trashed, false),
     scope.accountIds ? inArray(threads.accountId, scope.accountIds) : undefined,
     eq(threads.spam, false),
-    ...q.from.map((f) => or(ilike(messages.fromEmail, `%${escapeLike(f)}%`), sql`unaccent(${messages.fromName}) ilike unaccent(${`%${escapeLike(f)}%`})`)),
+    q.from.length
+      ? or(...q.from.map((f) => or(ilike(messages.fromEmail, `%${escapeLike(f)}%`), sql`unaccent(${messages.fromName}) ilike unaccent(${`%${escapeLike(f)}%`})`)))
+      : undefined,
     q.account.length
       ? or(...q.account.map((a) => or(ilike(accounts.label, escapeLike(a)), ilike(accounts.email, `${escapeLike(a)}%`))))
       : undefined,

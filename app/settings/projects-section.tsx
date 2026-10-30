@@ -312,7 +312,7 @@ function SearchField({
         className={cn(input, "h-row w-full")}
       />
       <p className="text-11 text-text-dim">
-        words, &quot;a phrase&quot;, from:person or domain, after:2025-03, before:2026
+        words, &quot;a phrase&quot;, from:person or domain (comma for more), after:2025-03, before:2026
       </p>
       {query ? (
         <p aria-live="polite" className="text-12 text-text-muted">
