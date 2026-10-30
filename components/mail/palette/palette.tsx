@@ -6,7 +6,9 @@ import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, u
 
 import { BULK_KEEP_OUT, BULK_SNOOZE, bulkActions } from "@/app/(mail)/_lib/bulk";
 import {
+  countIdsActions,
   paletteSearch,
+  previewIdsAction,
   previewSearchAction,
   previewSearchKeepOut,
   previewSearchSnooze,
@@ -34,6 +36,8 @@ import { fullTime, Time } from "../time";
 import { useProjects } from "../projects-context";
 import { mailHref, projectView, VIEWS, type View, type ViewSlug } from "../views";
 import { Highlight, Snippet } from "./highlight";
+import { looksLikeQuestion, readAsk } from "./ask";
+import { AskPane, type AskState } from "./ask-pane";
 
 const SEARCH_DELAY_MS = 120;
 
@@ -84,8 +88,9 @@ type Preview = ActionPreview | KeepOutPreview;
 
 type Mode =
   | { kind: "search" }
+  | { kind: "ask"; question: string }
   | { kind: "snooze" }
-  | { kind: "preview"; key: string; label: string; detail?: string; preview: Preview | null };
+  | { kind: "preview"; key: string; label: string; detail?: string; preview: Preview | null; from?: "ask" };
 
 const isKeepOut = (p: Preview): p is KeepOutPreview => "senders" in p;
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
@@ -123,6 +128,8 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
   const [attempt, setAttempt] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: "search" });
   const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState<AskState | null>(null);
+  const [askCounts, setAskCounts] = useState<Record<string, number> | null>(null);
 
   const query = input.trim();
   // Toggling an account from the palette searches again over the new set.
@@ -157,7 +164,75 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
     };
   }, [query, searchKey]);
 
-  const back = () => (mode.kind === "search" ? onClose() : setMode({ kind: "search" }));
+  const askActive = mode.kind === "ask" || (mode.kind === "preview" && mode.from === "ask");
+  useEffect(() => {
+    if (!askActive || !ask || ask.status !== "loading") return;
+    const controller = new AbortController();
+    let active = true;
+    const run = async () => {
+      try {
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const response = await fetch("/api/ask", {
+          method: "POST",
+          body: JSON.stringify({ question: ask.question, today, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+          signal: controller.signal,
+        });
+        if (response.status === 503) {
+          if (active) setAsk((state) => state ? { ...state, status: "key" } : state);
+          return;
+        }
+        if (!response.ok) throw new Error("ask failed");
+        let finished = false;
+        for await (const event of readAsk(response)) {
+          if (!active) return;
+          if (event.type === "error") {
+            setAsk((state) => state ? { ...state, status: "error" } : state);
+            finished = true;
+            break;
+          }
+          if (event.type === "done") {
+            setAsk((state) => state ? { ...state, status: "done" } : state);
+            finished = true;
+            break;
+          }
+          setAsk((state) => {
+            if (!state) return state;
+            if (event.type === "plan") return { ...state, plan: event };
+            if (event.type === "sources") return { ...state, sources: event.sources };
+            if (event.type === "list") return { ...state, list: event };
+            return { ...state, answer: state.answer + event.delta };
+          });
+        }
+        if (active && !finished) setAsk((state) => state ? { ...state, status: "error" } : state);
+      } catch {
+        if (active && !controller.signal.aborted) setAsk((state) => state ? { ...state, status: "error" } : state);
+      }
+    };
+    void run();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askActive, ask?.attempt, ask?.question]);
+
+  useEffect(() => {
+    if (!ask?.list?.ids) return;
+    let active = true;
+    countIdsActions(ask.list.ids).then((counts) => {
+      if (active) setAskCounts(counts);
+    }).catch(() => {
+      if (active) setAskCounts(null);
+    });
+    return () => { active = false; };
+  }, [ask?.list]);
+
+  const back = () => {
+    if (mode.kind === "search") onClose();
+    else if (mode.kind === "preview" && mode.from === "ask" && ask) setMode({ kind: "ask", question: ask.question });
+    else setMode({ kind: "search" });
+  };
   useKeys(
     [
       { keys: "escape", allowInInput: true, run: back },
@@ -171,13 +246,13 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
     router.push(href);
   };
 
-  const startPreview = (key: string, label: string, load: () => Promise<Preview> = () => previewSearchAction(query, key), detail?: string) => {
-    setMode({ kind: "preview", key, label, detail, preview: null });
+  const startPreview = (key: string, label: string, load: () => Promise<Preview> = () => previewSearchAction(query, key), detail?: string, from?: "ask") => {
+    setMode({ kind: "preview", key, label, detail, preview: null, from });
     load()
       .then((preview) => setMode((m) => (m.kind === "preview" && m.key === key ? { ...m, preview } : m)))
       .catch(() => {
         notify(`${label} preview failed, retry`, "error");
-        setMode({ kind: "search" });
+        setMode(from === "ask" && ask ? { kind: "ask", question: ask.question } : { kind: "search" });
       });
   };
 
@@ -185,6 +260,12 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
     if (key === BULK_SNOOZE.key) setMode({ kind: "snooze" });
     else if (BULK_KEEP_OUT.some((a) => a.key === key)) startPreview(key, label, () => previewSearchKeepOut(query, key));
     else startPreview(key, label);
+  };
+
+  const openAsk = () => {
+    setAsk({ question: query, attempt: 0, status: "loading", sources: [], answer: "" });
+    setAskCounts(null);
+    setMode({ kind: "ask", question: query });
   };
 
   const execute = async (preview: Preview) => {
@@ -251,8 +332,10 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
 
   // The first row is focused on open and after every keystroke or new result.
   const threadValues = [
+    ...(query && looksLikeQuestion(query) ? ["ask:run"] : []),
     ...(searchError ? ["search:retry"] : []),
     ...hits.map((h) => `thread:${h.id}`),
+    ...(query && !looksLikeQuestion(query) ? ["ask:run"] : []),
   ];
   const actionValues = [
     ...(current?.total ? BULK_ROWS.filter((a) => current.counts[a.key]).map((a) => `act:${a.key}`) : []),
@@ -266,8 +349,15 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
   const [picked, setPicked] = useState<{ key: string; value: string } | null>(null);
   const activePane = query ? (pane?.key === searchKey ? pane.name : "threads") : "actions";
   const activeValues = activePane === "threads" ? threadValues : actionValues;
+  const askValues = ask ? [
+    ...(ask.status === "error" || ask.status === "key" ? ["ask:retry"] : []),
+    ...(ask.list?.hits.map((hit) => `thread:${hit.id}`) ?? []),
+    ...ask.sources.map((source) => `source:${source.id}`),
+    ...(ask.list ? bulkActions(projects).filter((a) => askCounts?.[a.key]).map((a) => `act:${a.key}`) : []),
+  ] : [];
   const value = mode.kind === "preview"
     ? (mode.preview?.count && !busy ? "confirm" : "")
+    : mode.kind === "ask" ? (picked?.key === "ask" && askValues.includes(picked.value) ? picked.value : (askValues[0] ?? ""))
     : picked?.key === listKey && activeValues.includes(picked.value) ? picked.value : (activeValues[0] ?? "");
   const selectPane = (name: "threads" | "actions") => {
     setPane({ key: searchKey, name });
@@ -303,7 +393,8 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
         loop
         value={value}
         onValueChange={(v) => {
-          if (activeValues.includes(v)) setPicked({ key: listKey, value: v });
+          if (mode.kind === "ask" && askValues.includes(v)) setPicked({ key: "ask", value: v });
+          else if (activeValues.includes(v)) setPicked({ key: listKey, value: v });
         }}
         onKeyDownCapture={(e) => {
           if (mode.kind !== "search" || e.nativeEvent.isComposing || e.target !== inputRef.current) return;
@@ -375,6 +466,9 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
                   </Item>
                 </>
               ) : null}
+              {looksLikeQuestion(query) ? <Item value="ask:run" onSelect={openAsk}>
+                <span className="min-w-0 flex-1 truncate">ask: {query}</span><Kbd keys="enter" />
+              </Item> : null}
               {query && current && !hits.length ? <Line>no matching threads, try another search</Line> : null}
 
               {hits.length && current ? (
@@ -412,6 +506,9 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
                   ))}
                 </Command.Group>
               ) : null}
+              {!looksLikeQuestion(query) ? <Item value="ask:run" onSelect={openAsk}>
+                <span className="min-w-0 flex-1 truncate">ask: {query}</span><Kbd keys="enter" />
+              </Item> : null}
 
                 </div>
               </div>
@@ -540,9 +637,15 @@ function PaletteDialog({ counts, initial, onClose }: { counts: Record<ViewSlug, 
               <KeyHints className="ml-auto text-11 text-text-muted" hints={query ? [["arrowup arrowdown", "move"], ["tab", "switch list"], ["enter", activePane === "threads" ? "open" : "select"]] : [["arrowup arrowdown", "move"], ["enter", "open"]]} />
             </div>
           </>
-        ) : (
-          <PreviewPane mode={mode} busy={busy} onConfirm={execute} onBack={() => setMode({ kind: "search" })} />
-        )}
+        ) : mode.kind === "ask" && ask ? (
+          <AskPane ask={ask} counts={askCounts} colors={colorOf}
+            onOpen={(id, bucket) => go(mailHref(BUCKET_VIEW[bucket], { threadId: id }))}
+            onBulk={(key, label) => startPreview(key, label, () => previewIdsAction(ask.list?.ids ?? [], key), undefined, "ask")}
+            onRetry={() => { setAsk({ question: ask.question, attempt: ask.attempt + 1, status: "loading", sources: [], answer: "" }); setAskCounts(null); }}
+            onBack={back} />
+        ) : mode.kind === "preview" ? (
+          <PreviewPane mode={mode} busy={busy} onConfirm={execute} onBack={back} />
+        ) : null}
       </Command>
     </div>
   );

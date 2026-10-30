@@ -12,6 +12,8 @@ import {
 import type { Bucket } from "@/lib/db/schema";
 import type { SearchHit } from "@/lib/search/search";
 
+export { parseCitations } from "./citations";
+
 // Planning is a small structured call; answering reads a dozen threads and cites them, Sonnet work.
 export const ASK_PLAN_MODEL = CLASSIFY_MODEL;
 export const ASK_MODEL = CLAUDE_MODEL;
@@ -206,14 +208,4 @@ export async function* streamAnswer(input: AnswerInput, { signal }: { signal?: A
   });
   yield* result.textStream;
   if (failure && !signal?.aborted) throw failure;
-}
-
-/** The [n] numbers cited in the text, in order of first use, with any above count dropped. */
-export function parseCitations(text: string, count: number): number[] {
-  const out: number[] = [];
-  for (const [, digits] of text.matchAll(/\[(\d+)\]/g)) {
-    const n = Number(digits);
-    if (n >= 1 && n <= count && !out.includes(n)) out.push(n);
-  }
-  return out;
 }

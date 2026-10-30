@@ -1,5 +1,7 @@
 "use server";
 
+import { and, eq, inArray } from "drizzle-orm";
+
 import {
   countBulkKeepOut,
   countThreadActions,
@@ -10,6 +12,7 @@ import {
   type ThreadAction,
 } from "@/lib/actions";
 import { db } from "@/lib/db";
+import { threads } from "@/lib/db/schema";
 import { searchThreadIds, searchThreads, type SearchHit } from "@/lib/search";
 
 import { BULK_KEEP_OUT, BULK_SNOOZE, bulkActions } from "./_lib/bulk";
@@ -17,6 +20,34 @@ import { listProjects } from "./_lib/queries";
 import { scope } from "./_lib/scope";
 
 const MAX_QUERY = 500;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function scopedIds(input: unknown): Promise<string[]> {
+  if (!Array.isArray(input) || input.length > 1000 || input.some((id) => typeof id !== "string" || !UUID.test(id))) {
+    throw new Error("invalid ids");
+  }
+  const ids = [...new Set(input as string[])];
+  if (!ids.length) return [];
+  const s = await scope();
+  if (!s.accountIds?.length) return [];
+  const rows = await db.select({ id: threads.id }).from(threads).where(and(
+    inArray(threads.id, ids),
+    inArray(threads.accountId, s.accountIds),
+    eq(threads.trashed, false),
+  ));
+  return rows.map((row) => row.id);
+}
+
+export async function countIdsActions(ids: string[]): Promise<Record<string, number>> {
+  const actions = bulkActions(await listProjects());
+  const counts = await countThreadActions(db, await scopedIds(ids), actions.map((a) => a.action));
+  return Object.fromEntries(actions.map((a, i) => [a.key, counts[i]]));
+}
+
+export async function previewIdsAction(ids: string[], key: string): Promise<ActionPreview> {
+  const action = await bulkAction(key);
+  return previewThreadAction(db, await scopedIds(ids), action);
+}
 
 function query(input: unknown): string {
   if (typeof input !== "string") throw new Error("invalid query");
