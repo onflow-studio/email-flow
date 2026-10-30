@@ -176,7 +176,7 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug, target?
     case "move":
       return !!bucket && bucket !== action.bucket;
     case "project":
-      return !!bucket && !!action.projectId;
+      return (!!bucket || view === "work") && !!action.projectId;
     // Screener moves change the bucket only; work and snoozed cut across buckets.
     case "letIn":
       return bucket === "triage";

@@ -48,8 +48,14 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
         ...(action.bucket === "paper_trail" || action.bucket === "receipts" ? { seenAt: t.seenAt ?? now } : {}),
       };
     // Like a move: the thread leaves its bucket's view (or comes back to it), a live one stays live.
+    // Put into a project, it also leaves Work: the project is where it lives now.
     case "project":
-      return { ...UNSTARRED, projectId: action.projectId, projectSource: action.projectId ? "user" : null };
+      return {
+        ...UNSTARRED,
+        ...(action.projectId ? { workAt: null } : {}),
+        projectId: action.projectId,
+        projectSource: action.projectId ? "user" : null,
+      };
     case "snooze": {
       const until = new Date(action.until);
       if (Number.isNaN(until.getTime()) || until <= now) return null;
