@@ -133,10 +133,10 @@ describe("mirrorChange", () => {
     });
   });
 
-  it("starred: adds STARRED and leaves Gmail's inbox, as it left ours", () => {
+  it("starred: adds STARRED and stays in Gmail's inbox, as it stays in ours", () => {
     const change = mirrorChange({ ...base, starred: true }, ids);
-    expect(change.addLabelIds).toEqual(["L_in", STARRED_LABEL]);
-    expect(change.removeLabelIds).toContain(INBOX_LABEL);
+    expect(change.addLabelIds).toEqual(["L_in", INBOX_LABEL, STARRED_LABEL]);
+    expect(change.removeLabelIds).not.toContain(INBOX_LABEL);
   });
 
   it("unstarred: removes STARRED and puts an inbox thread back in Gmail's inbox", () => {

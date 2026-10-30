@@ -129,8 +129,6 @@ function flagLine(action: Extract<ThreadAction, { type: "flag" }>, n: string) {
   return `${n}${parts.join(", ")}`;
 }
 
-const STAYS_STARRED = new Set<string>(["star", "read", "unread", "flag", "unsnooze", "unarchive", "restore", "letIn", "keepOut", "confirmAiAllow", "undoAiAllow", "decideSender"]);
-
 /** Whether the action takes the thread out of the current view. */
 function leavesView(action: ThreadAction | SenderAction, view: ViewSlug, target?: ActionTarget) {
   const bucket = findView(view)?.bucket;
@@ -143,8 +141,6 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug, target?
   }
   // Sent keeps every thread written in, wherever it went, until it is deleted or marked spam.
   if (view === "sent") return action.type === "trash" || action.type === "spam";
-  // Whatever sends a starred thread somewhere takes it out of Starred; marks and screener moves leave it be.
-  if (view === "starred") return !STAYS_STARRED.has(action.type);
   if (view === "digest") {
     if (["trash", "archive", "done", "spam", "snooze", "star"].includes(action.type)) return true;
     if (action.type === "move" || action.type === "letIn" || action.type === "keepOut" || action.type === "confirmAiAllow")
@@ -170,9 +166,6 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug, target?
     // Work threads leave every bucket view.
     case "work":
       return !!bucket || view === "snoozed" || view === "trash";
-    // Starred threads leave every view but Sent.
-    case "star":
-      return true;
     case "move":
       return !!bucket && bucket !== action.bucket;
     case "project":

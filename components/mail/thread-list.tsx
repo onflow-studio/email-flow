@@ -125,12 +125,14 @@ export function ThreadList({
   const blockUnseen = (b: Block) => b.threads.some((t) => t.unseen);
   // A project lists its threads in sections: to check, in the project, archived.
   const inProject = isProjectSlug(sel.view);
+  // Starred threads sit in their own section on top; the groups below apply to the rest.
+  const pinned = (b: Block | undefined) => !!b && sel.sectionOf(b.threads[0].id) === "starred";
   // Work keeps its own order (deadlines, then by date), so it has no unseen and seen groups; a project has its sections.
-  const unseen = work || sel.view === "digest" || inProject ? 0 : threads.filter((t) => t.unseen).length;
-  // Group labels only hold while rows sit in server order (unseen first).
+  const unseen = work || sel.view === "digest" || inProject ? 0 : threads.filter((t) => t.unseen && sel.sectionOf(t.id) !== "starred").length;
+  // Group labels only hold while rows sit in server order (starred, then unseen first).
   const grouped = ordered.every((t, i) => t.id === threads[i]?.id);
-  const firstUnseen = grouped ? 0 : -1;
-  const firstSeen = grouped ? blocks.findIndex((b) => !blockUnseen(b)) : -1;
+  const firstUnseen = grouped ? blocks.findIndex((b) => !pinned(b)) : -1;
+  const firstSeen = grouped ? blocks.findIndex((b) => !pinned(b) && !blockUnseen(b)) : -1;
   // Work groups by when: deadlines first, then the rest by their newest message.
   const weekStart = startOfWeek(new Date(), 0);
   const lastWeekStart = startOfWeek(new Date(), 1);
@@ -139,12 +141,16 @@ export function ThreadList({
     const at = new Date(t.lastMessageAt).getTime();
     return at >= weekStart ? "this week" : at >= lastWeekStart ? "last week" : "older";
   };
-  const whenAt = (i: number) => (work && grouped && blocks[i] ? when(blocks[i].threads[0]) : null);
+  const whenAt = (i: number) => (work && grouped && blocks[i] && !pinned(blocks[i]) ? when(blocks[i].threads[0]) : null);
   // The digest groups by section, each headed by its count; an empty one has no rows and no label.
   const digest = sel.view === "digest";
   const sectionAt = (i: number) => (digest && grouped && blocks[i] ? blocks[i].threads[0].digestSection : null);
   const sectionSize = (s: DigestSection) => threads.filter((t) => t.digestSection === s).length;
-  const sectionOf = (i: number) => (inProject && blocks[i] ? sel.sectionOf(blocks[i].threads[0].id) : null);
+  // Only sections with a name have a header and fold.
+  const sectionOf = (i: number) => {
+    const key = blocks[i] ? sel.sectionOf(blocks[i].threads[0].id) : null;
+    return key && LIST_SECTION_LABELS[key] ? key : null;
+  };
   const sectionCount = (k: string) => threads.filter((t) => sel.sectionOf(t.id) === k).length;
 
   const row = (t: ThreadListItem, nested = false) => (
@@ -198,7 +204,7 @@ export function ThreadList({
             {whenAt(i) && whenAt(i) !== whenAt(i - 1) ? <GroupLabel>{whenAt(i)}</GroupLabel> : null}
             {sectionOf(i) && sectionOf(i) !== sectionOf(i - 1) ? (
               <SectionHeader
-                label={PROJECT_SECTION_LABELS[sectionOf(i)!] ?? sectionOf(i)!}
+                label={LIST_SECTION_LABELS[sectionOf(i)!]}
                 count={sectionCount(sectionOf(i)!)}
                 collapsed={sel.isSectionCollapsed(sectionOf(i)!)}
                 onToggle={() => sel.toggleSection(sectionOf(i)!)}
@@ -378,7 +384,8 @@ const SECTION_LABELS: Record<DigestSection, string> = {
   work: "stale in work",
 };
 
-const PROJECT_SECTION_LABELS: Record<string, string> = {
+const LIST_SECTION_LABELS: Record<string, string> = {
+  starred: "starred",
   check: "to check",
   own: "in the project",
   archived: "archived",

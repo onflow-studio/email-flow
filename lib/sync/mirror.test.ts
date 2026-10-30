@@ -34,8 +34,8 @@ describe("mirrorState", () => {
     expect(mirrorState([["SPAM", "UNREAD"]], "inbox")).toMatchObject({ spam: true, unread: true });
   });
 
-  it("starred: missing INBOX is our own writeback, archive state untouched", () => {
-    expect(mirrorState([["STARRED"]], "inbox", true)).not.toHaveProperty("archived");
+  it("starred: missing INBOX archives, as for any inbox thread", () => {
+    expect(mirrorState([["STARRED"]], "inbox").archived).toBe(true);
   });
 
   it("ignores drafts", () => {

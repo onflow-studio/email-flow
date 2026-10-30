@@ -53,7 +53,6 @@ export const STATE_COLUMNS = [
   "deadlineAt",
   "workAt",
   "starredAt",
-  "starredFrom",
   "archived",
   "trashed",
   "spam",

@@ -1,6 +1,6 @@
 "use client";
 
-import { BriefcaseBusiness, Clock, FilePen, Folder, Inbox, ListTodo, Newspaper, Receipt, ScrollText, Send, Settings, ShieldQuestionMark, Star, Trash2, type LucideIcon } from "lucide-react";
+import { BriefcaseBusiness, Clock, FilePen, Folder, Inbox, ListTodo, Newspaper, Receipt, ScrollText, Send, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -22,7 +22,6 @@ const ICONS: Partial<Record<ViewSlug, LucideIcon>> = {
   receipts: Receipt,
   triage: ShieldQuestionMark,
   work: BriefcaseBusiness,
-  starred: Star,
   snoozed: Clock,
   digest: ListTodo,
   sent: Send,

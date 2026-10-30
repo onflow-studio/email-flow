@@ -19,7 +19,6 @@ const state = (over: Partial<ThreadState> = {}): ThreadState => ({
   deadlineAt: null,
   workAt: null,
   starredAt: null,
-  starredFrom: null,
   archived: false,
   trashed: false,
   spam: false,
@@ -108,33 +107,30 @@ describe("reconcilePatch", () => {
 describe("groupStarPatches", () => {
   const at = new Date("2026-09-20T08:00:00Z");
 
-  it("a star on one copy stars every copy, each remembering where it was", () => {
+  it("a star on one copy stars every copy, bringing a done one back", () => {
     const changed = groupStarPatches([copy("a"), copy("b", { archived: true })], "star", now);
     expect(changed.map((c) => [c.copy.id, c.patch])).toEqual([
-      ["a", { starredAt: now, starredFrom: "bucket" }],
-      ["b", { starredAt: now, starredFrom: "archived", archived: false }],
+      ["a", { starredAt: now }],
+      ["b", { starredAt: now, archived: false }],
     ]);
   });
 
-  it("an unstar on one copy unstars every copy, back where it was", () => {
+  it("an unstar on one copy unstars every copy and moves nothing", () => {
     const changed = groupStarPatches(
-      [copy("a", { starredAt: at, starredFrom: "archived" }), copy("b", { starredAt: at, starredFrom: "archived" })],
+      [copy("a", { starredAt: at, workAt: at }), copy("b", { starredAt: at })],
       "unstar",
       now,
     );
-    expect(changed.map((c) => c.patch)).toEqual([
-      { starredAt: null, starredFrom: null, archived: true },
-      { starredAt: null, starredFrom: null, archived: true },
-    ]);
+    expect(changed.map((c) => c.patch)).toEqual([{ starredAt: null }, { starredAt: null }]);
   });
 
   it("leaves copies already there alone, so our own writeback changes nothing", () => {
-    expect(groupStarPatches([copy("a", { starredAt: at, starredFrom: "bucket" })], "star", now)).toEqual([]);
+    expect(groupStarPatches([copy("a", { starredAt: at })], "star", now)).toEqual([]);
     expect(groupStarPatches([copy("a"), copy("b")], "unstar", now)).toEqual([]);
   });
 
   it("the starred copy is the one lists show", () => {
-    expect(first(copy("a"), copy("b", { starredAt: at, starredFrom: "bucket" }))).toBe("b");
+    expect(first(copy("a"), copy("b", { starredAt: at }))).toBe("b");
   });
 });
 
