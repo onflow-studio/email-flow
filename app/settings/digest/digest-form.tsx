@@ -21,11 +21,13 @@ export function DigestForm({
   schedule,
   defaults,
   zones,
+  workOn,
 }: {
   initial: StaleSettings;
   schedule: DigestSettings | null;
   defaults: DigestSettings;
   zones: string[];
+  workOn: boolean;
 }) {
   const [state, action, pending] = useActionState(saveDigest, null);
   const zone = useRef<HTMLInputElement>(null);
@@ -37,7 +39,9 @@ export function DigestForm({
       <h1 className="text-15 font-medium">digest</h1>
       <p className="text-13 text-text-muted">show threads after this many days</p>
       <form action={action} className="flex flex-col gap-4">
-        {fields.map(({ key, label }) => (
+        {/* With the Work list off there is nothing to go stale there; the saved value rides along. */}
+        {workOn ? null : <input type="hidden" name="workDays" value={initial.workDays} />}
+        {fields.filter(({ key }) => workOn || key !== "workDays").map(({ key, label }) => (
           <label key={key} className="flex items-center gap-3">
             <span className="w-label text-13 text-text-muted">{label}</span>
             <input
