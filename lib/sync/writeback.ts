@@ -105,15 +105,15 @@ export type MirroredState = {
 };
 
 // Full mirrored state in one modify: bucket or project label, inbox, read, trash, spam, star.
-// A starred thread is out of our Inbox, so it leaves Gmail's too. A project thread carries its
-// project's label in place of a bucket label, out of the inbox; every other project label goes.
+// A project thread carries its project's label in place of a bucket label, out of the inbox;
+// every other project label goes. A star rides along: a starred thread stays where it is.
 export function mirrorChange(state: MirroredState, ids: LabelIds, project: ProjectLabels = NO_PROJECTS) {
   const { addLabelIds, removeLabelIds } = project.own
     ? { addLabelIds: [project.own], removeLabelIds: [...Object.values(ids), INBOX_LABEL] }
     : labelChange(state.bucket, state.archived, ids);
   for (const id of project.all) if (id !== project.own) removeLabelIds.push(id);
   const flag = (label: string, on: boolean) => (on ? addLabelIds : removeLabelIds).push(label);
-  if (state.trashed || state.spam || state.starred) {
+  if (state.trashed || state.spam) {
     const i = addLabelIds.indexOf(INBOX_LABEL);
     if (i >= 0) addLabelIds.splice(i, 1);
     if (!removeLabelIds.includes(INBOX_LABEL)) removeLabelIds.push(INBOX_LABEL);

@@ -20,7 +20,7 @@ import { ThreadList } from "@/components/mail/thread-list";
 import { TriageQueue } from "@/components/mail/triage-queue";
 import { UnreadDot } from "@/components/mail/unread-dot";
 import { ProjectsProvider } from "@/components/mail/projects-context";
-import { findView, mailHref, projectView, VIEWS, type ViewSlug } from "@/components/mail/views";
+import { findView, mailHref, projectView, VIEWS, type View, type ViewSlug } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import { loadDigestSettings, loadStaleSettings } from "@/lib/db/settings";
 import { localTime } from "@/lib/sync/digest";
@@ -110,7 +110,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       account={on?.length === 1 ? on[0] : null}
       threadIds={threads.map((t) => t.id)}
       clusters={Object.fromEntries(threads.flatMap((t) => (t.cluster ? [[t.id, t.cluster.key]] : [])))}
-      sections={view.project ? projectSections(threads) : undefined}
+      sections={listSections(view, threads)}
       openId={threadId}
     >
       <NavKeys />
@@ -239,10 +239,16 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   );
 }
 
-/** A project lists what it asks about, then its own live threads, then its archived history. */
-function projectSections(threads: { id: string; projectId: string | null; archived: boolean }[]) {
-  const of = (t: (typeof threads)[number]) => (!t.projectId ? "check" : t.archived ? "archived" : "own");
-  return ["check", "own", "archived"].map((key) => ({ key, ids: threads.filter((t) => of(t) === key).map((t) => t.id) }));
+/**
+ * Starred threads are pinned in a section on top. A project then lists what it asks about, its own
+ * live threads and its archived history. Sent and the digest keep their own order.
+ */
+function listSections(view: View, threads: { id: string; projectId: string | null; archived: boolean; starred: boolean }[]) {
+  const of = (t: (typeof threads)[number]) =>
+    view.project ? (!t.projectId ? "check" : t.archived ? "archived" : t.starred ? "starred" : "own") : t.starred ? "starred" : "rest";
+  const keys = view.project ? ["starred", "check", "own", "archived"] : ["starred", "rest"];
+  if (!view.project && (view.slug === "sent" || view.slug === "digest" || !threads.some((t) => t.starred))) return undefined;
+  return keys.map((key) => ({ key, ids: threads.filter((t) => of(t) === key).map((t) => t.id) }));
 }
 
 function homeView(t: {
@@ -252,14 +258,12 @@ function homeView(t: {
   archived: boolean;
   spam: boolean;
   work: boolean;
-  starred: boolean;
   snoozedUntil: string | null;
 }): ViewSlug | null {
   if (t.trashed) return "trash";
   if (t.spam) return null;
   // A project lists its archived history; elsewhere archived threads have no view.
   if (t.archived) return t.project ? `p/${t.project.slug}` : null;
-  if (t.starred) return "starred";
   if (t.snoozedUntil && Date.parse(t.snoozedUntil) > Date.now()) return "snoozed";
   if (t.work) return "work";
   // A project holds its threads, resurfaced snoozes included.

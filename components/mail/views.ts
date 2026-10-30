@@ -2,7 +2,7 @@ import type { Bucket } from "@/lib/db/schema";
 
 import type { CommandId } from "./keys/commands";
 
-type FixedSlug = "inbox" | "news" | "paper-trail" | "receipts" | "triage" | "work" | "starred" | "snoozed" | "digest" | "sent" | "drafts" | "trash";
+type FixedSlug = "inbox" | "news" | "paper-trail" | "receipts" | "triage" | "work" | "snoozed" | "digest" | "sent" | "drafts" | "trash";
 /** A project's view lives under /p/<slug>. */
 export type ProjectSlug = `p/${string}`;
 export type ViewSlug = FixedSlug | ProjectSlug;
@@ -13,7 +13,7 @@ export type ProjectRef = { id: string; name: string; slug: string };
 export type View = {
   slug: ViewSlug;
   label: string;
-  /** Set for bucket views; work, starred, snoozed, digest, sent and trash cut across buckets. Drafts lists drafts, not threads. */
+  /** Set for bucket views; work, snoozed, digest, sent and trash cut across buckets. Drafts lists drafts, not threads. */
   bucket?: Bucket;
   /** Set for a project's view: a bucket the owner named. */
   project?: ProjectRef;
@@ -28,7 +28,6 @@ export const VIEWS: (View & { command: CommandId })[] = [
   { slug: "triage", command: "go.triage", label: "triage", bucket: "triage", group: "act" },
   { slug: "inbox", command: "go.inbox", label: "inbox", bucket: "inbox", group: "act" },
   { slug: "work", command: "go.work", label: "work", group: "act" },
-  { slug: "starred", command: "go.starred", label: "starred", group: "act" },
   { slug: "snoozed", command: "go.snoozed", label: "snoozed", group: "act" },
   { slug: "digest", command: "go.digest", label: "digest", group: "act" },
   { slug: "news", command: "go.news", label: "news", bucket: "news", group: "later" },

@@ -1,5 +1,3 @@
-import type { StarredFrom } from "@/lib/db/schema";
-
 import { MIRRORED_COLUMNS, type ThreadAction, type ThreadState } from "./types";
 
 /**
@@ -17,7 +15,7 @@ export function patchFor(action: ThreadAction, t: ThreadState, now: Date): Parti
 
 function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<ThreadState> | null {
   switch (action.type) {
-    // Archiving, deleting or marking spam a Work or starred thread also takes it out of Work or Starred.
+    // Archiving, deleting or marking spam a thread takes it out of Work, and its star goes: the pin is done.
     case "archive":
     case "done":
       return { archived: true, workAt: null, ...UNSTARRED };
@@ -35,10 +33,8 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
       return { seenAt: null };
     case "move":
       // Moving to the current bucket confirms an AI placement; Paper Trail and Receipts also clear unread attention.
-      // A move, a snooze or Work sends a starred thread somewhere, so it leaves Starred.
-      // A move to a bucket also takes the thread out of its project.
+      // A move to a bucket also takes the thread out of its project. A star stays pinned wherever it goes.
       return {
-        ...UNSTARRED,
         projectId: null,
         projectSource: null,
         bucket: action.bucket,
@@ -48,14 +44,18 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
         ...(action.bucket === "paper_trail" || action.bucket === "receipts" ? { seenAt: t.seenAt ?? now } : {}),
       };
     // Like a move: the thread leaves its bucket's view (or comes back to it), a live one stays live.
+    // Put into a project, it also leaves Work: the project is where it lives now.
     case "project":
-      return { ...UNSTARRED, projectId: action.projectId, projectSource: action.projectId ? "user" : null };
+      return {
+        ...(action.projectId ? { workAt: null } : {}),
+        projectId: action.projectId,
+        projectSource: action.projectId ? "user" : null,
+      };
     case "snooze": {
       const until = new Date(action.until);
       if (Number.isNaN(until.getTime()) || until <= now) return null;
       const deadline = action.deadline ? new Date(action.deadline) : null;
       return {
-        ...UNSTARRED,
         snoozedUntil: until,
         needsReply: action.needsReply ?? false,
         deadlineAt: deadline && !Number.isNaN(deadline.getTime()) ? deadline : null,
@@ -72,30 +72,18 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
       return { snoozedUntil: null };
     // Work holds live threads: restore and unsnooze a thread moved there from anywhere.
     case "work":
-      return { workAt: t.workAt ?? now, archived: false, trashed: false, spam: false, snoozedUntil: null, ...UNSTARRED };
-    // Starred holds live threads too. Starring never changes the bucket, and keeps a snooze so unstar can return to it.
+      return { workAt: t.workAt ?? now, archived: false, trashed: false, spam: false, snoozedUntil: null };
+    // A star pins a live thread on top of the list that holds it, so starring brings a done one back.
     case "star":
       if (t.starredAt) return null;
-      return { starredAt: now, starredFrom: starredFrom(t, now), archived: false, trashed: false, spam: false, workAt: null };
+      return { starredAt: now, archived: false, trashed: false, spam: false };
     case "unstar":
       if (!t.starredAt) return null;
-      return {
-        ...UNSTARRED,
-        ...(t.starredFrom === "archived" ? { archived: true } : {}),
-        ...(t.starredFrom === "work" ? { workAt: now } : {}),
-      };
+      return UNSTARRED;
   }
 }
 
-const UNSTARRED = { starredAt: null, starredFrom: null } satisfies Partial<ThreadState>;
-
-/** Where a thread is before it is starred, which is where unstarring puts it back. */
-export function starredFrom(t: Pick<ThreadState, "workAt" | "snoozedUntil" | "archived">, now: Date): StarredFrom {
-  if (t.workAt) return "work";
-  if (t.snoozedUntil && t.snoozedUntil > now) return "snoozed";
-  if (t.archived) return "archived";
-  return "bucket";
-}
+const UNSTARRED = { starredAt: null } satisfies Partial<ThreadState>;
 
 function same(a: unknown, b: unknown) {
   if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();

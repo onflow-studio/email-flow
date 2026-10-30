@@ -344,7 +344,6 @@ async function main() {
         snoozedUntil: t.snoozedHours ? new Date(now + t.snoozedHours * 3_600_000) : null,
         workAt: t.work ? lastAt : null,
         starredAt: t.starred ? lastAt : null,
-        starredFrom: t.starred ? "bucket" : null,
         participantsSummary: [
           ...new Set(t.messages.map((m) => (m.from === "me" ? "me" : (m.from.name ?? m.from.email)))),
         ].join(", "),

@@ -1,7 +1,8 @@
 /**
  * Palette query syntax: free words plus `from:`, `account:`, `before:`,
  * `after:`, `bucket:`. Quoted text is a phrase. Words match as prefixes so results
- * narrow while typing.
+ * narrow while typing. Several `from:` values, repeated or comma-separated, match
+ * any of them.
  */
 /** Markers ts_headline wraps around matched words in snippets. */
 export const MATCH_START = "\u27e6";
@@ -44,7 +45,10 @@ export function parseQuery(input: string): ParsedQuery {
     if (key && value) {
       const k = key.toLowerCase();
       if (k === "from") {
-        parsed.from.push(value.toLowerCase());
+        for (const part of value.toLowerCase().split(",")) {
+          const sender = part.trim().replace(/^from:/, "");
+          if (sender) parsed.from.push(sender);
+        }
         continue;
       }
       if (k === "account") {
