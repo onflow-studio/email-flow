@@ -26,7 +26,7 @@ export async function entityActivity() {
     .select({
       entityId: entityLinks.entityId,
       threadCount: sql<number>`count(distinct coalesce(${threads.groupId}, ${threads.id}))::int`,
-      lastActivity: sql<Date | null>`max(${threads.lastMessageAt})`,
+      lastActivity: sql<Date | null>`max(${threads.lastMessageAt})`.mapWith(threads.lastMessageAt),
     })
     .from(entityLinks)
     .innerJoin(threads, eq(threads.id, entityLinks.threadId))
