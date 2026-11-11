@@ -173,7 +173,12 @@ async function filesFirst(db: Db, ids: string[]): Promise<string[]> {
   return [...ids.filter((id) => withFile.has(id)), ...ids.filter((id) => !withFile.has(id))];
 }
 
-const accountIdsOf = sql<string[]>`array(select a.id from ${accounts} a where a.id in (select t.account_id from ${threads} t where t.id = ${threads.id} or t.group_id = ${threads.groupId}) order by a.created_at)`;
+// A select over threads alone writes its columns unqualified, so inside these subqueries a bare
+// ${threads.id} would bind to the subquery's own table. Name the outer row explicitly.
+const outerId = sql`${threads}.id`;
+const outerGroupId = sql`${threads}.group_id`;
+
+const accountIdsOf = sql<string[]>`array(select a.id from ${accounts} a where a.id in (select t.account_id from ${threads} t where t.id = ${outerId} or t.group_id = ${outerGroupId}) order by a.created_at)`;
 
 async function threadRows(db: Db, ids: string[]) {
   if (!ids.length) return [];
@@ -188,10 +193,10 @@ async function threadRows(db: Db, ids: string[]) {
       bucket: threads.bucket,
       archived: threads.archived,
       lastMessageAt: threads.lastMessageAt,
-      firstMessageAt: sql<string>`(select min(m.date) from ${messages} m where m.thread_id = ${threads.id})`.mapWith(
+      firstMessageAt: sql<string>`(select min(m.date) from ${messages} m where m.thread_id = ${outerId})`.mapWith(
         (v: string | Date) => new Date(v),
       ),
-      snippet: sql<string | null>`(select m.snippet from ${messages} m where m.thread_id = ${threads.id} order by m.date desc limit 1)`,
+      snippet: sql<string | null>`(select m.snippet from ${messages} m where m.thread_id = ${outerId} order by m.date desc limit 1)`,
     })
     .from(threads)
     .where(inArray(threads.id, ids));
