@@ -183,7 +183,7 @@ export async function searchThreads(
         subject: threads.subject,
         participants: threads.participantsSummary,
         accountId: threads.accountId,
-        accountIds: sql<string[]>`array(select a.id from ${accounts} a where a.id in (select t.account_id from ${threads} t where t.id = ${threads.id} or t.group_id = ${threads.groupId}) order by a.created_at)`,
+        accountIds: sql<string[]>`array(select a.id from ${accounts} a where a.id in (select t.account_id from ${threads} t where t.id = ${threads}.id or t.group_id = ${threads}.group_id) order by a.created_at)`,
         bucket: threads.bucket,
         archived: threads.archived,
         lastMessageAt: threads.lastMessageAt,
