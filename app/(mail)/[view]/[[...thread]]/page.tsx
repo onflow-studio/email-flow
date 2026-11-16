@@ -118,6 +118,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
       threadIds={threads.map((t) => t.id)}
       clusters={Object.fromEntries(threads.flatMap((t) => (t.cluster ? [[t.id, t.cluster.key]] : [])))}
       sections={listSections(view, threads)}
+      unseenIds={threads.flatMap((t) => (t.unseen ? [t.id] : []))}
       openId={threadId}
     >
       <NavKeys />
