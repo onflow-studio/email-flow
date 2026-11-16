@@ -1,4 +1,4 @@
-import { ATTACHMENT_RANGE_BYTES, attachmentUrl, baseType, opensInline } from "@/lib/mail/remote";
+import { ATTACHMENT_RANGE_BYTES, attachmentUrl, baseType, isTextAttachment, opensInline } from "@/lib/mail/remote";
 
 import type { MessageItem } from "../message";
 
@@ -35,13 +35,18 @@ async function fetchRange(id: string, start: number, end: number, signal?: Abort
 
 /**
  * The whole file as a Blob, in ATTACHMENT_RANGE_BYTES parts so no single response passes
- * Vercel's 4.5 MB cap. The Blob only keeps the file's own type when it may show inline.
+ * Vercel's 4.5 MB cap. The Blob only keeps the file's own type when it may show inline, and text
+ * is text/plain, as the route serves it.
  */
 export async function fetchInParts(
   file: AttachmentFile,
   { signal, onProgress }: { signal?: AbortSignal; onProgress?: (fraction: number) => void } = {},
 ): Promise<Blob> {
-  const type = opensInline(file.mimeType) ? baseType(file.mimeType) : "application/octet-stream";
+  const type = isTextAttachment(file.mimeType)
+    ? "text/plain;charset=utf-8"
+    : opensInline(file.mimeType)
+      ? baseType(file.mimeType)
+      : "application/octet-stream";
   const first = await fetchRange(file.id, 0, ATTACHMENT_RANGE_BYTES - 1, signal);
   // A 200 means the route sent everything at once.
   if (first.total === null) return new Blob([first.buffer], { type });

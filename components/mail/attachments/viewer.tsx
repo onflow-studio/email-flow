@@ -200,32 +200,56 @@ function ViewerFile({ file, viewer }: { file: AttachmentFile; viewer: Attachment
   // An image is still loading until it has decoded.
   const decoding = kind === "image" && loaded.state === "ready" && imageState === "loading";
   const [actual, setActual] = useState(false);
-  const [downloading, setDownloading] = useState<number | null>(null);
+  // A fetch in parts for `download` or `open`, with its progress.
+  const [busy, setBusy] = useState<{ action: "downloading" | "opening"; progress: number } | null>(null);
   const index = viewer.index ?? 0;
   const count = viewer.files.length;
   const overlay = viewer.mode === "overlay";
 
   const download = async () => {
-    if (downloading !== null) return;
+    if (busy) return;
     if (!needsParts(file)) return saveAs(attachmentUrl(file.id), file.filename);
     if (loaded.state === "ready" && loaded.url) return saveAs(loaded.url, file.filename);
-    setDownloading(0);
+    setBusy({ action: "downloading", progress: 0 });
     try {
-      const url = URL.createObjectURL(await fetchInParts(file, { onProgress: setDownloading }));
+      const url = URL.createObjectURL(
+        await fetchInParts(file, { onProgress: (progress) => setBusy({ action: "downloading", progress }) }),
+      );
       saveAs(url, file.filename);
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch {
       notify(`download of ${file.filename} failed, retry`, "error");
     } finally {
-      setDownloading(null);
+      setBusy(null);
     }
   };
 
-  const openInTab = () => {
+  const openInTab = async () => {
     if (!opensInline(file.mimeType)) return void download();
     if (!needsParts(file)) return void window.open(attachmentUrl(file.id, { inline: true }), "_blank", "noopener,noreferrer");
     if (loaded.state === "ready" && loaded.url) return void window.open(loaded.url, "_blank");
-    notify(`${file.filename} is still loading, open it again in a moment`, "default");
+    // An image or PDF on its way to a Blob: that Blob is what opens.
+    if (loaded.state === "loading" && kind !== "text") {
+      return notify(`${file.filename} is still loading, open it again in a moment`, "default");
+    }
+    // No Blob is coming: text shows only its first part, a too-large file loads nothing, or the
+    // load failed. Fetch it here. The tab opens now, while the key or tap still counts as a user
+    // action, so the popup blocker lets it through after the await.
+    if (busy) return;
+    const tab = window.open("", "_blank");
+    if (!tab) return notify(`the browser blocked the tab for ${file.filename}, download it instead`, "error");
+    tab.opener = null;
+    setBusy({ action: "opening", progress: 0 });
+    try {
+      const url = URL.createObjectURL(await fetchInParts(file, { onProgress: (progress) => setBusy({ action: "opening", progress }) }));
+      tab.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      tab.close();
+      notify(`opening ${file.filename} failed, retry`, "error");
+    } finally {
+      setBusy(null);
+    }
   };
 
   const retry = () => {
@@ -238,7 +262,7 @@ function ViewerFile({ file, viewer }: { file: AttachmentFile; viewer: Attachment
       { id: "viewer.next", run: () => viewer.step(1) },
       { id: "viewer.prev", run: () => viewer.step(-1) },
       { id: "viewer.download", run: () => void download() },
-      { id: "viewer.open", run: openInTab },
+      { id: "viewer.open", run: () => void openInTab() },
       { id: "viewer.expand", run: viewer.toggleMode },
       { id: "viewer.zoom", when: () => kind === "image", run: () => setActual((a) => !a) },
       { id: "viewer.close", run: viewer.close },
@@ -265,10 +289,10 @@ function ViewerFile({ file, viewer }: { file: AttachmentFile; viewer: Attachment
         </span>
         <span className="shrink-0 text-11 text-text-muted tabular-nums">{counter}</span>
         <span className="shrink-0 text-11 text-text-muted tabular-nums">{formatSize(file.size)}</span>
-        {downloading !== null ? (
+        {busy ? (
           <span className="shrink-0 text-11 text-text-muted tabular-nums">
-            <span className="hidden md:inline">downloading </span>
-            {percent(downloading)}
+            <span className="hidden md:inline">{busy.action} </span>
+            {percent(busy.progress)}
           </span>
         ) : null}
         <span className="ml-auto hidden shrink-0 items-center gap-1 md:flex">
@@ -283,7 +307,7 @@ function ViewerFile({ file, viewer }: { file: AttachmentFile; viewer: Attachment
               {actual ? "fit" : "1:1"}
             </Button>
           ) : null}
-          <Button variant="ghost" size="sm" shortcut={keys.open} onClick={openInTab}>
+          <Button variant="ghost" size="sm" shortcut={keys.open} onClick={() => void openInTab()}>
             open
           </Button>
           <Button variant="ghost" size="sm" shortcut={keys.download} onClick={() => void download()}>
@@ -325,7 +349,7 @@ function ViewerFile({ file, viewer }: { file: AttachmentFile; viewer: Attachment
               {actual ? "fit" : "1:1"}
             </button>
           ) : null}
-          <button type="button" onClick={openInTab} className={touchButton}>
+          <button type="button" onClick={() => void openInTab()} className={touchButton}>
             open
           </button>
           <button type="button" onClick={() => void download()} className={touchButton}>
