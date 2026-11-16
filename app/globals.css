@@ -141,6 +141,8 @@
   --spacing-editor: 160px;
   --spacing-header: 44px;
   --spacing-timeline: 24px;
+  /* Attachment grid cells, at least this square. */
+  --spacing-thumb: 96px;
 
   --breakpoint-md: 768px;
   --breakpoint-rail: 1100px;
@@ -309,6 +311,11 @@
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
+}
+
+/* The attachment grid: as many cells of at least --spacing-thumb as fit. */
+@utility grid-cols-thumbs {
+  grid-template-columns: repeat(auto-fill, minmax(var(--spacing-thumb), 1fr));
 }
 
 /* Scrolls without a scrollbar: the rail's short overflow would otherwise draw a bar and its black track

@@ -9,16 +9,16 @@
  * need no `shift`.
  */
 
-export type Scope = "mail" | "compose";
+export type Scope = "mail" | "compose" | "viewer";
 
-export const GROUPS = ["navigate", "act on a thread", "triage", "write", "general", "compose"] as const;
+export const GROUPS = ["navigate", "act on a thread", "triage", "write", "general", "compose", "attachments"] as const;
 export type Group = (typeof GROUPS)[number];
 
 export type Command = {
   id: string;
   label: string;
   group: Group;
-  /** Where the binding listens. Mail and compose never listen at once: compose is an exclusive layer. */
+  /** Where the binding listens. Only one scope listens at once: compose and the attachment viewer are exclusive layers. */
   scope: Scope;
   /** Default keys, rebindable. Empty means bindable but unbound by default. */
   keys: string[];
@@ -87,6 +87,14 @@ export const COMMANDS = [
   { id: "compose.link", label: "link", group: "compose", scope: "compose", keys: ["mod+shift+k"] },
   { id: "compose.minimize", label: "minimize compose", group: "compose", scope: "compose", keys: [] },
   { id: "compose.attach", label: "attach files", group: "compose", scope: "compose", keys: ["mod+o"] },
+
+  { id: "viewer.next", label: "next attachment", group: "attachments", scope: "viewer", keys: [], fixed: ["arrowright"] },
+  { id: "viewer.prev", label: "previous attachment", group: "attachments", scope: "viewer", keys: [], fixed: ["arrowleft"] },
+  { id: "viewer.download", label: "download attachment", group: "attachments", scope: "viewer", keys: ["d"] },
+  { id: "viewer.open", label: "open attachment in a new tab", group: "attachments", scope: "viewer", keys: ["o"] },
+  { id: "viewer.expand", label: "full screen / reading pane", group: "attachments", scope: "viewer", keys: ["f"] },
+  { id: "viewer.zoom", label: "fit / actual size", group: "attachments", scope: "viewer", keys: ["1"] },
+  { id: "viewer.close", label: "close attachment", group: "attachments", scope: "viewer", keys: [], fixed: ["escape"] },
 ] as const satisfies readonly Command[];
 
 export type CommandId = (typeof COMMANDS)[number]["id"];

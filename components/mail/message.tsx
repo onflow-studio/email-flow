@@ -1,14 +1,14 @@
 "use client";
 
-import { Check, Copy, Paperclip } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
 import type { Address } from "@/lib/db/schema";
 import { splitTextQuote } from "@/lib/mail/quote";
-import { attachmentUrl, opensInline } from "@/lib/mail/remote";
 import { cn } from "@/lib/utils";
 
+import { AttachmentList } from "./attachments/attachment-list";
 import { EmailFrame } from "./email-frame";
 import { AddressList, PersonName } from "./person-card";
 import { QuoteFold } from "./quote-fold";
@@ -53,27 +53,7 @@ export function MessageContent({ message: m, quoteLabel = null }: { message: Mes
         <TextBody text={m.text ?? ""} quoteLabel={quoteLabel} />
       )}
 
-      {m.attachments.length ? (
-        <ul className="flex flex-col gap-1 border-t border-border pt-2">
-          {m.attachments.map((a) => {
-            const inline = opensInline(a.mimeType);
-            return (
-              <li key={a.id}>
-                <a
-                  href={attachmentUrl(a.id, { inline })}
-                  {...(inline ? { target: "_blank", rel: "noreferrer" } : { download: a.filename })}
-                  title={inline ? "open" : "download"}
-                  className="flex h-touch items-center gap-2 rounded-sm px-1 text-text-muted md:h-row transition-colors duration-80 ease-snap hover:bg-surface-raised hover:text-text"
-                >
-                  <Paperclip aria-hidden className="size-3 shrink-0" strokeWidth={1.5} />
-                  <span className="min-w-0 flex-1 truncate text-text">{a.filename}</span>
-                  <span className="shrink-0 text-11">{formatSize(a.size)}</span>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+      <AttachmentList message={m} />
     </div>
   );
 }
@@ -144,10 +124,4 @@ function TextBody({ text, quoteLabel }: { text: string; quoteLabel: string | nul
 function formatAddresses(list: Address[]) {
   if (!list.length) return "undisclosed";
   return list.map((a) => a.name || a.email).join(", ");
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} b`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kb`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} mb`;
 }
