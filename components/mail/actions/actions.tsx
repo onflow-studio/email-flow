@@ -231,6 +231,8 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     async (action: ThreadAction, ids?: string[]) => {
       const targetIds = ids ?? sel.targetIds;
       if (!targetIds.length) return null;
+      // Acting on the picks keeps the open thread; acting on one thread steps past it as usual.
+      const onPicks = selected.length > 0 && targetIds.length === selected.length && targetIds.every((id) => selected.includes(id));
       if (targetIds.some((id) => selected.includes(id))) clearSelected();
       // A move to the bucket every thread is already in confirms the placement instead.
       const kept = action.type === "move" && targetIds.every((id) => byId.get(id)?.bucket === action.bucket) ? action.bucket : null;
@@ -241,7 +243,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         const result = await runThreadAction(targetIds, action);
         if (result.count) {
           report(describeAction(action, result.count, !!kept), result.token);
-          if (!kept && !targetIds.some((id) => selected.includes(id))) afterAction(action, targetIds);
+          if (!kept && !onPicks) afterAction(action, targetIds);
         } else {
           putBack();
           if (kept) notify(`already in ${BUCKET_NAMES[kept]}`, "warning");
