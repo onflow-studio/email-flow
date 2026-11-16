@@ -82,6 +82,7 @@ On the phone it's a home-screen web app for reading and quick replies. Heavy tri
 - **Snooze with intent.** Snooze can also mark a thread as needing a reply, with a deadline. When it comes back it goes to the top, and a reply in the meantime brings it back early.
 - **Twins.** The same mail arriving in two accounts is grouped, and replies go out from the account it was addressed to.
 - **Remote images blocked** by default, per sender when you want them.
+- **Attachments in place.** Images as a grid, and a viewer for images, PDFs and text in the reading pane or full screen, arrow keys to step through every file in the thread.
 - **Grouped machine mail.** Notifications from one service fold into a single row.
 
 ## Stack
