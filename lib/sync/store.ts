@@ -18,8 +18,9 @@ import {
 import { parseGmailMessage, type ParsedMessage } from "@/lib/mail/mime";
 import { rewriteCidImages } from "@/lib/mail/remote";
 
+import { INITIAL_WINDOW_DAYS } from "./changes";
 import type { GmailSyncPort } from "./gmail";
-import { PRIORITY_LIVE, enqueueClassify, enqueueEmbed, enqueueSummary } from "./jobs";
+import { PRIORITY_LIVE, enqueueClassify, enqueueEmbed, enqueueSummary, enqueueWriteback } from "./jobs";
 import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt, starChange } from "./mirror";
 import { accountProjectLabels, projectFromLabels } from "./projects";
 import { linkTwins, reconcileGroup, starGroup } from "./twins";
@@ -99,14 +100,23 @@ async function upsertSender(tx: Tx, accountId: string, m: ParsedMessage): Promis
 export function shouldClassify(t: {
   created: boolean;
   joined: boolean;
+  woken: boolean;
   hasInbound: boolean;
   trashed: boolean;
   spam: boolean;
   inGmailInbox: boolean;
   classifyArchived: boolean;
 }): boolean {
-  if (!t.created || t.joined || !t.hasInbound || t.trashed || t.spam) return false;
+  if (!t.created || t.joined || t.woken || !t.hasInbound || t.trashed || t.spam) return false;
   return t.classifyArchived || t.inGmailInbox;
+}
+
+// Old mail woken up in Gmail: a thread we never stored, reported because a label or a star changed
+// on it, though its newest message is older than the first sync's window. It is history, not news:
+// stored archived and read, never classified into a bucket view. The backfills import old mail on
+// purpose and turn this off.
+export function isWokenHistory(newest: Date | undefined, now: Date, windowDays = INITIAL_WINDOW_DAYS): boolean {
+  return !!newest && newest.getTime() < now.getTime() - windowDays * 86_400_000;
 }
 
 // A queued writeback means our state is ahead of Gmail's; mirroring now would undo the user.
@@ -134,7 +144,8 @@ export async function ingestThread(
   {
     classifyPriority = PRIORITY_LIVE,
     classifyArchived = true,
-  }: { classifyPriority?: number; classifyArchived?: boolean } = {},
+    quietOldMail = true,
+  }: { classifyPriority?: number; classifyArchived?: boolean; quietOldMail?: boolean } = {},
 ): Promise<IngestResult> {
   const [existing] = await db
     .select({ id: threads.id, bucket: threads.bucket, seenAt: threads.seenAt, starredAt: threads.starredAt, projectId: threads.projectId })
@@ -184,6 +195,8 @@ export async function ingestThread(
   );
   // Before the stored labels are updated below.
   const star = starChange(existing ? local.map((m) => m.gmailLabels) : null, live.map((m) => m.labelIds));
+  const newest = fetched.reduce<Date | undefined>((max, m) => (!max || m.date > max ? m.date : max), undefined);
+  const woken = quietOldMail && !existing && isWokenHistory(newest, now);
 
   return db.transaction(async (tx) => {
     const parsed = fetched.map((m) => ({
@@ -208,10 +221,12 @@ export async function ingestThread(
           subject: first?.subject ?? null,
           lastMessageAt: first?.date ?? now,
           bucket,
-          archived: archivedHistory || (mirror.archived ?? false),
+          archived: woken || archivedHistory || (mirror.archived ?? false),
           trashed: mirror.trashed,
           spam: mirror.spam,
-          seenAt: nextSeenAt(mirror.unread, null, now),
+          seenAt: woken ? now : nextSeenAt(mirror.unread, null, now),
+          // A Gmail star on woken mail is kept as it is, not read as the owner starring it now.
+          ...(woken && star === "star" ? { starredAt: now } : {}),
           ...(project ? { projectId: project, projectSource: "user" as const } : {}),
         })
         // Backfill and live sync can meet on the same new thread; the second one just joins it.
@@ -333,11 +348,15 @@ export async function ingestThread(
     }
 
     // A star added or removed in Gmail stars or unstars the whole group. Gmail never stars trash or spam here.
-    if (star && !pending && !(star === "star" && (mirror.trashed || mirror.spam))) await starGroup(tx, threadId, star, now);
+    if (star && !pending && !woken && !(star === "star" && (mirror.trashed || mirror.spam))) await starGroup(tx, threadId, star, now);
+
+    // Out of Gmail's inbox too, or the next change on it would read the INBOX label as unarchiving it.
+    if (woken && created && !joined && inGmailInbox) await enqueueWriteback(tx, { id: threadId, accountId: account.id });
 
     const classify = shouldClassify({
       created,
       joined,
+      woken,
       hasInbound: derived.hasInbound,
       trashed: mirror.trashed,
       spam: mirror.spam,

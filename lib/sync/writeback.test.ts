@@ -42,8 +42,11 @@ describe("labelChange", () => {
     });
   });
 
-  it("inbox but archived: does not put it back in Gmail's inbox", () => {
-    expect(labelChange("inbox", true, ids).addLabelIds).toEqual(["L_in"]);
+  it("inbox but archived: takes it out of Gmail's inbox", () => {
+    expect(labelChange("inbox", true, ids)).toEqual({
+      addLabelIds: ["L_in"],
+      removeLabelIds: ["L_news", "L_pt", "L_rec", "L_tri", INBOX_LABEL],
+    });
   });
 
   it.each(["news", "paper_trail", "receipts", "triage"] as const)("%s: removes INBOX", (bucket) => {

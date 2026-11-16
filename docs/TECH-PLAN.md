@@ -88,7 +88,7 @@ Later work uses the stored vectors for semantic search.
 
 1. Call Gmail history list from the stored cursor. With no cursor (first sync) or a stale one, store a fresh cursor at once and record a catch-up listing in `accounts.catch_up` (the last 14 days, or since last sync at). Each pass works through up to 250 of its threads in saved batches, so a quota error or restart loses at most one batch.
 2. For each new or changed message: fetch full, sanitize, upsert message and thread. Mirror read state and archive state from Gmail labels into our columns.
-3. For each thread that is new and inbound: enqueue a classify job. New messages also enqueue an embed job when the gateway key is set.
+3. For each thread that is new and inbound: enqueue a classify job. New messages also enqueue an embed job when the gateway key is set. Old mail woken up in Gmail is the exception: a thread we never stored, reported because a label or star changed on it, whose newest message is older than the 14-day window. It is stored archived and read, keeps a Gmail star as it is, gets no classify, and is written back out of Gmail's inbox. The backfills import old mail on purpose and skip this.
 4. Enqueue unembedded history at low priority, then process pending jobs for the account: live jobs first, including classify, embed and writeback.
 5. Store the new cursor.
 

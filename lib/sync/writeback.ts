@@ -64,16 +64,14 @@ export async function ensureLabels(accountId: string, gmail: GmailLabelsPort): P
   return ids;
 }
 
-// Gmail's inbox mirrors our Inbox bucket. Out gets no bucket label and leaves the inbox.
+// Gmail's inbox mirrors our live Inbox: archived, or in any other bucket, a thread leaves it. Out gets
+// no bucket label and leaves the inbox.
 export function labelChange(bucket: Bucket, archived: boolean, ids: LabelIds) {
   const own = bucket === "out" ? null : ids[bucket];
   const addLabelIds = own ? [own] : [];
   const removeLabelIds = Object.values(ids).filter((id) => id !== own);
-  if (bucket === "inbox") {
-    if (!archived) addLabelIds.push(INBOX_LABEL);
-  } else {
-    removeLabelIds.push(INBOX_LABEL);
-  }
+  if (bucket === "inbox" && !archived) addLabelIds.push(INBOX_LABEL);
+  else removeLabelIds.push(INBOX_LABEL);
   return { addLabelIds, removeLabelIds };
 }
 
