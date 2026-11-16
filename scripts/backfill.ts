@@ -173,8 +173,8 @@ async function main() {
       const gmail = await getGmailSyncAdapter(account.id);
       const jobContext = { db, gmail: getGmailLabelsAdapter };
       const ingestOptions = full
-        ? { classifyPriority: PRIORITY_BACKFILL, classifyArchived: false }
-        : { classifyPriority: PRIORITY_BACKFILL };
+        ? { classifyPriority: PRIORITY_BACKFILL, classifyArchived: false, quietOldMail: false }
+        : { classifyPriority: PRIORITY_BACKFILL, quietOldMail: false };
       const deps = {
         gmail,
         known: (ids: string[]) => knownThreadIds(db, account.id, ids),

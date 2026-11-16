@@ -9,7 +9,7 @@ import {
   startOfYear,
   type BackfillState,
 } from "./backfill";
-import { shouldClassify } from "./store";
+import { isWokenHistory, shouldClassify } from "./store";
 
 const now = new Date(2026, 8, 23, 12);
 
@@ -172,7 +172,7 @@ describe("full-history import", () => {
 });
 
 describe("shouldClassify", () => {
-  const fresh = { created: true, joined: false, hasInbound: true, trashed: false, spam: false };
+  const fresh = { created: true, joined: false, woken: false, hasInbound: true, trashed: false, spam: false };
 
   it("classifies every new inbound thread by default, as live sync does", () => {
     expect(shouldClassify({ ...fresh, inGmailInbox: false, classifyArchived: true })).toBe(true);
@@ -191,8 +191,28 @@ describe("shouldClassify", () => {
     const base = { ...fresh, inGmailInbox: true, classifyArchived: true };
     expect(shouldClassify({ ...base, created: false })).toBe(false);
     expect(shouldClassify({ ...base, joined: true })).toBe(false);
+    expect(shouldClassify({ ...base, woken: true })).toBe(false);
     expect(shouldClassify({ ...base, hasInbound: false })).toBe(false);
     expect(shouldClassify({ ...base, trashed: true })).toBe(false);
     expect(shouldClassify({ ...base, spam: true })).toBe(false);
+  });
+});
+
+describe("isWokenHistory", () => {
+  const now = new Date("2026-11-11T12:00:00Z");
+  const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000);
+
+  it("reads a thread whose newest message is older than the first sync's window as woken", () => {
+    expect(isWokenHistory(new Date("2019-10-15T09:00:00Z"), now)).toBe(true);
+    expect(isWokenHistory(daysAgo(15), now)).toBe(true);
+  });
+
+  it("leaves recent mail alone", () => {
+    expect(isWokenHistory(daysAgo(13), now)).toBe(false);
+    expect(isWokenHistory(now, now)).toBe(false);
+  });
+
+  it("is never woken without a message date", () => {
+    expect(isWokenHistory(undefined, now)).toBe(false);
   });
 });
