@@ -143,16 +143,20 @@ type Kind = PreviewKind | "too-large";
 /** Fetches what the body shows. Files over the route's single-response size come down in parts. */
 function useSource(file: AttachmentFile, kind: Kind, attempt: number): Source {
   const direct = kind === "image" || kind === "pdf" ? !needsParts(file) : false;
+  // An empty text file has nothing to fetch.
+  const empty = kind === "text" && file.size === 0;
   const [source, setSource] = useState<Source>(() =>
     kind === "other" || kind === "too-large"
       ? { state: "ready", url: null }
-      : direct
+      : empty
+        ? { state: "ready", url: null, text: "" }
+        : direct
         ? { state: "ready", url: attachmentUrl(file.id, { inline: true }) }
         : { state: "loading", progress: needsParts(file) && kind !== "text" ? 0 : null },
   );
 
   useEffect(() => {
-    if (kind === "other" || kind === "too-large" || direct) return;
+    if (kind === "other" || kind === "too-large" || direct || empty) return;
     const controller = new AbortController();
     let url: string | null = null;
     if (kind === "text") {
@@ -176,10 +180,13 @@ function useSource(file: AttachmentFile, kind: Kind, attempt: number): Source {
       controller.abort();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [file, kind, direct, attempt]);
+  }, [file, kind, direct, empty, attempt]);
 
   return source;
 }
+
+// The phone's bottom bar: 44px targets, no keyboard hints.
+const touchButton = "flex h-touch items-center px-3 text-text disabled:text-text-dim";
 
 const percent = (p: number) => `${Math.round(p * 100)}%`;
 
@@ -217,7 +224,8 @@ function ViewerFile({ file, viewer }: { file: AttachmentFile; viewer: Attachment
   const openInTab = () => {
     if (!opensInline(file.mimeType)) return void download();
     if (!needsParts(file)) return void window.open(attachmentUrl(file.id, { inline: true }), "_blank", "noopener,noreferrer");
-    if (loaded.state === "ready" && loaded.url) window.open(loaded.url, "_blank");
+    if (loaded.state === "ready" && loaded.url) return void window.open(loaded.url, "_blank");
+    notify(`${file.filename} is still loading, open it again in a moment`, "default");
   };
 
   const retry = () => {
@@ -255,10 +263,13 @@ function ViewerFile({ file, viewer }: { file: AttachmentFile; viewer: Attachment
         <span title={file.filename} className="min-w-0 truncate font-medium text-text">
           {file.filename}
         </span>
-        <span className="hidden shrink-0 text-11 text-text-muted tabular-nums md:inline">{counter}</span>
-        <span className="hidden shrink-0 text-11 text-text-muted tabular-nums md:inline">{formatSize(file.size)}</span>
+        <span className="shrink-0 text-11 text-text-muted tabular-nums">{counter}</span>
+        <span className="shrink-0 text-11 text-text-muted tabular-nums">{formatSize(file.size)}</span>
         {downloading !== null ? (
-          <span className="hidden shrink-0 text-11 text-text-muted tabular-nums md:inline">downloading {percent(downloading)}</span>
+          <span className="shrink-0 text-11 text-text-muted tabular-nums">
+            <span className="hidden md:inline">downloading </span>
+            {percent(downloading)}
+          </span>
         ) : null}
         <span className="ml-auto hidden shrink-0 items-center gap-1 md:flex">
           <Button variant="ghost" size="sm" shortcut={keys.prev} disabled={index === 0} onClick={() => viewer.step(-1)}>
@@ -305,13 +316,23 @@ function ViewerFile({ file, viewer }: { file: AttachmentFile; viewer: Attachment
       </div>
 
       <footer className="flex shrink-0 items-center justify-between border-t border-border bg-surface-top pb-safe box-content md:hidden">
-        <button type="button" disabled={index === 0} onClick={() => viewer.step(-1)} className="flex h-touch items-center px-4 text-text disabled:text-text-dim">
+        <button type="button" disabled={index === 0} onClick={() => viewer.step(-1)} className={touchButton}>
           prev
         </button>
-        <span className="text-11 text-text-muted tabular-nums">
-          {counter} · {formatSize(file.size)}
+        <span className="flex items-center">
+          {kind === "image" ? (
+            <button type="button" onClick={() => setActual(!actual)} className={touchButton}>
+              {actual ? "fit" : "1:1"}
+            </button>
+          ) : null}
+          <button type="button" onClick={openInTab} className={touchButton}>
+            open
+          </button>
+          <button type="button" onClick={() => void download()} className={touchButton}>
+            download
+          </button>
         </span>
-        <button type="button" disabled={index === count - 1} onClick={() => viewer.step(1)} className="flex h-touch items-center px-4 text-text disabled:text-text-dim">
+        <button type="button" disabled={index === count - 1} onClick={() => viewer.step(1)} className={touchButton}>
           next
         </button>
       </footer>
@@ -386,7 +407,11 @@ function Body({
     if (source.state !== "ready") return status;
     return (
       <div className="size-full overflow-auto p-3">
-        <pre className="font-mono text-13 leading-prose whitespace-pre-wrap break-words text-text">{source.text}</pre>
+        {source.text ? (
+          <pre className="font-mono text-13 leading-prose whitespace-pre-wrap break-words text-text">{source.text}</pre>
+        ) : (
+          <p className="text-12 text-text-muted">empty file</p>
+        )}
         {source.truncated ? (
           <p className="pt-3 text-12 text-text-muted">
             first {formatSize(TEXT_MAX_BYTES)} of {formatSize(file.size)}, download for the rest

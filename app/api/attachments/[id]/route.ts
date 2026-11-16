@@ -58,6 +58,9 @@ export async function GET(request: NextRequest, { params }: RouteContext<"/api/a
     bytes = demoAttachmentBytes(row.filename, row.mimeType);
   } else {
     let data: string | null | undefined;
+    // Gmail has no ranged fetch, so each part of a large file fetches the whole attachment and
+    // sends back its slice. That is deliberate: keeping the bytes between requests would need a
+    // cache, which the instance does not have (no Redis, nothing between function calls).
     try {
       const gmail = await getGmailClient(row.accountId);
       const res = await gmailLimiter(row.accountId).run("messages.attachments.get", () =>
@@ -71,7 +74,8 @@ export async function GET(request: NextRequest, { params }: RouteContext<"/api/a
       console.error(`attachment ${id} fetch failed`, error);
       return NextResponse.json({ error: "gmail fetch failed, retry" }, { status: 502 });
     }
-    if (!data) return NextResponse.json({ error: "gone from gmail" }, { status: 404 });
+    // An empty file comes back as "", which is still a file.
+    if (data == null) return NextResponse.json({ error: "gone from gmail" }, { status: 404 });
     bytes = Buffer.from(data, "base64url");
   }
 
@@ -89,7 +93,8 @@ export async function GET(request: NextRequest, { params }: RouteContext<"/api/a
     "Cache-Control": "private, max-age=3600",
   };
 
-  const range = parseRange(request.headers.get("range"), bytes.length);
+  // No range fits in an empty file, so it answers whole (a server may ignore Range) rather than 416.
+  const range = bytes.length === 0 ? null : parseRange(request.headers.get("range"), bytes.length);
   if (range === "bad") {
     return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${bytes.length}` } });
   }

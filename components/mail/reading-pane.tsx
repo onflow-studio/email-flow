@@ -61,125 +61,125 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
 
   return (
     <AttachmentViewerProvider value={viewer}>
-    {viewer.index !== null ? <AttachmentViewer /> : null}
-    {/* In the pane the viewer takes the thread's place; the thread stays mounted so closing restores it. */}
-    <article ref={articleRef} className={cn("flex min-h-full w-full flex-col gap-4 px-3 pt-8 md:px-6", viewingInPane && "md:hidden")}>
-      <div className="sticky top-0 z-10 -mx-3 -mt-8 flex h-touch shrink-0 items-center border-b border-border bg-surface px-1 md:hidden">
-        <button type="button" onClick={sel.close} className="flex h-touch items-center gap-2 px-2 text-text-muted">
-          <ArrowLeft aria-hidden className="size-4" strokeWidth={1.5} />
-          back
-        </button>
-        {thread.trashed ? (
-          <button type="button" onClick={() => void run({ type: "restore" }, [thread.id])} className="ml-auto flex h-touch items-center px-2 text-text-muted">
-            restore
+      {viewer.index !== null ? <AttachmentViewer /> : null}
+      {/* In the pane the viewer takes the thread's place; the thread stays mounted so closing restores it. */}
+      <article ref={articleRef} className={cn("flex min-h-full w-full flex-col gap-4 px-3 pt-8 md:px-6", viewingInPane && "md:hidden")}>
+        <div className="sticky top-0 z-10 -mx-3 -mt-8 flex h-touch shrink-0 items-center border-b border-border bg-surface px-1 md:hidden">
+          <button type="button" onClick={sel.close} className="flex h-touch items-center gap-2 px-2 text-text-muted">
+            <ArrowLeft aria-hidden className="size-4" strokeWidth={1.5} />
+            back
           </button>
-        ) : (
-          <button type="button" onClick={() => void run({ type: "trash" }, [thread.id])} className="ml-auto flex h-touch items-center px-2 text-danger">
-            delete
-          </button>
-        )}
-      </div>
+          {thread.trashed ? (
+            <button type="button" onClick={() => void run({ type: "restore" }, [thread.id])} className="ml-auto flex h-touch items-center px-2 text-text-muted">
+              restore
+            </button>
+          ) : (
+            <button type="button" onClick={() => void run({ type: "trash" }, [thread.id])} className="ml-auto flex h-touch items-center px-2 text-danger">
+              delete
+            </button>
+          )}
+        </div>
 
-      {triage ? (
-        <header className="flex flex-col gap-3 border-b border-border pb-4">
-          <p className="text-11 text-text-muted">decide who reaches your inbox</p>
-          <div className="flex flex-col gap-1">
-            <span className="text-11 text-text-muted">{thread.judged.length === 1 ? "sender under review" : "senders under review"}</span>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-15 font-medium text-text">
-              {thread.judged.map((sender) => (
-                <span key={sender.id} className="min-w-0">
-                  {sender.name || sender.email}
-                  {sender.name ? <span className="ml-2 text-12 font-normal text-text-muted">&lt;{sender.email}&gt;</span> : null}
+        {triage ? (
+          <header className="flex flex-col gap-3 border-b border-border pb-4">
+            <p className="text-11 text-text-muted">decide who reaches your inbox</p>
+            <div className="flex flex-col gap-1">
+              <span className="text-11 text-text-muted">{thread.judged.length === 1 ? "sender under review" : "senders under review"}</span>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-15 font-medium text-text">
+                {thread.judged.map((sender) => (
+                  <span key={sender.id} className="min-w-0">
+                    {sender.name || sender.email}
+                    {sender.name ? <span className="ml-2 text-12 font-normal text-text-muted">&lt;{sender.email}&gt;</span> : null}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-11 text-text-muted">
+              <span>received by</span>
+              {thread.accounts.map((account) => (
+                <span key={account.id} className="flex items-center gap-2">
+                  <AccountSquare color={account.color} />
+                  {account.label} &lt;{account.email}&gt;
                 </span>
               ))}
+              <BucketBadge thread={thread} />
+              {thread.needsReply ? <span>needs reply</span> : null}
+              {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
             </div>
-          </div>
+            <AiNote thread={thread} />
+            <Subject thread={thread} />
+          </header>
+        ) : <header className="flex flex-col gap-2">
+          <AiNote thread={thread} />
+          <ProjectNote thread={thread} />
+          <Subject thread={thread} />
           <div className="flex flex-wrap items-center gap-2 text-11 text-text-muted">
-            <span>received by</span>
-            {thread.accounts.map((account) => (
-              <span key={account.id} className="flex items-center gap-2">
-                <AccountSquare color={account.color} />
-                {account.label} &lt;{account.email}&gt;
+            {thread.accounts.map((a) => (
+              <span key={a.id} className="flex items-center gap-2">
+                <AccountSquare color={a.color} />
+                {a.label}
               </span>
             ))}
             <BucketBadge thread={thread} />
-            {thread.needsReply ? <span>needs reply</span> : null}
-            {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
-          </div>
-          <AiNote thread={thread} />
-          <Subject thread={thread} />
-        </header>
-      ) : <header className="flex flex-col gap-2">
-        <AiNote thread={thread} />
-        <ProjectNote thread={thread} />
-        <Subject thread={thread} />
-        <div className="flex flex-wrap items-center gap-2 text-11 text-text-muted">
-          {thread.accounts.map((a) => (
-            <span key={a.id} className="flex items-center gap-2">
-              <AccountSquare color={a.color} />
-              {a.label}
-            </span>
-          ))}
-          <BucketBadge thread={thread} />
-          <StarToggle id={thread.id} starred={thread.starred} label="thread" className="h-4" />
-          {thread.bucket === "triage" && thread.judged.length ? (
-            // Who let in and keep out decide on.
-            <span className="flex min-w-0 flex-wrap items-center gap-x-2">
-              <span aria-hidden className="text-text-dim">
-                ·
+            <StarToggle id={thread.id} starred={thread.starred} label="thread" className="h-4" />
+            {thread.bucket === "triage" && thread.judged.length ? (
+              // Who let in and keep out decide on.
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2">
+                <span aria-hidden className="text-text-dim">
+                  ·
+                </span>
+                {thread.judged.map((s, i) => (
+                  <span key={s.id} className="flex min-w-0 whitespace-pre">
+                    {s.name ? <span className="max-w-judged truncate text-text">{s.name}</span> : null}
+                    <span className="truncate">{`${s.name ? "\u00a0" : ""}<${s.email}>${i < thread.judged.length - 1 ? "," : ""}`}</span>
+                  </span>
+                ))}
               </span>
-              {thread.judged.map((s, i) => (
-                <span key={s.id} className="flex min-w-0 whitespace-pre">
-                  {s.name ? <span className="max-w-judged truncate text-text">{s.name}</span> : null}
-                  <span className="truncate">{`${s.name ? "\u00a0" : ""}<${s.email}>${i < thread.judged.length - 1 ? "," : ""}`}</span>
-                </span>
-              ))}
-            </span>
-          ) : null}
-          {single ? null : <span>{thread.messages.length} messages</span>}
-          {thread.work ? <span>in work</span> : null}
-          {thread.trashed ? <span className="text-danger">in trash</span> : null}
-          {thread.snoozedUntil || thread.needsReply || thread.deadlineAt ? (
-            // Snooze state sits apart at the right, in the snooze colour.
-            <span className="ml-auto flex items-center gap-2">
-              {thread.snoozedUntil ? (
-                <span className="text-warning">
-                  snoozed until <Time iso={thread.snoozedUntil} format="full" />
-                </span>
-              ) : null}
-              {thread.needsReply ? <span className="text-signal">needs reply</span> : null}
-              {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
-            </span>
-          ) : null}
+            ) : null}
+            {single ? null : <span>{thread.messages.length} messages</span>}
+            {thread.work ? <span>in work</span> : null}
+            {thread.trashed ? <span className="text-danger">in trash</span> : null}
+            {thread.snoozedUntil || thread.needsReply || thread.deadlineAt ? (
+              // Snooze state sits apart at the right, in the snooze colour.
+              <span className="ml-auto flex items-center gap-2">
+                {thread.snoozedUntil ? (
+                  <span className="text-warning">
+                    snoozed until <Time iso={thread.snoozedUntil} format="full" />
+                  </span>
+                ) : null}
+                {thread.needsReply ? <span className="text-signal">needs reply</span> : null}
+                {thread.deadlineAt ? <Deadline iso={thread.deadlineAt} /> : null}
+              </span>
+            ) : null}
+          </div>
+        </header>}
+
+        {thread.sender ? <SenderCard thread={thread} card={thread.sender} /> : null}
+
+        <div className="reader-in flex flex-col gap-4">
+        {judgedMessage ? (
+          <>
+            <MessageContent
+              message={judgedMessage}
+              quoteLabel={previousMessage ? `··· quoted text from ${displayName(previousMessage).toLowerCase()}, ${shortTime(previousMessage.date)}` : null}
+            />
+            {priorMessages.length ? <PriorHistory messages={priorMessages} /> : null}
+          </>
+        ) : single ? (
+          // One message: no timeline, no card. It sits on the pane, aligned with the subject.
+          <MessageContent message={thread.messages[0]} />
+        ) : (
+          <ThreadTimeline messages={thread.messages} />
+        )}
         </div>
-      </header>}
 
-      {thread.sender ? <SenderCard thread={thread} card={thread.sender} /> : null}
-
-      <div className="reader-in flex flex-col gap-4">
-      {judgedMessage ? (
-        <>
-          <MessageContent
-            message={judgedMessage}
-            quoteLabel={previousMessage ? `··· quoted text from ${displayName(previousMessage).toLowerCase()}, ${shortTime(previousMessage.date)}` : null}
-          />
-          {priorMessages.length ? <PriorHistory messages={priorMessages} /> : null}
-        </>
-      ) : single ? (
-        // One message: no timeline, no card. It sits on the pane, aligned with the subject.
-        <MessageContent message={thread.messages[0]} />
-      ) : (
-        <ThreadTimeline messages={thread.messages} />
-      )}
-      </div>
-
-      {/* A dock across the pane bottom: on desktop a frosted strip the email scrolls under, with the bar
-          centred in it; on phone the bar docks flat itself. It sits in the flow after the last message,
-          so scrolled to the end nothing is hidden behind it. */}
-      <div className="sticky bottom-0 z-10 -mx-3 mt-auto flex justify-center md:-mx-6 md:border-t md:border-text-dim/60 md:bg-surface-top/60 md:py-2 md:backdrop-blur-md md:backdrop-saturate-150">
-        <ActionBar thread={thread} />
-      </div>
-    </article>
+        {/* A dock across the pane bottom: on desktop a frosted strip the email scrolls under, with the bar
+            centred in it; on phone the bar docks flat itself. It sits in the flow after the last message,
+            so scrolled to the end nothing is hidden behind it. */}
+        <div className="sticky bottom-0 z-10 -mx-3 mt-auto flex justify-center md:-mx-6 md:border-t md:border-text-dim/60 md:bg-surface-top/60 md:py-2 md:backdrop-blur-md md:backdrop-saturate-150">
+          <ActionBar thread={thread} />
+        </div>
+      </article>
     </AttachmentViewerProvider>
   );
 }

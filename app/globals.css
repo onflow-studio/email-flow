@@ -313,13 +313,13 @@
   }
 }
 
-/* Scrolls without a scrollbar: the rail's short overflow would otherwise draw a bar and its black track
-   between the rail and the list when scrollbars are set to always show. */
 /* The attachment grid: as many cells of at least --spacing-thumb as fit. */
 @utility grid-cols-thumbs {
   grid-template-columns: repeat(auto-fill, minmax(var(--spacing-thumb), 1fr));
 }
 
+/* Scrolls without a scrollbar: the rail's short overflow would otherwise draw a bar and its black track
+   between the rail and the list when scrollbars are set to always show. */
 @utility scrollbar-none {
   scrollbar-width: none;
   &::-webkit-scrollbar {
