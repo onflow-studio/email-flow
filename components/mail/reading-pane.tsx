@@ -1,9 +1,10 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ThreadDetail } from "@/app/(mail)/_lib/queries";
+import { cn } from "@/lib/utils";
 
 import { useThreadActions } from "./actions/actions";
 import { AiNote } from "./actions/ai-note";
@@ -12,6 +13,8 @@ import { ActionBar } from "./actions/action-bar";
 import { BucketBadge } from "./actions/bucket-badge";
 import { StarToggle } from "./actions/star-toggle";
 import { AccountSquare } from "./account-square";
+import { listedAttachments } from "./attachments/files";
+import { AttachmentViewer, AttachmentViewerProvider, useAttachmentViewerState } from "./attachments/viewer";
 import { rememberAccount } from "./compose/last-account";
 import { useKeys } from "./keys/keymap";
 import { CopyButton, displayName, MessageContent, threadText } from "./message";
@@ -45,13 +48,22 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
     { keys: "arrowup", when: reading, run: () => scroll(-1) },
   ]);
 
+  // Every listed attachment in the thread, in message order, for the viewer to step through.
+  const files = useMemo(() => thread.messages.flatMap(listedAttachments), [thread.messages]);
+  const scroller = useCallback(() => articleRef.current?.closest("main") ?? null, []);
+  const viewer = useAttachmentViewerState(files, scroller);
+  const viewingInPane = viewer.index !== null && viewer.mode === "pane";
+
   // Reading a thread makes its account the default for new mail.
   useEffect(() => {
     rememberAccount(thread.account.id);
   }, [thread.account.id]);
 
   return (
-    <article ref={articleRef} className="flex min-h-full w-full flex-col gap-4 px-3 pt-8 md:px-6">
+    <AttachmentViewerProvider value={viewer}>
+    {viewer.index !== null ? <AttachmentViewer /> : null}
+    {/* In the pane the viewer takes the thread's place; the thread stays mounted so closing restores it. */}
+    <article ref={articleRef} className={cn("flex min-h-full w-full flex-col gap-4 px-3 pt-8 md:px-6", viewingInPane && "md:hidden")}>
       <div className="sticky top-0 z-10 -mx-3 -mt-8 flex h-touch shrink-0 items-center border-b border-border bg-surface px-1 md:hidden">
         <button type="button" onClick={sel.close} className="flex h-touch items-center gap-2 px-2 text-text-muted">
           <ArrowLeft aria-hidden className="size-4" strokeWidth={1.5} />
@@ -168,6 +180,7 @@ export function ReadingPane({ thread }: { thread: ThreadDetail }) {
         <ActionBar thread={thread} />
       </div>
     </article>
+    </AttachmentViewerProvider>
   );
 }
 

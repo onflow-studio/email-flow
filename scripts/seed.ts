@@ -245,6 +245,34 @@ const THREADS: SeedThread[] = [
     messages: [{ from: { name: "Lena Park", email: "lena@work2.example" }, minutesAgo: 5 * D, text: "Here are the demo day photos for the website.", attachments: [{ filename: "demo-day.zip", mimeType: "application/zip", size: 48_000_000 }] }],
   },
   {
+    // The attachment viewer: a grid of photos, one over the 4 MB single-response size, then text files.
+    account: "work2",
+    subject: "Demo day photos, the full set",
+    bucket: "inbox",
+    messages: [
+      {
+        from: { name: "Lena Park", email: "lena@work2.example" },
+        minutesAgo: 40,
+        text: "Here is the full set from demo day, straight off the camera. Pick your favourites for the website.",
+        attachments: [
+          ...Array.from({ length: 37 }, (_, n) => ({ filename: `demo-day-${String(n + 1).padStart(2, "0")}.png`, mimeType: "image/png", size: 1_800_000 + n * 23_000 })),
+          { filename: "demo-day-stage-panorama.png", mimeType: "image/png", size: 6_400_000 },
+        ],
+      },
+      {
+        from: "me",
+        minutesAgo: 20,
+        text: "Lovely, thanks. Sending my notes and the shortlist.",
+        attachments: [
+          { filename: "notes.txt", mimeType: "text/plain", size: 1_200 },
+          { filename: "shortlist.csv", mimeType: "text/csv", size: 640 },
+          { filename: "shortlist.json", mimeType: "application/json", size: 900 },
+          { filename: "captions.md", mimeType: "text/markdown", size: 700 },
+        ],
+      },
+    ],
+  },
+  {
     // The same person from a second address on another account, for the entities pass.
     account: "personal",
     subject: "Climbing on Sunday?",

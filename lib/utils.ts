@@ -4,7 +4,7 @@ import { createCn } from "cn/config"
 export const cn = createCn({
   extend: {
     theme: {
-      spacing: ["row", "touch", "status", "rail", "list", "compose", "compose-h", "palette-top", "rail-icons", "sender", "label", "field", "editor"],
+      spacing: ["row", "touch", "status", "rail", "list", "compose", "compose-h", "palette-top", "rail-icons", "sender", "label", "field", "editor", "thumb"],
       container: ["palette"],
       radius: ["sm", "md"],
       ease: ["snap"],
