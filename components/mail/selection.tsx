@@ -5,10 +5,20 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { clusterOrder } from "./clusters";
 import { rememberMailPath } from "./return-path";
-import { mailHref, type ViewSlug } from "./views";
+import { isProjectSlug, mailHref, type ViewSlug } from "./views";
 
 /** The desktop pane arrow keys act in. Phone has no pane focus. */
 export type Pane = "rail" | "list" | "reading";
+
+/** A row's group in a view that lists unseen mail first. */
+export type SeenGroup = "unseen" | "seen";
+
+/**
+ * Views whose server order puts unseen mail first, so their rows fall into
+ * unseen and seen groups. Work, the digest, Sent and projects keep their own order.
+ */
+export const hasSeenGroups = (view: ViewSlug) =>
+  view !== "work" && view !== "digest" && view !== "sent" && !isProjectSlug(view);
 
 /**
  * Which thread the keyboard is on. Actions read `target` to know what to act
@@ -28,6 +38,11 @@ export type MailSelection = {
   /** True when the group's rows are folded into its first one. */
   isCollapsed: (key: string) => boolean;
   toggleCluster: (key: string) => void;
+  /**
+   * The group a row was in when the view loaded, or when it arrived: a thread read
+   * while you work the view stays in the unseen group. Null in views without groups.
+   */
+  groupOf: (id: string) => SeenGroup | null;
   /** The section a thread is listed under, if the view has sections. */
   sectionOf: (id: string) => string | null;
   /** True when the section's rows are folded under its header. */
@@ -72,7 +87,9 @@ type FocusStore = {
   set: (key: string, picked: Picked) => void;
   /** Stable order of the view you are working in; a view you come back to starts fresh. */
   order: (key: string) => string[] | undefined;
-  setOrder: (key: string, ids: string[]) => void;
+  /** Each held row's group, kept and dropped with the order. */
+  groups: (key: string) => Record<string, SeenGroup> | undefined;
+  setOrder: (key: string, ids: string[], groups?: Record<string, SeenGroup>) => void;
   /** One range at a time: switching view drops it. */
   range: (key: string) => Range | undefined;
   setRange: (key: string, range: Range | null) => void;
@@ -125,6 +142,11 @@ function subscribeFolded(l: () => void) {
 }
 
 const sameIds = (a: string[] | undefined, b: string[]) => !!a && a.length === b.length && a.every((id, i) => id === b[i]);
+const sameGroups = (a: Record<string, SeenGroup> | undefined, b: Record<string, SeenGroup> | undefined) => {
+  if (!a || !b) return a === b;
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((id) => a[id] === b[id]);
+};
 
 /**
  * Keeps rows where they were while you work a view: opening a thread moves it
@@ -133,6 +155,19 @@ const sameIds = (a: string[] | undefined, b: string[]) => !!a && a.length === b.
  * unsnoozed thread, a twin's shown copy changing) go where the server puts
  * them: just before the first kept row that the server orders after them.
  */
+/**
+ * Each row's group: the one remembered from when the view loaded, else (a row
+ * that arrived since) whether it is unseen now. Rows are then listed group by
+ * group, so a new row lands at the edge of its group, never among the other.
+ */
+export function heldGroups(ids: string[], prev: Record<string, SeenGroup> | undefined, unseen: Set<string>) {
+  const groups: Record<string, SeenGroup> = {};
+  for (const id of ids) groups[id] = prev?.[id] ?? (unseen.has(id) ? "unseen" : "seen");
+  const rank = (id: string) => (groups[id] === "unseen" ? 0 : 1);
+  const sorted = ids.map((id, i) => ({ id, i })).sort((a, b) => rank(a.id) - rank(b.id) || a.i - b.i).map((x) => x.id);
+  return { ids: sorted, groups };
+}
+
 export function stableOrder(prev: string[] | undefined, next: string[]) {
   if (!prev) return next;
   const pos = new Map(next.map((id, i) => [id, i]));
@@ -154,7 +189,7 @@ export function stableOrder(prev: string[] | undefined, next: string[]) {
  */
 export function FocusStoreProvider({ children }: { children: React.ReactNode }) {
   const [picked, setPicked] = useState<Record<string, Picked>>({});
-  const [order, setOrderState] = useState<{ key: string; ids: string[] } | null>(null);
+  const [order, setOrderState] = useState<{ key: string; ids: string[]; groups?: Record<string, SeenGroup> } | null>(null);
   const [range, setRangeState] = useState<(Range & { key: string }) | null>(null);
   const [pane, setPane] = useState<Pane | null>(null);
   const [expandedState, setExpandedState] = useState<Record<string, string[]>>({});
@@ -194,8 +229,10 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
   }, []);
   const set = useCallback((key: string, p: Picked) => setPicked((prev) => ({ ...prev, [key]: p })), []);
   const setOrder = useCallback(
-    (key: string, ids: string[]) =>
-      setOrderState((prev) => (prev?.key === key && sameIds(prev.ids, ids) ? prev : { key, ids })),
+    (key: string, ids: string[], groups?: Record<string, SeenGroup>) =>
+      setOrderState((prev) =>
+        prev?.key === key && sameIds(prev.ids, ids) && sameGroups(prev.groups, groups) ? prev : { key, ids, groups },
+      ),
     [],
   );
   const setRange = useCallback(
@@ -215,6 +252,7 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
       get: (key) => picked[key],
       set,
       order: (key) => (order?.key === key ? order.ids : undefined),
+      groups: (key) => (order?.key === key ? order.groups : undefined),
       setOrder,
       range: (key) => (range?.key === key ? range : undefined),
       setRange,
@@ -260,6 +298,7 @@ export function SelectionProvider({
   threadIds: serverIds,
   clusters = {},
   sections = [],
+  unseenIds = [],
   openId,
   children,
 }: {
@@ -271,6 +310,8 @@ export function SelectionProvider({
   clusters?: Record<string, string>;
   /** Sections in list order, each with its threads; rows are listed section by section. */
   sections?: { key: string; ids: string[] }[];
+  /** Threads unseen now; a row's group is taken from this when it first shows. */
+  unseenIds?: string[];
   openId: string | null;
   children: React.ReactNode;
 }) {
@@ -280,7 +321,10 @@ export function SelectionProvider({
   const key = view;
 
   const prevOrder = store.order(key);
+  const prevGroups = store.groups(key);
   const serverKey = serverIds.join();
+  const unseenKey = unseenIds.join();
+  const grouping = hasSeenGroups(view);
   const clusterKey = JSON.stringify(clusters);
   const sectionKey = JSON.stringify(sections);
   const sectionOf = useMemo(
@@ -289,15 +333,21 @@ export function SelectionProvider({
   );
   // A group stays together even when new mail joins it. A thread that changes section (a suggestion
   // confirmed) moves under its new header.
-  const allIds = useMemo(() => {
-    const ids = clusterOrder(stableOrder(prevOrder, serverKey ? serverKey.split(",") : []), JSON.parse(clusterKey));
-    if (!sectionOf.size) return ids;
+  // A row keeps the group it was in when the view loaded, until the view loads again.
+  const { allIds, groups } = useMemo(() => {
+    const held = stableOrder(prevOrder, serverKey ? serverKey.split(",") : []);
+    const grouped = grouping ? heldGroups(held, prevGroups, new Set(unseenKey ? unseenKey.split(",") : [])) : null;
+    const ids = clusterOrder(grouped?.ids ?? held, JSON.parse(clusterKey));
+    if (!sectionOf.size) return { allIds: ids, groups: grouped?.groups };
     const rank = new Map([...new Set(sectionOf.values())].map((k, i) => [k, i]));
     const at = (id: string) => rank.get(sectionOf.get(id) ?? "") ?? rank.size;
-    return ids.map((id, i) => ({ id, i })).sort((a, b) => at(a.id) - at(b.id) || a.i - b.i).map((x) => x.id);
-  }, [prevOrder, serverKey, clusterKey, sectionOf]);
+    return {
+      allIds: ids.map((id, i) => ({ id, i })).sort((a, b) => at(a.id) - at(b.id) || a.i - b.i).map((x) => x.id),
+      groups: grouped?.groups,
+    };
+  }, [prevOrder, prevGroups, serverKey, unseenKey, grouping, clusterKey, sectionOf]);
   const { setOrder } = store;
-  useEffect(() => setOrder(key, allIds), [setOrder, key, allIds]);
+  useEffect(() => setOrder(key, allIds, groups), [setOrder, key, allIds, groups]);
 
   const opened = store.expanded(key);
   const { setExpanded } = store;
@@ -439,6 +489,7 @@ export function SelectionProvider({
       threadIds,
       allIds,
       clusterOf: (id) => clusters[id] ?? null,
+      groupOf: (id) => groups?.[id] ?? null,
       isCollapsed: collapsed,
       toggleCluster,
       sectionOf: (id) => sectionOf.get(id) ?? null,
@@ -465,7 +516,7 @@ export function SelectionProvider({
       },
       go: (next) => router.push(mailHref(next)),
     }),
-    [view, account, threadIds, allIds, clusters, collapsed, toggleCluster, sectionOf, sectionCollapsed, toggleSection, targetIds, target, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, toggleSelected, endRange, clearSelected, open, router],
+    [view, account, threadIds, allIds, groups, clusters, collapsed, toggleCluster, sectionOf, sectionCollapsed, toggleSection, targetIds, target, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, toggleSelected, endRange, clearSelected, open, router],
   );
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

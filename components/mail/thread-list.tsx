@@ -15,7 +15,7 @@ import { useListScroll, useMailSelection } from "./selection";
 import { fullTime, Time } from "./time";
 import { UnreadDot } from "./unread-dot";
 import { useProjects } from "./projects-context";
-import { isProjectSlug, mailHref } from "./views";
+import { mailHref } from "./views";
 
 // Thread ids each view has shown this session, so a thread that turns up later can glow as new.
 // Undone threads coming back are not new, so ids are only ever added.
@@ -122,17 +122,17 @@ export function ThreadList({
     if (t.cluster && last?.cluster?.key === t.cluster.key) last.threads.push(t);
     else blocks.push({ key: t.cluster ? `c:${t.cluster.key}` : t.id, cluster: t.cluster, threads: [t] });
   }
-  const blockUnseen = (b: Block) => b.threads.some((t) => t.unseen);
-  // A project lists its threads in sections: to check, in the project, archived.
-  const inProject = isProjectSlug(sel.view);
+  // A block's group is the one its rows were in when the view loaded: reading a thread leaves it where it was.
+  const blockGroup = (b: Block) => (b.threads.some((t) => sel.groupOf(t.id) === "unseen") ? "unseen" : sel.groupOf(b.threads[0].id));
   // Starred threads sit in their own section on top; the groups below apply to the rest.
   const pinned = (b: Block | undefined) => !!b && sel.sectionOf(b.threads[0].id) === "starred";
   // Work keeps its own order (deadlines, then by date), so it has no unseen and seen groups; a project has its sections.
-  const unseen = work || sel.view === "digest" || inProject ? 0 : threads.filter((t) => t.unseen && sel.sectionOf(t.id) !== "starred").length;
-  // Group labels only hold while rows sit in server order (starred, then unseen first).
+  // The count is what is unseen now, so it goes down as you read; the labels stay where the view loaded them.
+  const unseen = threads.filter((t) => t.unseen && sel.groupOf(t.id) && sel.sectionOf(t.id) !== "starred").length;
+  const firstUnseen = blocks.findIndex((b) => !pinned(b) && blockGroup(b) === "unseen");
+  const firstSeen = firstUnseen < 0 ? -1 : blocks.findIndex((b) => !pinned(b) && blockGroup(b) === "seen");
+  // Work's and the digest's labels only hold while rows sit in server order.
   const grouped = ordered.every((t, i) => t.id === threads[i]?.id);
-  const firstUnseen = grouped ? blocks.findIndex((b) => !pinned(b)) : -1;
-  const firstSeen = grouped ? blocks.findIndex((b) => !pinned(b) && !blockUnseen(b)) : -1;
   // Work groups by when: deadlines first, then the rest by their newest message.
   const weekStart = startOfWeek(new Date(), 0);
   const lastWeekStart = startOfWeek(new Date(), 1);
@@ -199,8 +199,8 @@ export function ThreadList({
       {blocks.map((b, i) => {
         const labels = (
           <>
-            {i === firstUnseen && unseen > 0 ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
-            {i === firstSeen && unseen > 0 ? <GroupLabel>seen</GroupLabel> : null}
+            {i === firstUnseen ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
+            {i === firstSeen ? <GroupLabel>seen</GroupLabel> : null}
             {whenAt(i) && whenAt(i) !== whenAt(i - 1) ? <GroupLabel>{whenAt(i)}</GroupLabel> : null}
             {sectionOf(i) && sectionOf(i) !== sectionOf(i - 1) ? (
               <SectionHeader
