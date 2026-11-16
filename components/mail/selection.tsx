@@ -149,25 +149,31 @@ const sameGroups = (a: Record<string, SeenGroup> | undefined, b: Record<string, 
 };
 
 /**
+ * Each row's group: the one remembered from when the view loaded, else (a row
+ * that arrived since) whether it is unseen now. Rows are then listed group by
+ * group, so a new row lands at the edge of its group, never among the other.
+ * Starred rows keep their order (when each was starred), outside the groups.
+ */
+export function heldGroups(
+  ids: string[],
+  prev: Record<string, SeenGroup> | undefined,
+  unseen: Set<string>,
+  starred: Set<string>,
+) {
+  const groups: Record<string, SeenGroup> = {};
+  for (const id of ids) groups[id] = prev?.[id] ?? (unseen.has(id) ? "unseen" : "seen");
+  const rank = (id: string) => (starred.has(id) ? -1 : groups[id] === "unseen" ? 0 : 1);
+  const sorted = ids.map((id, i) => ({ id, i })).sort((a, b) => rank(a.id) - rank(b.id) || a.i - b.i).map((x) => x.id);
+  return { ids: sorted, groups };
+}
+
+/**
  * Keeps rows where they were while you work a view: opening a thread moves it
  * to the seen group on the server, but the list should not jump under the
  * keyboard. Rows that left are dropped. Rows that appeared (new mail, an
  * unsnoozed thread, a twin's shown copy changing) go where the server puts
  * them: just before the first kept row that the server orders after them.
  */
-/**
- * Each row's group: the one remembered from when the view loaded, else (a row
- * that arrived since) whether it is unseen now. Rows are then listed group by
- * group, so a new row lands at the edge of its group, never among the other.
- */
-export function heldGroups(ids: string[], prev: Record<string, SeenGroup> | undefined, unseen: Set<string>) {
-  const groups: Record<string, SeenGroup> = {};
-  for (const id of ids) groups[id] = prev?.[id] ?? (unseen.has(id) ? "unseen" : "seen");
-  const rank = (id: string) => (groups[id] === "unseen" ? 0 : 1);
-  const sorted = ids.map((id, i) => ({ id, i })).sort((a, b) => rank(a.id) - rank(b.id) || a.i - b.i).map((x) => x.id);
-  return { ids: sorted, groups };
-}
-
 export function stableOrder(prev: string[] | undefined, next: string[]) {
   if (!prev) return next;
   const pos = new Map(next.map((id, i) => [id, i]));
@@ -336,7 +342,8 @@ export function SelectionProvider({
   // A row keeps the group it was in when the view loaded, until the view loads again.
   const { allIds, groups } = useMemo(() => {
     const held = stableOrder(prevOrder, serverKey ? serverKey.split(",") : []);
-    const grouped = grouping ? heldGroups(held, prevGroups, new Set(unseenKey ? unseenKey.split(",") : [])) : null;
+    const starred = new Set(held.filter((id) => sectionOf.get(id) === "starred"));
+    const grouped = grouping ? heldGroups(held, prevGroups, new Set(unseenKey ? unseenKey.split(",") : []), starred) : null;
     const ids = clusterOrder(grouped?.ids ?? held, JSON.parse(clusterKey));
     if (!sectionOf.size) return { allIds: ids, groups: grouped?.groups };
     const rank = new Map([...new Set(sectionOf.values())].map((k, i) => [k, i]));

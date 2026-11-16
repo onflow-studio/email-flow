@@ -128,7 +128,11 @@ export function ThreadList({
   const pinned = (b: Block | undefined) => !!b && sel.sectionOf(b.threads[0].id) === "starred";
   // Work keeps its own order (deadlines, then by date), so it has no unseen and seen groups; a project has its sections.
   // The count is what is unseen now, so it goes down as you read; the labels stay where the view loaded them.
-  const unseen = threads.filter((t) => t.unseen && sel.groupOf(t.id) && sel.sectionOf(t.id) !== "starred").length;
+  // A thread marked unread under seen stays there, so only what sits under the unseen label counts.
+  const unseen = blocks.reduce(
+    (n, b) => (pinned(b) || blockGroup(b) !== "unseen" ? n : n + b.threads.filter((t) => t.unseen).length),
+    0,
+  );
   const firstUnseen = blocks.findIndex((b) => !pinned(b) && blockGroup(b) === "unseen");
   const firstSeen = firstUnseen < 0 ? -1 : blocks.findIndex((b) => !pinned(b) && blockGroup(b) === "seen");
   // Work's and the digest's labels only hold while rows sit in server order.
