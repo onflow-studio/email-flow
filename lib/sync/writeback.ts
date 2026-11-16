@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
 import { threads, type Bucket, type Job } from "@/lib/db/schema";
+import { httpStatus } from "@/lib/gmail/errors";
 
 import type { JobContext } from "./jobs";
 import { projectLabelState } from "./projects";
@@ -132,6 +133,7 @@ export async function writeThread(
   try {
     await gmail.modifyThread(thread.gmailThreadId, mirrorChange(thread, ids, project));
   } catch (error) {
+    if (httpStatus(error) === 404) return "gone";
     clearLabelCache(thread.accountId);
     throw error;
   }
@@ -163,5 +165,6 @@ export async function writebackJob(job: Job, ctx: JobContext) {
   if (!thread) return;
   const gmail = await ctx.gmail(thread.accountId);
   const project = await projectLabelState(ctx.db, thread.accountId, thread.projectId, gmail);
-  await writeThread({ ...thread, seen: thread.seenAt !== null, starred: thread.starredAt !== null }, gmail, project);
+  const result = await writeThread({ ...thread, seen: thread.seenAt !== null, starred: thread.starredAt !== null }, gmail, project);
+  if (result === "gone") await ctx.db.update(threads).set({ trashed: true }).where(eq(threads.id, threadId));
 }

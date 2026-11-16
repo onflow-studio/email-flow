@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { jobs, threads, type Job } from "@/lib/db/schema";
+
+import { runJob, type JobContext } from "./jobs";
 import {
   bucketLabels,
   INBOX_LABEL,
@@ -176,5 +179,43 @@ describe("writeThread", () => {
     const state = { bucket: "news" as const, archived: true, seen: false, trashed: false, spam: false, starred: true };
     await writeThread({ accountId: "acc1", gmailThreadId: "g1", ...state }, gmail);
     expect(gmail.modifyThread).toHaveBeenCalledWith("g1", mirrorChange(state, ids));
+  });
+
+  it("finishes a write-back for a thread gone from Gmail and keeps its label cache", async () => {
+    const gmail = mockGmail();
+    gmail.modifyThread.mockRejectedValueOnce(Object.assign(new Error("Requested entity was not found"), { status: 404 }));
+    const updates: { table: unknown; set: unknown }[] = [];
+    const row = {
+      accountId: "acc1", gmailThreadId: "g1", bucket: "news", archived: false,
+      seenAt: null, trashed: false, spam: false, starredAt: null, projectId: null,
+    };
+    const db = {
+      select: vi.fn(() => ({
+        from: (table: unknown) => ({ where: async () => table === threads ? [row] : [] }),
+      })),
+      update: vi.fn((table: unknown) => ({
+        set: (set: unknown) => ({ where: async () => { updates.push({ table, set }); } }),
+      })),
+    } as unknown as JobContext["db"];
+    const job = { id: "j1", type: "writeback", attempts: 0, payload: { threadId: "t1" } } as Job;
+
+    expect(await runJob(job, { db, gmail: async () => gmail })).toBe("done");
+    expect(gmail.modifyThread).toHaveBeenCalledTimes(1);
+    expect(updates).toEqual([
+      { table: threads, set: { trashed: true } },
+      { table: jobs, set: { status: "done", error: null, lockedAt: null } },
+    ]);
+    await ensureLabels("acc1", gmail);
+    expect(gmail.listLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries other modify errors and clears the label cache", async () => {
+    const gmail = mockGmail();
+    gmail.modifyThread.mockRejectedValueOnce(Object.assign(new Error("Gmail unavailable"), { status: 500 }));
+    const thread = { accountId: "acc1", gmailThreadId: "g1", bucket: "news" as const,
+      archived: false, seen: true, trashed: false, spam: false, starred: false };
+    await expect(writeThread(thread, gmail)).rejects.toThrow("Gmail unavailable");
+    await ensureLabels("acc1", gmail);
+    expect(gmail.listLabels).toHaveBeenCalledTimes(2);
   });
 });
