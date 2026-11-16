@@ -155,7 +155,7 @@ function threadSort(view: View, cutoffs: StaleCutoffs, now: Date) {
       else 2 end`, "asc");
     add(sql<number>`case when ${threads.deadlineAt} <= ${new Date(now.getTime() + DAY)} then ${at(threads.deadlineAt)}
       when ${lt(threads.workAt, cutoffs.work)} then ${at(threads.workAt)}
-      when ${threads.needsReply} and ${threads.deadlineAt} is null then ${at(threads.lastMessageAt)}
+      when ${threads.needsReply} and ${threads.deadlineAt} is null and ${lt(threads.lastMessageAt, cutoffs.reply)} then ${at(threads.lastMessageAt)}
       else ${at(threads.createdAt)} end`, "asc");
   } else if (view.slug === "sent") {
     add(sql<number>`coalesce(${at(lastSentAt())}, 0)`, "desc");

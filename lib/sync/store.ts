@@ -21,7 +21,7 @@ import { rewriteCidImages } from "@/lib/mail/remote";
 import { INITIAL_WINDOW_DAYS } from "./changes";
 import type { GmailSyncPort } from "./gmail";
 import { PRIORITY_LIVE, enqueueClassify, enqueueEmbed, enqueueSummary, enqueueWriteback } from "./jobs";
-import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt, starChange } from "./mirror";
+import { LABEL, initialBucket, isInbound, mirrorState, nextSeenAt, nextTrashedAt, starChange } from "./mirror";
 import { accountProjectLabels, projectFromLabels } from "./projects";
 import { linkTwins, reconcileGroup, starGroup } from "./twins";
 
@@ -155,7 +155,7 @@ export async function ingestThread(
   const remote = await gmail.getThreadLabels(gmailThreadId);
   if (!remote) {
     // Deleted forever in Gmail. Keep our copy, out of sight.
-    if (existing) await db.update(threads).set({ trashed: true, trashedAt: existing.trashed ? existing.trashedAt : now }).where(eq(threads.id, existing.id));
+    if (existing) await db.update(threads).set({ trashed: true, trashedAt: nextTrashedAt(true, existing, now) }).where(eq(threads.id, existing.id));
     return { status: "gone", threadId: existing?.id ?? null };
   }
 
@@ -223,7 +223,7 @@ export async function ingestThread(
           bucket,
           archived: woken || archivedHistory || (mirror.archived ?? false),
           trashed: mirror.trashed,
-          trashedAt: mirror.trashed ? now : null,
+          trashedAt: nextTrashedAt(mirror.trashed, null, now),
           spam: mirror.spam,
           seenAt: woken ? now : nextSeenAt(mirror.unread, null, now),
           // A Gmail star on woken mail is kept as it is, not read as the owner starring it now.
@@ -317,7 +317,7 @@ export async function ingestThread(
         : {
             ...(mirror.archived === undefined ? {} : { archived: mirror.archived }),
             trashed: mirror.trashed,
-            trashedAt: mirror.trashed ? (existing?.trashed ? existing.trashedAt : now) : null,
+            trashedAt: nextTrashedAt(mirror.trashed, existing, now),
             spam: mirror.spam,
             seenAt: nextSeenAt(mirror.unread, existing?.seenAt ?? null, now),
             ...(labelProject === undefined ? {} : { projectId: labelProject, projectSource: labelProject ? ("user" as const) : null }),

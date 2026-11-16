@@ -51,6 +51,12 @@ export function nextSeenAt(unread: boolean, current: Date | null, now: Date): Da
   return current ?? now;
 }
 
+// Keep the original deletion time while a thread remains in Trash, including older unknown times.
+export function nextTrashedAt(trashed: boolean, existing: { trashed: boolean; trashedAt: Date | null } | null | undefined, now: Date): Date | null {
+  if (!trashed) return null;
+  return existing?.trashed ? existing.trashedAt : now;
+}
+
 export function isInbound(labelIds: string[], fromEmail: string, accountEmail: string): boolean {
   if (labelIds.includes(LABEL.sent)) return false;
   return fromEmail.toLowerCase() !== accountEmail.toLowerCase();
