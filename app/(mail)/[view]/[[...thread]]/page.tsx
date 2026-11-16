@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { ActionsProvider } from "@/components/mail/actions/actions";
-import { ComposeButton, ComposeKeys } from "@/components/mail/compose/compose-keys";
+import { ComposeKeys } from "@/components/mail/compose/compose-keys";
 import { DigestSummary } from "@/components/mail/digest-summary";
 import { DraftList } from "@/components/mail/draft-list";
 import { FocusPane } from "@/components/mail/focus-pane";
@@ -15,6 +15,7 @@ import { PaneHandle } from "@/components/mail/pane-handle";
 import { Rail } from "@/components/mail/rail";
 import { ReadingPane } from "@/components/mail/reading-pane";
 import { SelectionProvider } from "@/components/mail/selection";
+import { SelectionBar } from "@/components/mail/selection-bar";
 import { StatusLine } from "@/components/mail/status-line";
 import { ThreadList } from "@/components/mail/thread-list";
 import { TriageQueue } from "@/components/mail/triage-queue";
@@ -165,19 +166,11 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                   <TriageQueue threads={threads} accountColors={accountColors} />
                 ) : (
                   <>
-                    <header className="flex h-touch shrink-0 items-center justify-between border-b border-border px-3 md:h-row">
-                      <h1 className="font-medium">{view.label}</h1>
-                      <span className="flex items-center gap-2">
-                        <span className="text-11 text-text-muted">
-                          {view.bucket || view.project
-                            ? `${unseen} unseen`
-                            : view.slug === "drafts"
-                              ? `${drafts.length} ${drafts.length === 1 ? "draft" : "drafts"}`
-                              : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`}
-                        </span>
-                        <ComposeButton />
-                      </span>
-                    </header>
+                    <SelectionBar label={view.label} count={view.bucket || view.project
+                      ? `${unseen} unseen`
+                      : view.slug === "drafts"
+                        ? `${drafts.length} ${drafts.length === 1 ? "draft" : "drafts"}`
+                        : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`} />
                     <div className="min-h-0 flex-1 overflow-y-auto">
                       {digest ? <DigestSummary digest={digest} /> : null}
                       {view.slug === "drafts" ? (

@@ -99,7 +99,7 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
   const replyAll: BarAction = { id: "reply-all", label: "reply all", keys: key("reply-all"), run: () => compose.open("reply-all", thread.id) };
   const forward: BarAction = { id: "forward", label: "forward", keys: key("forward"), run: () => compose.open("forward", thread.id) };
   const archive: BarAction = { id: "archive", label: "archive", keys: key("archive"), run: () => void run({ type: "archive" }, ids) };
-  const snooze: BarAction = { id: "snooze", label: "snooze", keys: key("snooze"), run: openSnooze };
+  const snooze: BarAction = { id: "snooze", label: "snooze", keys: key("snooze"), run: () => openSnooze(ids) };
   const unsnooze: BarAction | null = thread.snoozedUntil
     ? { id: "unsnooze", label: "unsnooze", run: () => void run({ type: "unsnooze" }, ids) }
     : null;

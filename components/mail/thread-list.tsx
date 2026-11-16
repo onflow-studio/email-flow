@@ -2,7 +2,7 @@
 
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 
 import type { ThreadListItem } from "@/app/(mail)/_lib/queries";
 import type { DigestSection } from "@/lib/sync/stale";
@@ -165,7 +165,13 @@ export function ThreadList({
         selected={selected.has(t.id)}
         open={t.id === sel.openId}
         href={mailHref(sel.view, { threadId: t.id })}
-        onSelect={() => {
+        onSelect={(e) => {
+          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+            e.preventDefault();
+            if (e.shiftKey) sel.selectThrough(t.id);
+            else sel.toggleSelected(t.id);
+            return;
+          }
           sel.endRange();
           sel.focus(t.id);
         }}
@@ -247,7 +253,13 @@ export function ThreadList({
               accountSlots={accountSlots}
               focused={collapsed && head.id === sel.focusedId}
               open={collapsed && head.id === sel.openId}
-              onToggle={() => {
+              selected={b.threads.every((t) => selected.has(t.id))}
+              picking={picking}
+              onToggle={(shift) => {
+                if (shift) sel.selectThrough(head.id);
+                else sel.toggleGroup(b.threads.map((t) => t.id));
+              }}
+              onExpand={() => {
                 sel.endRange();
                 sel.focus(head.id);
                 sel.toggleCluster(b.cluster!.key);
@@ -274,7 +286,10 @@ function ClusterRow({
   accountSlots,
   focused,
   open,
+  selected,
+  picking,
   onToggle,
+  onExpand,
 }: {
   label: string;
   threads: ThreadListItem[];
@@ -283,7 +298,10 @@ function ClusterRow({
   accountSlots: number;
   focused: boolean;
   open: boolean;
-  onToggle: () => void;
+  selected: boolean;
+  picking: boolean;
+  onToggle: (shift: boolean) => void;
+  onExpand: () => void;
 }) {
   const head = threads[0];
   const fresh = threads.filter((t) => t.unseen).length;
@@ -291,16 +309,18 @@ function ClusterRow({
 
   if (!collapsed) {
     return (
+      <div className="relative">
       <button
         type="button"
-        onClick={onToggle}
-        aria-expanded
+        onClick={(e) => onToggle(e.shiftKey)}
         className="flex h-row min-w-0 items-center gap-2 border-l-2 border-transparent pr-3 pl-6 text-left text-11 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised/50 hover:text-text focus-visible:border-accent focus-visible:bg-surface-raised"
       >
         <Chevron aria-hidden className="-ml-4 size-3 shrink-0" strokeWidth={1.5} />
         <span className="min-w-0 flex-1 truncate">{label}</span>
         <span className="shrink-0 tabular-nums">{threads.length}</span>
       </button>
+      <button type="button" aria-label="collapse group" aria-expanded onClick={onExpand} className="absolute inset-y-0 left-0 z-20 flex w-6 items-center justify-center text-text-muted"><Chevron aria-hidden className="size-3" /></button>
+      </div>
     );
   }
 
@@ -308,14 +328,13 @@ function ClusterRow({
     <div data-group-ids={threads.map((t) => t.id).join(" ")} className="relative after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border">
       <button
         type="button"
-        onClick={onToggle}
-        aria-expanded={false}
+        onClick={(e) => onToggle(e.shiftKey)}
         aria-current={open ? "page" : undefined}
         data-thread-id={head.id}
         title={head.subject}
         className={cn(
           "relative z-10 flex h-touch w-full min-w-0 items-center gap-2 border-l-2 pr-3 pl-6 text-left leading-list transition-colors duration-80 ease-snap focus-visible:border-accent focus-visible:bg-surface-raised md:h-row",
-          focused ? "border-transparent bg-surface-raised" : "border-transparent hover:bg-surface-raised/50",
+          focused ? "border-transparent bg-surface-raised" : selected ? "border-transparent bg-accent-dim/40" : "border-transparent hover:bg-surface-raised/50",
         )}
       >
         <span className="sr-only">group of {threads.length} threads, {fresh} unseen, newest {head.subject}; </span>
@@ -328,6 +347,7 @@ function ClusterRow({
         <span className="flex-1 @min-[320px]:hidden" />
         <Time iso={head.lastMessageAt} className="min-w-time shrink-0 text-right text-11 tabular-nums text-text-muted" />
       </button>
+      {picking ? <PickBox checked={selected} label={label} onToggle={() => onToggle(false)} /> : <button type="button" aria-label="expand group" aria-expanded={false} onClick={onExpand} className="absolute inset-y-0 left-0 z-20 flex w-6 items-center justify-center text-text-muted"><Chevron aria-hidden className="size-3" /></button>}
     </div>
   );
 }
@@ -439,7 +459,7 @@ function ThreadRow({
   selected: boolean;
   open: boolean;
   href: string;
-  onSelect: () => void;
+  onSelect: (e: MouseEvent<HTMLAnchorElement>) => void;
   showSnooze: boolean;
   digest: boolean;
   /** Work rows show the deadline and needs reply, and mark an unread reply with the dot. */

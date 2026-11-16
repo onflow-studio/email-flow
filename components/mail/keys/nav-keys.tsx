@@ -45,6 +45,13 @@ export function NavKeys() {
     { keys: "arrowup", when: () => sel.pane === "list", run: () => step(-1) },
     { keys: "shift+arrowdown", when: () => sel.pane === "list", run: () => sel.extend(1) },
     { keys: "shift+arrowup", when: () => sel.pane === "list", run: () => sel.extend(-1) },
+    { id: "thread.pick", when: () => !!sel.focusedId, run: () => {
+      const id = sel.focusedId!;
+      const group = sel.clusterOf(id);
+      if (group && sel.isCollapsed(group)) sel.toggleGroup(sel.allIds.filter((member) => sel.clusterOf(member) === group));
+      else sel.toggleSelected(id);
+    } },
+    { id: "thread.pick-all", when: () => !!sel.allIds.length, run: () => sel.selectAll() },
     {
       id: "pane.left",
       when: () => isDesktop() && sel.pane !== "rail",
