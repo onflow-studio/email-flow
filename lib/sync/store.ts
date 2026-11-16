@@ -155,7 +155,7 @@ export async function ingestThread(
   const remote = await gmail.getThreadLabels(gmailThreadId);
   if (!remote) {
     // Deleted forever in Gmail. Keep our copy, out of sight.
-    if (existing) await db.update(threads).set({ trashed: true, trashedAt: existing.trashedAt ?? now }).where(eq(threads.id, existing.id));
+    if (existing) await db.update(threads).set({ trashed: true, trashedAt: existing.trashed ? existing.trashedAt : now }).where(eq(threads.id, existing.id));
     return { status: "gone", threadId: existing?.id ?? null };
   }
 
@@ -317,7 +317,7 @@ export async function ingestThread(
         : {
             ...(mirror.archived === undefined ? {} : { archived: mirror.archived }),
             trashed: mirror.trashed,
-            trashedAt: mirror.trashed ? existing?.trashedAt ?? now : null,
+            trashedAt: mirror.trashed ? (existing?.trashed ? existing.trashedAt : now) : null,
             spam: mirror.spam,
             seenAt: nextSeenAt(mirror.unread, existing?.seenAt ?? null, now),
             ...(labelProject === undefined ? {} : { projectId: labelProject, projectSource: labelProject ? ("user" as const) : null }),
