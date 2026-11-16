@@ -245,6 +245,7 @@ export const threads = pgTable(
     starredAt: timestamp({ withTimezone: true }),
     archived: boolean().notNull().default(false),
     trashed: boolean().notNull().default(false),
+    trashedAt: timestamp({ withTimezone: true }),
     spam: boolean().notNull().default(false),
     participantsSummary: text(),
     // One-line AI summary, in the mail's own language. Stale when summaryMessageAt < lastMessageAt.

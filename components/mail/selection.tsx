@@ -60,6 +60,11 @@ export type MailSelection = {
 };
 
 const SelectionContext = createContext<MailSelection | null>(null);
+const pendingNext = new Map<string, { id: string; open: boolean }>();
+
+export function stepIntoNextPage(view: string, id: string, open: boolean) {
+  pendingNext.set(view, { id, open });
+}
 
 type Picked = { id: string | null; index: number };
 /**
@@ -389,6 +394,16 @@ export function SelectionProvider({
     },
     [router, view, focusedId, setPane],
   );
+
+  useEffect(() => {
+    const pending = pendingNext.get(view);
+    if (!pending) return;
+    const next = threadIds[threadIds.indexOf(pending.id) + 1];
+    if (!next) return;
+    pendingNext.delete(view);
+    setPicked({ id: next, index: threadIds.indexOf(next) });
+    if (pending.open) open(next, true);
+  }, [view, threadIds, setPicked, open]);
 
   // The range grows from where it started, so shift+up after shift+down shrinks it.
   const extend = useCallback(

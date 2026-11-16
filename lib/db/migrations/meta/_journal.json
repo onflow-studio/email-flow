@@ -169,6 +169,13 @@
       "when": 1793378916348,
       "tag": "0023_stars_pin",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794845564707,
+      "tag": "0024_loving_vengeance",
+      "breakpoints": true
     }
   ]
 }

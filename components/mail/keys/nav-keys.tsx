@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 
 import { RADIO_TOGGLE_EVENT } from "@/components/radio";
+import { LIST_NEXT_PAGE_EVENT } from "../list-pager";
 
-import { useMailSelection } from "../selection";
+import { stepIntoNextPage, useMailSelection } from "../selection";
 import { useViews } from "../work-context";
 import { useKeyMap, useKeys, type KeyBinding } from "./keymap";
 
@@ -27,6 +28,10 @@ export function NavKeys() {
     sel.endRange();
     const i = sel.threadIds.indexOf(sel.target ?? "");
     const next = sel.threadIds[i + dir];
+    if (dir === 1 && i === sel.threadIds.length - 1 && document.querySelector("[data-list-pager]")) {
+      if (sel.target) stepIntoNextPage(sel.view, sel.target, !!sel.openId);
+      window.dispatchEvent(new Event(LIST_NEXT_PAGE_EVENT));
+    }
     if (sel.openId) {
       if (next) sel.open(next, true);
     } else if (dir === 1) sel.focusNext();

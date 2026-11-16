@@ -20,11 +20,11 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
     case "done":
       return { archived: true, workAt: null, ...UNSTARRED };
     case "unarchive":
-      return { archived: false, trashed: false, spam: false };
+      return { archived: false, trashed: false, trashedAt: null, spam: false };
     case "trash":
-      return { trashed: true, workAt: null, ...UNSTARRED };
+      return { trashed: true, trashedAt: t.trashedAt ?? now, workAt: null, ...UNSTARRED };
     case "restore":
-      return { trashed: false };
+      return { trashed: false, trashedAt: null };
     case "spam":
       return { spam: true, workAt: null, ...UNSTARRED };
     case "read":
@@ -72,11 +72,11 @@ function rawPatch(action: ThreadAction, t: ThreadState, now: Date): Partial<Thre
       return { snoozedUntil: null };
     // Work holds live threads: restore and unsnooze a thread moved there from anywhere.
     case "work":
-      return { workAt: t.workAt ?? now, archived: false, trashed: false, spam: false, snoozedUntil: null };
+      return { workAt: t.workAt ?? now, archived: false, trashed: false, trashedAt: null, spam: false, snoozedUntil: null };
     // A star pins a live thread on top of the list that holds it, so starring brings a done one back.
     case "star":
       if (t.starredAt) return null;
-      return { starredAt: now, archived: false, trashed: false, spam: false };
+      return { starredAt: now, archived: false, trashed: false, trashedAt: null, spam: false };
     case "unstar":
       if (!t.starredAt) return null;
       return UNSTARRED;

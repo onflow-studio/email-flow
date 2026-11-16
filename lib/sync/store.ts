@@ -148,14 +148,14 @@ export async function ingestThread(
   }: { classifyPriority?: number; classifyArchived?: boolean; quietOldMail?: boolean } = {},
 ): Promise<IngestResult> {
   const [existing] = await db
-    .select({ id: threads.id, bucket: threads.bucket, seenAt: threads.seenAt, starredAt: threads.starredAt, projectId: threads.projectId })
+    .select({ id: threads.id, bucket: threads.bucket, seenAt: threads.seenAt, starredAt: threads.starredAt, projectId: threads.projectId, trashed: threads.trashed, trashedAt: threads.trashedAt })
     .from(threads)
     .where(and(eq(threads.accountId, account.id), eq(threads.gmailThreadId, gmailThreadId)));
 
   const remote = await gmail.getThreadLabels(gmailThreadId);
   if (!remote) {
     // Deleted forever in Gmail. Keep our copy, out of sight.
-    if (existing) await db.update(threads).set({ trashed: true }).where(eq(threads.id, existing.id));
+    if (existing) await db.update(threads).set({ trashed: true, trashedAt: existing.trashedAt ?? now }).where(eq(threads.id, existing.id));
     return { status: "gone", threadId: existing?.id ?? null };
   }
 
@@ -223,6 +223,7 @@ export async function ingestThread(
           bucket,
           archived: woken || archivedHistory || (mirror.archived ?? false),
           trashed: mirror.trashed,
+          trashedAt: mirror.trashed ? now : null,
           spam: mirror.spam,
           seenAt: woken ? now : nextSeenAt(mirror.unread, null, now),
           // A Gmail star on woken mail is kept as it is, not read as the owner starring it now.
@@ -316,6 +317,7 @@ export async function ingestThread(
         : {
             ...(mirror.archived === undefined ? {} : { archived: mirror.archived }),
             trashed: mirror.trashed,
+            trashedAt: mirror.trashed ? existing?.trashedAt ?? now : null,
             spam: mirror.spam,
             seenAt: nextSeenAt(mirror.unread, existing?.seenAt ?? null, now),
             ...(labelProject === undefined ? {} : { projectId: labelProject, projectSource: labelProject ? ("user" as const) : null }),

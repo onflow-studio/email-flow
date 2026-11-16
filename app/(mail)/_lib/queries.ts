@@ -1,11 +1,11 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 
 import type { View, ViewSlug } from "@/components/mail/views";
 import { CLUSTER_VIEWS, clusterOf, clusterOrder, isMachine, type ClusterInput } from "@/components/mail/clusters";
 import { VIEWS, type View as MailView } from "@/components/mail/views";
 import { db } from "@/lib/db";
 import type { StaleCutoffs } from "@/lib/sync/stale";
-import { DIGEST_SECTIONS, digestSection, staleReason } from "@/lib/sync/stale";
+import { digestSection, staleReason } from "@/lib/sync/stale";
 import { aiAllowedSenders, currentChoice, inboundSenderIds, judgedSenders } from "@/lib/classify/screener";
 import { accounts, attachments, digests, drafts, messages, projects, senderAccounts, senders, threads, type Address } from "@/lib/db/schema";
 import { mergeTimeline, shownCopy } from "@/lib/sync/twins";
@@ -133,13 +133,56 @@ export async function viewCounts(on: string[] | null, cutoffs: StaleCutoffs, now
   };
 }
 
-/**
- * Work: overdue deadlines, then upcoming ones soonest first (both by deadline ascending), then the
- * threads without one, newest activity first.
- */
-const workOrder = () => [sql`${threads.deadlineAt} asc nulls last`, desc(threads.lastMessageAt)];
+const PAGE_SIZE = 100;
 
-export async function listThreads(view: View, on: string[] | null, cutoffs: StaleCutoffs, now: Date) {
+/** Numeric, non-null sort columns make the page boundary unambiguous, including equal timestamps. */
+function threadSort(view: View, cutoffs: StaleCutoffs, now: Date) {
+  const at = (column: SQLWrapper) => sql<number>`extract(epoch from ${column})`;
+  const flag = (condition: SQLWrapper) => sql<number>`(${condition})::int`;
+  const terms: { value: SQL; direction: "asc" | "desc" }[] = [];
+  const add = (value: SQL, direction: "asc" | "desc") => terms.push({ value, direction });
+  if (view.slug !== "sent" && view.slug !== "digest") {
+    add(flag(sql`${threads.starredAt} is null`), "asc");
+    add(sql<number>`coalesce(${at(threads.starredAt)}, 0)`, "desc");
+  }
+  if (view.slug === "work") {
+    add(sql<number>`coalesce(${at(threads.deadlineAt)}, 99999999999)`, "asc");
+    add(at(threads.lastMessageAt), "desc");
+  } else if (view.slug === "digest") {
+    add(sql<number>`case when ${threads.deadlineAt} <= ${new Date(now.getTime() + DAY)} then 1
+      when ${lt(threads.workAt, cutoffs.work)} then 3
+      when ${threads.needsReply} and ${threads.deadlineAt} is null and ${lt(threads.lastMessageAt, cutoffs.reply)} then 0
+      else 2 end`, "asc");
+    add(sql<number>`case when ${threads.deadlineAt} <= ${new Date(now.getTime() + DAY)} then ${at(threads.deadlineAt)}
+      when ${lt(threads.workAt, cutoffs.work)} then ${at(threads.workAt)}
+      when ${threads.needsReply} and ${threads.deadlineAt} is null then ${at(threads.lastMessageAt)}
+      else ${at(threads.createdAt)} end`, "asc");
+  } else if (view.slug === "sent") {
+    add(sql<number>`coalesce(${at(lastSentAt())}, 0)`, "desc");
+  } else if (view.slug === "trash") {
+    add(at(sql`coalesce(${threads.trashedAt}, ${threads.lastMessageAt})`), "desc");
+  } else {
+    if (view.project) {
+      add(flag(sql`${threads.projectId} is not null`), "asc");
+      add(flag(threads.archived), "asc");
+    }
+    add(flag(sql`coalesce(${resurfaced()}, false)`), "desc");
+    add(flag(sql`coalesce(${unseen()}, false)`), "desc");
+    add(at(threads.lastMessageAt), "desc");
+  }
+  return terms;
+}
+
+export async function threadTotal(view: View, on: string[] | null, cutoffs: StaleCutoffs, now: Date) {
+  const [row] = await db.select({ n: count() }).from(threads).where(and(viewFilter(view, cutoffs, now), accountFilter(on)));
+  return row.n;
+}
+
+export async function listThreads(view: View, on: string[] | null, cutoffs: StaleCutoffs, now: Date, pages = 1) {
+  const sort = threadSort(view, cutoffs, now);
+  const order = [...sort.map((term) => term.direction === "asc" ? asc(term.value) : desc(term.value)), asc(threads.id)];
+  let cursor: { values: string[]; id: string } | null = null;
+  const rows: Awaited<ReturnType<typeof page>> = [];
   const last = db
     .select({
       fromName: messages.fromName,
@@ -156,8 +199,9 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
     .limit(1)
     .as("last");
 
-  const rows = await db
+  async function page() { return db
     .select({
+      sortValues: sql<string[]>`array[${sql.join(sort.map((term) => term.value), sql`, `)}]`,
       id: threads.id,
       accountId: threads.accountId,
       senderId: threads.senderId,
@@ -195,35 +239,23 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
     })
     .from(threads)
     .leftJoinLateral(last, sql`true`)
-    .where(and(viewFilter(view, cutoffs, now), accountFilter(on)))
-    .orderBy(
-      // Starred threads are pinned on top of the list that holds them, latest starred first.
-      ...(view.slug === "sent" || view.slug === "digest" ? [] : [asc(sql`${threads.starredAt} is null`), desc(threads.starredAt)]),
-      ...(view.slug === "work"
-        ? workOrder()
-        : view.slug === "digest"
-          ? [asc(sql`case
-              when ${lt(threads.workAt, cutoffs.work)} then ${threads.workAt} - ${cutoffs.work.toISOString()}::timestamptz
-              when ${threads.needsReply} and ${threads.deadlineAt} is null and ${lt(threads.lastMessageAt, cutoffs.reply)} then ${threads.lastMessageAt} - ${cutoffs.reply.toISOString()}::timestamptz
-              else ${threads.createdAt} - ${cutoffs.triage.toISOString()}::timestamptz
-            end`), asc(threads.id)]
-        : view.slug === "sent"
-          ? [desc(lastSentAt())]
-          : view.project
-          ? [
-            asc(sql`${threads.projectId} is not null`),
-            asc(threads.archived),
-            desc(sql`coalesce(${resurfaced()}, false)`),
-            desc(sql`coalesce(${unseen()}, false)`),
-            desc(threads.lastMessageAt),
-            ]
-          : [
-            desc(sql`coalesce(${resurfaced()}, false)`),
-            desc(sql`coalesce(${unseen()}, false)`),
-            desc(threads.lastMessageAt),
-            ]),
-    )
-    .limit(300);
+    .where(and(viewFilter(view, cutoffs, now), accountFilter(on), cursor ? or(
+      ...sort.map((term, i) => and(
+        ...sort.slice(0, i).map((prior, j) => sql`${prior.value} = ${cursor!.values[j]}`),
+        sql`${term.value} ${sql.raw(term.direction === "asc" ? ">" : "<")} ${cursor!.values[i]}`,
+      )),
+      and(...sort.map((term, i) => sql`${term.value} = ${cursor!.values[i]}`), gt(threads.id, cursor.id)),
+    ) : undefined))
+    .orderBy(...order)
+    .limit(PAGE_SIZE);
+  }
+  for (let i = 0; i < pages; i++) {
+    const next = await page();
+    rows.push(...next);
+    if (next.length < PAGE_SIZE) break;
+    const end = next.at(-1)!;
+    cursor = { values: end.sortValues.map(String), id: end.id };
+  }
 
   // News keeps the snippet. Elsewhere the summary stands in once it covers the newest message.
   const summaryOf = (r: (typeof rows)[number]) =>
@@ -291,11 +323,6 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
     starred: r.starredAt !== null,
     messageCount: r.messageCount,
   }));
-  // The digest shows its sections in order, deadlines soonest first; the rest keep the query's order.
-  if (view.slug === "digest") {
-    const rank = (t: (typeof items)[number]) => DIGEST_SECTIONS.indexOf(t.digestSection!);
-    items.sort((a, b) => rank(a) - rank(b) || (a.digestSection === "deadline" ? a.deadlineAt!.localeCompare(b.deadlineAt!) : 0));
-  }
   const byId = new Map(items.map((t) => [t.id, t]));
   const keys = Object.fromEntries(items.flatMap((t) => (t.cluster ? [[t.id, t.cluster.key]] : [])));
   return clusterOrder(items.map((t) => t.id), keys).map((id) => byId.get(id)!);
