@@ -1,0 +1,40 @@
+name: Deploy
+
+# Once CI passes on master, push master to the repository a hosted instance deploys from, named
+# in the MIRROR_REPO secret with a write deploy key in MIRROR_DEPLOY_KEY. Without both secrets
+# (a fork, or an instance deployed straight from this repository) the job is skipped.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    env:
+      MIRROR_REPO: ${{ secrets.MIRROR_REPO }}
+      MIRROR_DEPLOY_KEY: ${{ secrets.MIRROR_DEPLOY_KEY }}
+    steps:
+      - name: Push master to the mirror
+        if: env.MIRROR_REPO != '' && env.MIRROR_DEPLOY_KEY != ''
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$MIRROR_DEPLOY_KEY" > ~/.ssh/mirror
+          chmod 600 ~/.ssh/mirror
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          git init -q repo && cd repo
+          git fetch -q "https://github.com/${GITHUB_REPOSITORY}.git" "$SHA"
+          # A fast-forward only: a commit made on the mirror's master stops the push instead of being lost.
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/mirror -o IdentitiesOnly=yes" git push "git@github.com:${MIRROR_REPO}.git" "$SHA:refs/heads/master"

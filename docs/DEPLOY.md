@@ -146,3 +146,12 @@ While the OAuth consent screen is in **Testing**, Google expires Gmail refresh t
 
 - Vercel's Logs for `/api/sync`, or `vercel logs --environment production --query '/api/sync'`.
 - The JSON outcome per account: `ok`, `reauth` (reconnect in `/settings`), `busy`, `throttled` or `error`. Only `error` makes the response an HTTP 500, so check the outcomes as well as the status code.
+
+### Deploying from a private copy
+
+Vercel can deploy from a private copy of this repository instead of a fork, for an instance whose project settings you'd rather keep out of the public one. `.github/workflows/deploy.yml` keeps that copy current: once CI passes on `master`, it pushes the same commit to the copy's `master`, and Vercel deploys from there. It fast-forwards only, so a commit made on the copy stops the push instead of being lost.
+
+It needs two repository secrets, and is skipped without them:
+
+- `MIRROR_REPO`: the copy, as `owner/name`.
+- `MIRROR_DEPLOY_KEY`: the private half of an SSH key whose public half is a deploy key on the copy with write access (`ssh-keygen -t ed25519`, then `gh repo deploy-key add key.pub --repo owner/name --allow-write` and `gh secret set MIRROR_DEPLOY_KEY < key`).
