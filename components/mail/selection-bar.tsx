@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { MovableBucket, ThreadAction } from "@/lib/actions/types";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,12 @@ export function SelectionBar({ label, count }: { label: string; count: string })
   const countRef = useRef<HTMLSpanElement>(null);
   const escRef = useRef<HTMLButtonElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const measure = useRef<HTMLDivElement>(null);
   const picked = sel.selectedIds;
+  // A menu belongs to the picks: with none left it is closed, so it cannot hold the keys or reopen on the next pick.
+  if (!picked.length && menu) setMenu(null);
+  const open = picked.length ? menu : null;
   const run = (action: ThreadAction) => void actions.run(action, picked);
   const move = (bucket: MovableBucket) => run({ type: "move", bucket });
   const items: Item[] = [
@@ -77,7 +81,22 @@ export function SelectionBar({ label, count }: { label: string; count: string })
     return () => observer.disconnect();
   }, [picked.length, overrides]);
 
-  useKeys(menu ? [{ keys: "escape", run: () => setMenu(null) }] : [], { exclusive: !!menu });
+  useKeys(open ? [{ keys: "escape", run: () => setMenu(null) }] : [], { exclusive: !!open });
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenu(null);
+    };
+    // A click inside the email lands in its iframe and never reaches this document; the window blurs instead.
+    const onBlur = () => setMenu(null);
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [open]);
 
   if (!picked.length) {
     return (
@@ -93,7 +112,7 @@ export function SelectionBar({ label, count }: { label: string; count: string })
     <header ref={header} role="toolbar" aria-label="selection actions" className="relative flex h-touch shrink-0 items-center gap-1 border-b border-border px-2 md:h-row">
       <span ref={countRef} className="shrink-0 text-12 text-text tabular-nums">{picked.length} selected</span>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden">{items.slice(0, visible).map(button)}</div>
-      <div className="relative shrink-0">
+      <div ref={menuRef} className="relative shrink-0">
         <Button ref={moreRef} size="sm" variant="ghost" className={visible === items.length ? "invisible" : undefined} aria-haspopup="menu" aria-expanded={menu !== null} onClick={() => setMenu(menu === "more" ? null : "more")}>more</Button>
         {menu ? (
           <div role="menu" aria-label={menu === "move" ? "move to" : "more actions"} className="absolute right-0 top-full z-30 flex max-h-compose-h min-w-field flex-col overflow-y-auto rounded-md border border-border bg-surface-top py-1">
