@@ -21,6 +21,7 @@ const state = (over: Partial<ThreadState> = {}): ThreadState => ({
   starredAt: null,
   archived: false,
   trashed: false,
+  trashedAt: null,
   spam: false,
   ...over,
 });

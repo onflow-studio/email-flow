@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
 import { ActionsProvider } from "@/components/mail/actions/actions";
 import { ComposeKeys } from "@/components/mail/compose/compose-keys";
@@ -31,7 +32,8 @@ import { staleCutoffs } from "@/lib/sync/stale";
 import { cn } from "@/lib/utils";
 
 import { accountsOff, accountsOn } from "../../_lib/account-filter";
-import { digestOf, getThread, listAccounts, listDrafts, listProjects, listThreads, viewCounts } from "../../_lib/queries";
+import { digestOf, getThread, listAccounts, listDrafts, listProjects, listThreads, threadTotal, viewCounts } from "../../_lib/queries";
+import { ListPager } from "@/components/mail/list-pager";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -56,10 +58,12 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   const isOn = (id: string) => !on || on.includes(id);
   const now = new Date();
   const cutoffs = staleCutoffs(now, await loadStaleSettings(db));
+  const pages = Math.min(100, Math.max(1, Number((await cookies()).get(`mail-pages-${view.slug.replaceAll("/", "-")}`)?.value) || 1));
 
-  const [counts, threads, drafts, detail, digest] = await Promise.all([
+  const [counts, threads, total, drafts, detail, digest] = await Promise.all([
     viewCounts(on, cutoffs, now, projectViews),
-    listThreads(view, on, cutoffs, now),
+    listThreads(view, on, cutoffs, now, pages),
+    threadTotal(view, on, cutoffs, now),
     view.slug === "drafts" ? listDrafts(on) : [],
     threadId ? getThread(threadId) : null,
     // Only today's briefing: an older one would talk about mail that has moved on.
@@ -106,7 +110,6 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
   }
   const accountColors = Object.fromEntries(accounts.map((a) => [a.id, a.color]));
   const accountNames = Object.fromEntries(accounts.map((a) => [a.id, a.label]));
-  const unseen = threads.filter((t) => t.unseen).length;
 
   return (
     <WorkProvider on={workOn}>
@@ -164,15 +167,13 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                   ))}
                 </nav>
                 {view.slug === "triage" ? (
-                  <TriageQueue threads={threads} accountColors={accountColors} />
+                  <TriageQueue threads={threads} accountColors={accountColors} total={total} pager={<ListPager key={`${view.slug}:${pages}`} view={view.slug} pages={pages} hasMore={threads.length < total} />} />
                 ) : (
                   <>
-                    <SelectionBar label={view.label} count={view.bucket || view.project
-                      ? `${unseen} unseen`
-                      : view.slug === "drafts"
-                        ? `${drafts.length} ${drafts.length === 1 ? "draft" : "drafts"}`
-                        : `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`} />
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                    <SelectionBar label={view.label} count={view.slug === "drafts"
+                      ? `${drafts.length} ${drafts.length === 1 ? "draft" : "drafts"}`
+                      : `${total} ${total === 1 ? "thread" : "threads"}`} />
+                    <div data-list-scroll className="min-h-0 flex-1 overflow-y-auto">
                       {digest ? <DigestSummary digest={digest} /> : null}
                       {view.slug === "drafts" ? (
                         <DraftList drafts={drafts} accountColors={accountColors} accountNames={accountNames} />
@@ -184,6 +185,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                           emptyLabel={view.bucket || view.project || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
                         />
                       )}
+                      {view.slug === "drafts" ? null : <ListPager key={`${view.slug}:${pages}`} view={view.slug} pages={pages} hasMore={threads.length < total} />}
                     </div>
                   </>
                 )}

@@ -11,7 +11,7 @@ import { ComposeButton } from "./compose/compose-keys";
 import { useMailSelection } from "./selection";
 import { mailHref } from "./views";
 
-export function TriageQueue({ threads, accountColors }: { threads: ThreadListItem[]; accountColors: Record<string, string> }) {
+export function TriageQueue({ threads, accountColors, total, pager }: { threads: ThreadListItem[]; accountColors: Record<string, string>; total: number; pager: React.ReactNode }) {
   const sel = useMailSelection();
   const active = sel.openId ?? sel.focusedId;
   const position = active ? sel.threadIds.indexOf(active) : -1;
@@ -41,7 +41,7 @@ export function TriageQueue({ threads, accountColors }: { threads: ThreadListIte
         <p className="text-11 text-text-muted">sender decisions</p>
         <div className="mt-1 flex items-center justify-between gap-2">
           <p className="font-medium text-text" aria-live="polite">
-            {position < 0 ? `${ordered.length} to decide` : `${position + 1} of ${ordered.length}`}
+            {position < 0 ? `${total} to decide` : `${position + 1} of ${total}`}
           </p>
           <ComposeButton />
         </div>
@@ -70,6 +70,7 @@ export function TriageQueue({ threads, accountColors }: { threads: ThreadListIte
             </Link>
           </li>
         ))}
+        {pager}
       </ol>
     </div>
   );
