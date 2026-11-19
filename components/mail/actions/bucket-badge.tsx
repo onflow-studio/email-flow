@@ -54,6 +54,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const returnTo = useRef<HTMLElement | null>(null);
+  const fromKeyboard = useRef(false);
 
   const doubt = !thread.project && thread.bucketSuggested && thread.bucketSource === "ai";
   const pct = doubt && thread.bucketConfidence !== null ? `${Math.round(thread.bucketConfidence * 100)}%` : null;
@@ -69,6 +70,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
   );
 
   const show = (focusRow: boolean) => {
+    fromKeyboard.current = focusRow;
     returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setOpen(true);
     if (focusRow) requestAnimationFrame(() => rowRefs.current[current]?.focus());
@@ -80,7 +82,7 @@ export function BucketBadge({ thread }: { thread: ThreadDetail }) {
   // Same bucket confirms the placement as the user's own; another moves it. Both undoable.
   const pick = (destination: Destination) => {
     close();
-    const ids = sel.selectedIds.includes(thread.id) ? sel.selectedIds : [thread.id];
+    const ids = fromKeyboard.current && sel.selectedIds.length ? sel.selectedIds : [thread.id];
     void run(
       destination === "work"
         ? { type: "work" }

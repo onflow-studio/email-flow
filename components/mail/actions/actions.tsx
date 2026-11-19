@@ -35,7 +35,7 @@ export type ActionTarget = {
 type ThreadActions = {
   run: (action: ThreadAction, ids?: string[]) => Promise<ActionResult | null>;
   runSender: (action: SenderAction, id?: string) => Promise<ActionResult | null>;
-  openSnooze: () => void;
+  openSnooze: (ids?: string[]) => void;
   openDeadline: () => void;
   /** `w`: into Work, or done when already there. */
   toggleWork: (id?: string) => Promise<ActionResult | null>;
@@ -231,6 +231,8 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     async (action: ThreadAction, ids?: string[]) => {
       const targetIds = ids ?? sel.targetIds;
       if (!targetIds.length) return null;
+      // Acting on the picks keeps the open thread; acting on one thread steps past it as usual.
+      const onPicks = selected.length > 0 && targetIds.length === selected.length && targetIds.every((id) => selected.includes(id));
       if (targetIds.some((id) => selected.includes(id))) clearSelected();
       // A move to the bucket every thread is already in confirms the placement instead.
       const kept = action.type === "move" && targetIds.every((id) => byId.get(id)?.bucket === action.bucket) ? action.bucket : null;
@@ -241,7 +243,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
         const result = await runThreadAction(targetIds, action);
         if (result.count) {
           report(describeAction(action, result.count, !!kept), result.token);
-          if (!kept) afterAction(action, targetIds);
+          if (!kept && !onPicks) afterAction(action, targetIds);
         } else {
           putBack();
           if (kept) notify(`already in ${BUCKET_NAMES[kept]}`, "warning");
@@ -305,11 +307,11 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     [sel.target, oneOnly, report, notify, afterAction],
   );
 
-  const openSnooze = useCallback(() => {
-    const ids = sel.targetIds;
-    if (!ids.length) return;
+  const openSnooze = useCallback((ids?: string[]) => {
+    const targets = ids ?? sel.targetIds;
+    if (!targets.length) return;
     setOpenedAt(Date.now());
-    setSnoozeIds(ids);
+    setSnoozeIds(targets);
   }, [sel.targetIds]);
 
   const openDeadline = useCallback(() => {
@@ -350,7 +352,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
 
   useKeys([
     { id: "archive", when: () => !!target, run: () => void run({ type: "archive" }) },
-    { id: "snooze", when: () => !!target, run: openSnooze },
+    { id: "snooze", when: () => !!target, run: () => openSnooze() },
     { id: "work", when: () => workOn && !!target, run: () => void toggleWork() },
     { id: "star", when: () => !!target, run: () => void toggleStar() },
     move("inbox"),
@@ -362,6 +364,7 @@ export function ActionsProvider({ targets, children }: { targets: ActionTarget[]
     { id: "delete", when: () => !!target, run: () => void run({ type: "trash" }) },
     { id: "spam", when: () => !!target, run: () => void run({ type: "spam" }) },
     { id: "unread", when: () => !!target, run: () => void run({ type: "unread" }) },
+    { id: "read", when: () => !!target, run: () => void run({ type: "read" }) },
     { id: "unsubscribe", when: () => !!target, run: () => void unsubscribe() },
     { id: "undo", run: undoLast },
   ]);

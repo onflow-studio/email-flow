@@ -63,6 +63,10 @@ export type MailSelection = {
   extend: (dir: 1 | -1) => void;
   /** Picks or unpicks one row (its checkbox). */
   toggleSelected: (id: string) => void;
+  /** Adds a visible-row range without changing the open thread. */
+  selectThrough: (id: string) => void;
+  toggleGroup: (ids: string[]) => void;
+  selectAll: () => void;
   /** Keeps the picks but ends the shift range: the next shift starts a new one from where you are. */
   endRange: () => void;
   clearSelected: () => void;
@@ -247,7 +251,7 @@ export function FocusStoreProvider({ children }: { children: React.ReactNode }) 
     [],
   );
   const setRange = useCallback(
-    (key: string, next: Range | null) => setRangeState(next?.ids.length ? { key, ...next } : null),
+    (key: string, next: Range | null) => setRangeState(next ? { key, ...next } : null),
     [],
   );
   const listScrollRef = useRef<{ key: string; top: number } | null>(null);
@@ -424,18 +428,19 @@ export function SelectionProvider({
   const range = store.range(key);
   const selectedIds = useMemo(() => {
     const picked = new Set(range?.ids);
-    return threadIds.filter((id) => picked.has(id));
-  }, [range, threadIds]);
+    return allIds.filter((id) => picked.has(id));
+  }, [range, allIds]);
 
   // Switching view on desktop opens its top thread, without taking the keyboard to it.
   useEffect(() => {
     if (!switchedTo(view)) return;
+    setRange(key, null);
     const top = threadIds[0];
     if (openId || !top || !window.matchMedia("(min-width: 768px)").matches) return;
     setAutoOpened(top);
     setPane("list");
     router.replace(mailHref(view, { threadId: top }), { scroll: false });
-  }, [view, openId, threadIds, switchedTo, setAutoOpened, setPane, router]);
+  }, [view, openId, threadIds, switchedTo, setAutoOpened, setPane, setRange, key, router]);
 
   useEffect(() => rememberMailPath(mailHref(view, { threadId: openId })), [view, openId]);
 
@@ -474,7 +479,13 @@ export function SelectionProvider({
       const anchor = ongoing ? range!.anchor! : current;
       const base = ongoing ? range!.base : (range?.ids ?? []);
       const a = threadIds.indexOf(anchor);
-      const ids = new Set([...base, ...threadIds.slice(Math.min(a, to), Math.max(a, to) + 1)]);
+      const ids = new Set(base);
+      for (const row of threadIds.slice(Math.min(a, to), Math.max(a, to) + 1)) {
+        const group = clusters[row];
+        if (group && collapsed(group) && heads.get(group) === row) {
+          for (const member of allIds) if (clusters[member] === group) ids.add(member);
+        } else ids.add(row);
+      }
       setRange(key, { anchor, base, ids: [...ids] });
       // Passing through a thread while picking is not reading it: it waits like an auto-opened one.
       if (openId) {
@@ -482,15 +493,39 @@ export function SelectionProvider({
         open(threadIds[to], true);
       } else focusAt(to);
     },
-    [openId, focusedId, threadIds, range, setRange, key, setAutoOpened, open, focusAt],
+    [openId, focusedId, threadIds, range, setRange, key, setAutoOpened, open, focusAt, clusters, collapsed, heads, allIds],
   );
   const toggleSelected = useCallback(
     (id: string) => {
       const ids = range?.ids.includes(id) ? range.ids.filter((x) => x !== id) : [...(range?.ids ?? []), id];
-      setRange(key, { anchor: null, base: ids, ids });
+      setRange(key, { anchor: id, base: ids, ids });
     },
     [range, setRange, key],
   );
+  const idsForRow = useCallback((id: string) => {
+    const group = clusters[id];
+    return group && collapsed(group) && heads.get(group) === id
+      ? allIds.filter((other) => clusters[other] === group)
+      : [id];
+  }, [clusters, collapsed, heads, allIds]);
+  const selectThrough = useCallback((id: string) => {
+    const to = threadIds.indexOf(id);
+    if (to < 0) return;
+    const anchor = range?.anchor && threadIds.includes(range.anchor) ? range.anchor : focusedId;
+    const from = anchor ? threadIds.indexOf(anchor) : to;
+    const ids = new Set(range?.ids ?? []);
+    for (const row of threadIds.slice(Math.min(from, to), Math.max(from, to) + 1)) {
+      for (const member of idsForRow(row)) ids.add(member);
+    }
+    setRange(key, { anchor: id, base: [...ids], ids: [...ids] });
+  }, [threadIds, range, focusedId, idsForRow, setRange, key]);
+  const toggleGroup = useCallback((members: string[]) => {
+    const ids = new Set(range?.ids ?? []);
+    if (members.every((id) => ids.has(id))) members.forEach((id) => ids.delete(id));
+    else members.forEach((id) => ids.add(id));
+    setRange(key, { anchor: members[0] ?? null, base: [...ids], ids: [...ids] });
+  }, [range, setRange, key]);
+  const selectAll = useCallback(() => setRange(key, { anchor: focusedId, base: allIds, ids: allIds }), [allIds, focusedId, setRange, key]);
   const endRange = useCallback(() => {
     if (range?.anchor) setRange(key, { anchor: null, base: range.ids, ids: range.ids });
   }, [range, setRange, key]);
@@ -527,6 +562,9 @@ export function SelectionProvider({
       selectedIds,
       extend,
       toggleSelected,
+      selectThrough,
+      toggleGroup,
+      selectAll,
       endRange,
       clearSelected,
       focusNext: () => focusAt(focusedIndex + 1),
@@ -538,7 +576,7 @@ export function SelectionProvider({
       },
       go: (next) => router.push(mailHref(next)),
     }),
-    [view, account, threadIds, allIds, groups, clusters, collapsed, toggleCluster, sectionOf, sectionCollapsed, toggleSection, targetIds, target, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, toggleSelected, endRange, clearSelected, open, router],
+    [view, account, threadIds, allIds, groups, clusters, collapsed, toggleCluster, sectionOf, sectionCollapsed, toggleSection, targetIds, target, focusedId, focusedIndex, openId, pane, setPane, focusAt, selectedIds, extend, toggleSelected, selectThrough, toggleGroup, selectAll, endRange, clearSelected, open, router],
   );
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

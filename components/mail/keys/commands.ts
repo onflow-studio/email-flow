@@ -36,6 +36,8 @@ export const COMMANDS = [
   { id: "thread.close", label: "back to list", group: "navigate", scope: "mail", keys: [], fixed: ["escape"] },
   { id: "pane.move", label: "move in pane", group: "navigate", scope: "mail", keys: [], fixed: ["arrowup", "arrowdown"] },
   { id: "thread.extend", label: "select threads", group: "navigate", scope: "mail", keys: [], fixed: ["shift+arrowdown", "shift+arrowup"] },
+  { id: "thread.pick", label: "pick focused thread", group: "navigate", scope: "mail", keys: ["v"] },
+  { id: "thread.pick-all", label: "pick loaded threads", group: "navigate", scope: "mail", keys: ["V"] },
   { id: "pane.left", label: "pane left", group: "navigate", scope: "mail", keys: [], fixed: ["arrowleft"] },
   { id: "pane.right", label: "pane right", group: "navigate", scope: "mail", keys: [], fixed: ["arrowright"] },
   go("triage", "triage", ["g t"]),
@@ -59,6 +61,7 @@ export const COMMANDS = [
   { id: "delete", label: "delete", group: "act on a thread", scope: "mail", keys: ["#"] },
   { id: "spam", label: "mark spam", group: "act on a thread", scope: "mail", keys: ["!"] },
   { id: "unread", label: "mark unread", group: "act on a thread", scope: "mail", keys: ["U"] },
+  { id: "read", label: "mark read", group: "act on a thread", scope: "mail", keys: [] },
   { id: "unsubscribe", label: "unsubscribe", group: "act on a thread", scope: "mail", keys: ["u"] },
 
   { id: "let-in", label: "let in", group: "triage", scope: "mail", keys: ["i"] },
