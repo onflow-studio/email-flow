@@ -149,11 +149,11 @@ function threadSort(view: View, cutoffs: StaleCutoffs, now: Date) {
     add(sql<number>`coalesce(${at(threads.deadlineAt)}, 99999999999)`, "asc");
     add(at(threads.lastMessageAt), "desc");
   } else if (view.slug === "digest") {
-    add(sql<number>`case when ${threads.deadlineAt} <= ${new Date(now.getTime() + DAY)} then 1
+    add(sql<number>`case when ${lte(threads.deadlineAt, new Date(now.getTime() + DAY))} then 1
       when ${lt(threads.workAt, cutoffs.work)} then 3
       when ${threads.needsReply} and ${threads.deadlineAt} is null and ${lt(threads.lastMessageAt, cutoffs.reply)} then 0
       else 2 end`, "asc");
-    add(sql<number>`case when ${threads.deadlineAt} <= ${new Date(now.getTime() + DAY)} then ${at(threads.deadlineAt)}
+    add(sql<number>`case when ${lte(threads.deadlineAt, new Date(now.getTime() + DAY))} then ${at(threads.deadlineAt)}
       when ${lt(threads.workAt, cutoffs.work)} then ${at(threads.workAt)}
       when ${threads.needsReply} and ${threads.deadlineAt} is null and ${lt(threads.lastMessageAt, cutoffs.reply)} then ${at(threads.lastMessageAt)}
       else ${at(threads.createdAt)} end`, "asc");
@@ -201,7 +201,8 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
 
   async function page() { return db
     .select({
-      sortValues: sql<string[]>`array[${sql.join(sort.map((term) => term.value), sql`, `)}]`,
+      // Text, not numeric: the driver hands a numeric array back as one unparsed string.
+      sortValues: sql<string[]>`array[${sql.join(sort.map((term) => sql`(${term.value})::text`), sql`, `)}]`,
       id: threads.id,
       accountId: threads.accountId,
       senderId: threads.senderId,
@@ -254,7 +255,7 @@ export async function listThreads(view: View, on: string[] | null, cutoffs: Stal
     rows.push(...next);
     if (next.length < PAGE_SIZE) break;
     const end = next.at(-1)!;
-    cursor = { values: end.sortValues.map(String), id: end.id };
+    cursor = { values: end.sortValues, id: end.id };
   }
 
   // News keeps the snippet. Elsewhere the summary stands in once it covers the newest message.
