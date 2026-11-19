@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { initialBucket, isInbound, mirrorState, nextSeenAt, starChange } from "./mirror";
+import { initialBucket, isInbound, mirrorState, nextSeenAt, nextTrashedAt, starChange } from "./mirror";
 import { bucketLabels } from "./writeback";
 
 describe("mirrorState", () => {
@@ -79,6 +79,33 @@ describe("nextSeenAt", () => {
   it("unread in Gmail clears it", () => expect(nextSeenAt(true, earlier, now)).toBeNull());
   it("read in Gmail keeps the first seen time", () => expect(nextSeenAt(false, earlier, now)).toBe(earlier));
   it("read in Gmail stamps now when we had none", () => expect(nextSeenAt(false, null, now)).toBe(now));
+});
+
+describe("nextTrashedAt", () => {
+  const now = new Date("2026-09-23T12:00:00Z");
+  const earlier = new Date("2026-09-22T12:00:00Z");
+
+  it("stamps a newly imported thread already in Trash", () => {
+    expect(nextTrashedAt(true, null, now)).toBe(now);
+  });
+
+  it("stamps a thread newly moved to Trash", () => {
+    expect(nextTrashedAt(true, { trashed: false, trashedAt: null }, now)).toBe(now);
+  });
+
+  it("keeps the deletion time, including an unknown time from before the migration", () => {
+    expect(nextTrashedAt(true, { trashed: true, trashedAt: earlier }, now)).toBe(earlier);
+    expect(nextTrashedAt(true, { trashed: true, trashedAt: null }, now)).toBeNull();
+  });
+
+  it("clears the deletion time when a thread leaves Trash", () => {
+    expect(nextTrashedAt(false, { trashed: true, trashedAt: earlier }, now)).toBeNull();
+  });
+
+  it("keeps or stamps the deletion time when a thread is deleted forever", () => {
+    expect(nextTrashedAt(true, { trashed: true, trashedAt: earlier }, now)).toBe(earlier);
+    expect(nextTrashedAt(true, { trashed: false, trashedAt: null }, now)).toBe(now);
+  });
 });
 
 describe("isInbound", () => {

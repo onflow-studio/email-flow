@@ -55,6 +55,7 @@ export const STATE_COLUMNS = [
   "starredAt",
   "archived",
   "trashed",
+  "trashedAt",
   "spam",
 ] as const satisfies readonly (keyof Thread)[];
 

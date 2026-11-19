@@ -15,10 +15,10 @@ export type SeenGroup = "unseen" | "seen";
 
 /**
  * Views whose server order puts unseen mail first, so their rows fall into
- * unseen and seen groups. Work, the digest, Sent and projects keep their own order.
+ * unseen and seen groups. Work, the digest, Sent, Trash and projects keep their own order.
  */
 export const hasSeenGroups = (view: ViewSlug) =>
-  view !== "work" && view !== "digest" && view !== "sent" && !isProjectSlug(view);
+  view !== "work" && view !== "digest" && view !== "sent" && view !== "trash" && !isProjectSlug(view);
 
 /**
  * Which thread the keyboard is on. Actions read `target` to know what to act
@@ -75,6 +75,11 @@ export type MailSelection = {
 };
 
 const SelectionContext = createContext<MailSelection | null>(null);
+const pendingNext = new Map<string, { id: string; open: boolean }>();
+
+export function stepIntoNextPage(view: string, id: string, open: boolean) {
+  pendingNext.set(view, { id, open });
+}
 
 type Picked = { id: string | null; index: number };
 /**
@@ -446,6 +451,16 @@ export function SelectionProvider({
     },
     [router, view, focusedId, setPane],
   );
+
+  useEffect(() => {
+    const pending = pendingNext.get(view);
+    if (!pending) return;
+    const next = threadIds[threadIds.indexOf(pending.id) + 1];
+    if (!next) return;
+    pendingNext.delete(view);
+    setPicked({ id: next, index: threadIds.indexOf(next) });
+    if (pending.open) open(next, true);
+  }, [view, threadIds, setPicked, open]);
 
   // The range grows from where it started, so shift+up after shift+down shrinks it.
   const extend = useCallback(

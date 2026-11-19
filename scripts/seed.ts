@@ -23,6 +23,8 @@ type SeedThread = {
   snoozedHours?: number;
   work?: boolean;
   starred?: boolean;
+  trashed?: boolean;
+  deletedMinutesAgo?: number;
   suggested?: boolean;
   /** Sender let in by the AI screener instead of the user. Triage senders are undecided. */
   aiAllowed?: boolean;
@@ -308,6 +310,28 @@ for (let i = 0; i < 18; i++) {
   });
 }
 
+// Enough fictional Trash to exercise pagination and the read-after-delete case.
+for (let i = 0; i < 420; i++) {
+  THREADS.push({
+    account: "personal",
+    subject: `Automated notice ${i + 1}`,
+    bucket: "news",
+    trashed: true,
+    seen: i >= 360,
+    deletedMinutesAgo: 420 - i,
+    messages: [{ from: { name: "Notice Bot", email: "notices@system.example" }, minutesAgo: 1000 + i, text: `Fictional notice ${i + 1}.` }],
+  });
+}
+THREADS.push({
+  account: "personal",
+  subject: "Read thread deleted just now",
+  bucket: "inbox",
+  trashed: true,
+  seen: true,
+  deletedMinutesAgo: 0,
+  messages: [{ from: { name: "Morgan Vale", email: "morgan@sample.example" }, minutesAgo: 1440, text: "A read conversation for checking Trash order." }],
+});
+
 async function main() {
   const { db } = await import("@/lib/db");
   const { accounts, attachments, messages, senders, threads } = await import("@/lib/db/schema");
@@ -369,6 +393,8 @@ async function main() {
         bucketConfidence: t.suggested ? 0.62 : 0.94,
         bucketSuggested: t.suggested ?? false,
         seenAt: t.seen ? lastAt : null,
+        trashed: t.trashed ?? false,
+        trashedAt: t.trashed ? new Date(now - (t.deletedMinutesAgo ?? 0) * 60_000) : null,
         snoozedUntil: t.snoozedHours ? new Date(now + t.snoozedHours * 3_600_000) : null,
         workAt: t.work ? lastAt : null,
         starredAt: t.starred ? lastAt : null,
