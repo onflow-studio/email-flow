@@ -1,6 +1,6 @@
 "use client";
 
-import { BriefcaseBusiness, Clock, FilePen, Folder, Inbox, ListTodo, Newspaper, Receipt, ScrollText, Send, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
+import { Archive, BriefcaseBusiness, Clock, FilePen, Folder, Inbox, ListTodo, Mails, Newspaper, Receipt, ScrollText, Send, Settings, ShieldQuestionMark, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -25,12 +25,14 @@ const ICONS: Partial<Record<ViewSlug, LucideIcon>> = {
   work: BriefcaseBusiness,
   snoozed: Clock,
   digest: ListTodo,
+  all: Mails,
+  archived: Archive,
   sent: Send,
   drafts: FilePen,
   trash: Trash2,
 };
 
-type RailItem = {
+export type RailItem = {
   key: string;
   label: string;
   href: string;
@@ -42,11 +44,8 @@ type RailItem = {
   fresh?: boolean;
 };
 
-export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
-  const sel = useMailSelection();
-  const router = useRouter();
-  const focused = sel.pane === "rail";
-
+/** The rail's rows in its groups; the phone's view picker lists the same. */
+export function useRailGroups(counts: ViewCounts) {
   const projects = useProjects();
   const views = useViews();
   const item = (v: View): RailItem => ({
@@ -69,6 +68,14 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
     ...views.filter((v) => v.group === "bottom").map(item),
     { key: "settings", label: "Settings", href: "/settings", icon: Settings },
   ];
+  return { act, own, later, bottom };
+}
+
+export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
+  const sel = useMailSelection();
+  const router = useRouter();
+  const focused = sel.pane === "rail";
+  const { act, own, later, bottom } = useRailGroups(counts);
 
   // Keyboard items in screen order.
   const items = [...act, ...own, ...later, ...bottom];
@@ -129,18 +136,7 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
             strokeWidth={1.5}
           />
           <span className={cn("hidden min-w-0 flex-1 truncate rail:inline", it.fresh && "font-medium")}>{it.label}</span>
-          {it.count !== undefined && (it.count > 0 || it.key === "inbox" || it.key === "triage") ? (
-            <span
-              className={cn(
-                "hidden items-center gap-1 text-12 tabular-nums rail:flex",
-                // Unseen mail lights the count up, so a view with something new is found at a glance.
-                it.fresh ? "rounded-sm bg-accent-dim px-1 font-medium text-text" : active || (it.strong && it.count > 0) ? "text-text" : "text-text-muted",
-              )}
-            >
-              {it.unread ? <UnreadDot /> : null}
-              {it.count}
-            </span>
-          ) : null}
+          <RailCount item={it} active={active} className="hidden rail:flex" />
         </Link>
       </li>
     );
@@ -170,6 +166,24 @@ export function Rail({ view, counts }: { view: ViewSlug; counts: ViewCounts }) {
 
       <ul className="mt-auto flex flex-col gap-1">{bottom.map((it, i) => row(it, act.length + own.length + later.length + i, true))}</ul>
     </nav>
+  );
+}
+
+/** A row's count, lit up while the view holds unseen mail. */
+export function RailCount({ item: it, active, className }: { item: RailItem; active: boolean; className?: string }) {
+  if (it.count === undefined || (it.count === 0 && it.key !== "inbox" && it.key !== "triage")) return null;
+  return (
+    <span
+      className={cn(
+        "items-center gap-1 text-12 tabular-nums",
+        // Unseen mail lights the count up, so a view with something new is found at a glance.
+        it.fresh ? "rounded-sm bg-accent-dim px-1 font-medium text-text" : active || (it.strong && it.count > 0) ? "text-text" : "text-text-muted",
+        className ?? "flex",
+      )}
+    >
+      {it.unread ? <UnreadDot /> : null}
+      {it.count}
+    </span>
   );
 }
 

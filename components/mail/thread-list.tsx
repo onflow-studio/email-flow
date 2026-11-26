@@ -263,6 +263,13 @@ export function ThreadList({
                 if (shift) sel.selectThrough(head.id);
                 else sel.toggleGroup(b.threads.map((t) => t.id));
               }}
+              onRowClick={(e) => {
+                // As on a thread row: a plain click opens the group, a modifier click picks it.
+                if (e.shiftKey || e.metaKey || e.ctrlKey) return void (e.shiftKey ? sel.selectThrough(head.id) : sel.toggleGroup(b.threads.map((t) => t.id)));
+                sel.endRange();
+                sel.focus(head.id);
+                sel.toggleCluster(b.cluster!.key);
+              }}
               onExpand={() => {
                 sel.endRange();
                 sel.focus(head.id);
@@ -294,6 +301,7 @@ function ClusterRow({
   picking,
   onToggle,
   onExpand,
+  onRowClick,
 }: {
   label: string;
   threads: ThreadListItem[];
@@ -306,6 +314,7 @@ function ClusterRow({
   picking: boolean;
   onToggle: (shift: boolean) => void;
   onExpand: () => void;
+  onRowClick: (e: React.MouseEvent) => void;
 }) {
   const head = threads[0];
   const fresh = threads.filter((t) => t.unseen).length;
@@ -316,7 +325,7 @@ function ClusterRow({
       <div className="relative">
       <button
         type="button"
-        onClick={(e) => onToggle(e.shiftKey)}
+        onClick={onRowClick}
         className="flex h-row min-w-0 items-center gap-2 border-l-2 border-transparent pr-3 pl-6 text-left text-11 text-text-muted transition-colors duration-80 ease-snap hover:bg-surface-raised/50 hover:text-text focus-visible:border-accent focus-visible:bg-surface-raised"
       >
         <Chevron aria-hidden className="-ml-4 size-3 shrink-0" strokeWidth={1.5} />
@@ -332,7 +341,7 @@ function ClusterRow({
     <div data-group-ids={threads.map((t) => t.id).join(" ")} className="relative after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border">
       <button
         type="button"
-        onClick={(e) => onToggle(e.shiftKey)}
+        onClick={onRowClick}
         aria-current={open ? "page" : undefined}
         data-thread-id={head.id}
         title={head.subject}

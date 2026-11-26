@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MovableBucket, ThreadAction } from "@/lib/actions/types";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import { cn } from "@/lib/utils";
 
 import { useThreadActions } from "./actions/actions";
 import { ComposeButton } from "./compose/compose-keys";
@@ -17,7 +18,7 @@ import { useWorkOn } from "./work-context";
 type Item = { id: CommandId; label: string; run: () => void };
 
 /** The ordinary list heading becomes a toolbar while its rows are picked. */
-export function SelectionBar({ label, count }: { label: string; count: string }) {
+export function SelectionBar({ label, count, picker }: { label: string; count: string; picker?: React.ReactNode }) {
   const sel = useMailSelection();
   const actions = useThreadActions();
   const overrides = useOverrides();
@@ -38,7 +39,9 @@ export function SelectionBar({ label, count }: { label: string; count: string })
   const run = (action: ThreadAction) => void actions.run(action, picked);
   const move = (bucket: MovableBucket) => run({ type: "move", bucket });
   const items: Item[] = [
-    { id: "archive", label: "archive", run: () => run({ type: "archive" }) },
+    sel.view === "archived"
+      ? { id: "archive", label: "unarchive", run: () => run({ type: "unarchive" }) }
+      : { id: "archive", label: "archive", run: () => run({ type: "archive" }) },
     { id: "move", label: "move to", run: () => setMenu("move") },
     { id: "snooze", label: "snooze", run: () => actions.openSnooze(picked) },
     { id: "delete", label: "delete", run: () => run({ type: "trash" }) },
@@ -101,7 +104,8 @@ export function SelectionBar({ label, count }: { label: string; count: string })
   if (!picked.length) {
     return (
       <header className="flex h-touch shrink-0 items-center justify-between border-b border-border px-3 md:h-row">
-        <h1 className="font-medium">{label}</h1>
+        {picker}
+        <h1 className={cn("font-medium", picker && "hidden md:block")}>{label}</h1>
         <span className="flex items-center gap-2"><span className="text-11 text-text-muted">{count}</span><ComposeButton /></span>
       </header>
     );

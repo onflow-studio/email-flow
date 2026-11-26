@@ -35,6 +35,9 @@ function viewFilter(view: View, cutoffs: StaleCutoffs, now: Date): SQL | undefin
       and(eq(threads.bucket, "triage"), lt(threads.createdAt, cutoffs.triage)),
     ),
   );
+  // Every live thread across buckets, Work and projects; a snoozed one shows again once it resurfaces.
+  if (view.slug === "all") return and(live(), or(isNull(threads.snoozedUntil), resurfaced()));
+  if (view.slug === "archived") return and(eq(threads.archived, true), eq(threads.trashed, false), eq(threads.spam, false));
   if (view.slug === "sent") return and(eq(threads.trashed, false), eq(threads.spam, false), wroteIn());
   // Drafts are not threads; see listDrafts.
   if (view.slug === "drafts") return sql`false`;
@@ -113,6 +116,8 @@ export type ViewCounts = {
 export async function viewCounts(on: string[] | null, cutoffs: StaleCutoffs, now: Date, extra: MailView[] = []): Promise<ViewCounts> {
   const rows = await Promise.all(
     [...VIEWS, ...extra].map(async (view) => {
+      // All and Archived carry no count, and counting them would scan every thread.
+      if (view.slug === "all" || view.slug === "archived") return { slug: view.slug, n: 0, unread: false, unseen: 0 };
       if (view.slug === "drafts") {
         const [row] = await db.select({ n: count() }).from(drafts).where(on ? inArray(drafts.accountId, on) : undefined);
         return { slug: view.slug, n: row.n, unread: false, unseen: 0 };
@@ -141,7 +146,9 @@ function threadSort(view: View, cutoffs: StaleCutoffs, now: Date) {
   const flag = (condition: SQLWrapper) => sql<number>`(${condition})::int`;
   const terms: { value: SQL; direction: "asc" | "desc" }[] = [];
   const add = (value: SQL, direction: "asc" | "desc") => terms.push({ value, direction });
-  if (view.slug !== "sent" && view.slug !== "digest") {
+  // All and Archived are plain timelines: newest first, nothing pinned.
+  const timeline = view.slug === "all" || view.slug === "archived";
+  if (view.slug !== "sent" && view.slug !== "digest" && !timeline) {
     add(flag(sql`${threads.starredAt} is null`), "asc");
     add(sql<number>`coalesce(${at(threads.starredAt)}, 0)`, "desc");
   }
@@ -157,6 +164,8 @@ function threadSort(view: View, cutoffs: StaleCutoffs, now: Date) {
       when ${lt(threads.workAt, cutoffs.work)} then ${at(threads.workAt)}
       when ${threads.needsReply} and ${threads.deadlineAt} is null and ${lt(threads.lastMessageAt, cutoffs.reply)} then ${at(threads.lastMessageAt)}
       else ${at(threads.createdAt)} end`, "asc");
+  } else if (timeline) {
+    add(at(threads.lastMessageAt), "desc");
   } else if (view.slug === "sent") {
     add(sql<number>`coalesce(${at(lastSentAt())}, 0)`, "desc");
   } else if (view.slug === "trash") {
