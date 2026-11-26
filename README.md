@@ -72,7 +72,7 @@ The status line has a radio. Hover it, pick a station, and focus music plays whi
 
 ### In your pocket
 
-<img src="docs/readme/phone.png" alt="email-flow on a phone: bucket tabs and a one-line thread list" width="900">
+<img src="docs/readme/phone.png" alt="email-flow on a phone: a view picker over a one-line thread list" width="900">
 
 On the phone it's a home-screen web app for reading and quick replies. Heavy triage stays on the desktop.
 
