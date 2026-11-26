@@ -208,19 +208,22 @@ export function ThreadList({
       <Glider root={glideRef} selector={sel.focusedId ? `[data-thread-id="${sel.focusedId}"]` : null} memory={`list:${sel.view}`} watch={ids} className="bg-accent" />
       <ul ref={listRef} aria-label="threads" className="@container flex flex-col py-1">
       {blocks.map((b, i) => {
+        // A section's header comes first; the unseen and seen labels sit under it.
+        const header =
+          sectionOf(i) && sectionOf(i) !== sectionOf(i - 1) ? (
+            <SectionHeader
+              label={LIST_SECTION_LABELS[sectionOf(i)!]}
+              count={sectionCount(sectionOf(i)!)}
+              collapsed={sel.isSectionCollapsed(sectionOf(i)!)}
+              onToggle={() => sel.toggleSection(sectionOf(i)!)}
+            />
+          ) : null;
         const labels = (
           <>
+            {header}
             {i === firstUnseen ? <GroupLabel>{unseen} unseen</GroupLabel> : null}
             {i === firstSeen ? <GroupLabel>seen</GroupLabel> : null}
             {whenAt(i) && whenAt(i) !== whenAt(i - 1) ? <GroupLabel>{whenAt(i)}</GroupLabel> : null}
-            {sectionOf(i) && sectionOf(i) !== sectionOf(i - 1) ? (
-              <SectionHeader
-                label={LIST_SECTION_LABELS[sectionOf(i)!]}
-                count={sectionCount(sectionOf(i)!)}
-                collapsed={sel.isSectionCollapsed(sectionOf(i)!)}
-                onToggle={() => sel.toggleSection(sectionOf(i)!)}
-              />
-            ) : null}
             {sectionAt(i) && sectionAt(i) !== sectionAt(i - 1) ? (
               <GroupLabel>
                 {SECTION_LABELS[sectionAt(i)!]} · {sectionSize(sectionAt(i)!)}
@@ -230,9 +233,9 @@ export function ThreadList({
         );
         // A folded section shows its header, and the thread being read.
         if (sectionOf(i) && sel.isSectionCollapsed(sectionOf(i)!) && b.threads[0].id !== sel.openId) {
-          return sectionOf(i) !== sectionOf(i - 1) ? (
+          return header ? (
             <li key={b.key} className="flex flex-col">
-              {labels}
+              {header}
             </li>
           ) : null;
         }
@@ -419,6 +422,8 @@ const SECTION_LABELS: Record<DigestSection, string> = {
 
 const LIST_SECTION_LABELS: Record<string, string> = {
   starred: "starred",
+  // Everything below the starred threads, so the pinned group has an end.
+  rest: "others",
   check: "to check",
   own: "in the project",
   archived: "archived",
