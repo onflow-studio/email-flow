@@ -195,7 +195,8 @@ export function ThreadList({
           label={t.subject}
           className={cn(
             "absolute inset-y-0 left-0 w-6",
-            !t.starred && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+            // Touch has no hover to reveal it, so an unseen star must not catch taps meant for the row.
+            !t.starred && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 pointer-coarse:pointer-events-none",
           )}
         />
       )}
@@ -332,7 +333,7 @@ function ClusterRow({
         <span className="min-w-0 flex-1 truncate">{label}</span>
         <span className="shrink-0 tabular-nums">{threads.length}</span>
       </button>
-      <button type="button" aria-label="collapse group" aria-expanded onClick={onExpand} className="absolute inset-y-0 left-0 z-20 flex w-6 items-center justify-center text-text-muted"><Chevron aria-hidden className="size-3" /></button>
+      <button type="button" aria-label="collapse group" aria-expanded onClick={onExpand} className="absolute inset-y-0 left-0 z-20 flex w-6 items-center justify-center text-text-muted"><Chevron aria-hidden className="size-3" strokeWidth={1.5} /></button>
       </div>
     );
   }
@@ -351,7 +352,6 @@ function ClusterRow({
         )}
       >
         <span className="sr-only">group of {threads.length} threads, {fresh} unseen, newest {head.subject}; </span>
-        <Chevron aria-hidden className="absolute left-2 size-3 text-text-muted" strokeWidth={1.5} />
         <AccountSlot colors={accountColors} slots={accountSlots} />
         <span className={cn("w-sender shrink-0 truncate @min-[560px]:w-judged", fresh ? "font-semibold text-text" : "text-text-muted")}>
           {label} <span className="font-normal text-text-dim tabular-nums">{threads.length}</span>
@@ -360,7 +360,7 @@ function ClusterRow({
         <span className="flex-1 @min-[320px]:hidden" />
         <Time iso={head.lastMessageAt} className="min-w-time shrink-0 text-right text-11 tabular-nums text-text-muted" />
       </button>
-      {picking ? <PickBox checked={selected} label={label} onToggle={() => onToggle(false)} /> : <button type="button" aria-label="expand group" aria-expanded={false} onClick={onExpand} className="absolute inset-y-0 left-0 z-20 flex w-6 items-center justify-center text-text-muted"><Chevron aria-hidden className="size-3" /></button>}
+      {picking ? <PickBox checked={selected} label={label} onToggle={() => onToggle(false)} /> : <button type="button" aria-label="expand group" aria-expanded={false} onClick={onExpand} className="absolute inset-y-0 left-0 z-20 flex w-6 items-center justify-center text-text-muted"><Chevron aria-hidden className="size-3" strokeWidth={1.5} /></button>}
     </div>
   );
 }
