@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
@@ -20,7 +19,7 @@ import { SelectionBar } from "@/components/mail/selection-bar";
 import { StatusLine } from "@/components/mail/status-line";
 import { ThreadList } from "@/components/mail/thread-list";
 import { TriageQueue } from "@/components/mail/triage-queue";
-import { UnreadDot } from "@/components/mail/unread-dot";
+import { ViewPicker } from "@/components/mail/view-picker";
 import { WorkProvider } from "@/components/mail/work-context";
 import { ProjectsProvider } from "@/components/mail/projects-context";
 import { findView, mailHref, projectView, VIEWS, type View, type ViewSlug } from "@/components/mail/views";
@@ -146,31 +145,12 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                   detail && "hidden md:flex",
                 )}
               >
-                <nav aria-label="views" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 md:hidden">
-                  {[...VIEWS.filter((v) => workOn || v.slug !== "work"), ...projectViews].map((v) => (
-                    <Link
-                      key={v.slug}
-                      href={mailHref(v.slug)}
-                      className={cn(
-                        "flex h-touch shrink-0 items-center px-2 whitespace-nowrap",
-                        v.slug === view.slug ? "font-medium text-text" : "text-text-muted",
-                      )}
-                    >
-                      {v.label}
-                      {counts.n[v.slug] && v.group !== "bottom" ? (
-                        <span className="ml-2 flex items-center gap-1 text-11 text-text-muted">
-                          {counts.unread[v.slug] ? <UnreadDot /> : null}
-                          {counts.n[v.slug]}
-                        </span>
-                      ) : null}
-                    </Link>
-                  ))}
-                </nav>
+                {view.slug === "triage" ? <ViewPicker view={view.slug} counts={counts} /> : null}
                 {view.slug === "triage" ? (
                   <TriageQueue threads={threads} accountColors={accountColors} total={total} pager={<ListPager key={`${view.slug}:${pages}`} view={view.slug} pages={pages} hasMore={threads.length < total} />} />
                 ) : (
                   <>
-                    <SelectionBar label={view.label} count={view.slug === "drafts"
+                    <SelectionBar label={view.label} picker={<ViewPicker view={view.slug} counts={counts} inline />} count={view.slug === "drafts"
                       ? `${drafts.length} ${drafts.length === 1 ? "draft" : "drafts"}`
                       : `${total} ${total === 1 ? "thread" : "threads"}`} />
                     <div data-list-scroll className="min-h-0 flex-1 overflow-y-auto">
@@ -182,7 +162,7 @@ export default async function MailPage({ params }: PageProps<"/[view]/[[...threa
                           threads={threads}
                           accountColors={accountColors}
                           accountNames={accountNames}
-                          emptyLabel={view.bucket || view.project || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : `nothing ${view.label}`}
+                          emptyLabel={view.bucket || view.project || view.slug === "work" ? `${view.label} clear` : view.slug === "trash" ? "trash empty" : view.slug === "all" ? "no mail" : `nothing ${view.label}`}
                         />
                       )}
                       {view.slug === "drafts" ? null : <ListPager key={`${view.slug}:${pages}`} view={view.slug} pages={pages} hasMore={threads.length < total} />}
@@ -248,7 +228,7 @@ function listSections(view: View, threads: { id: string; projectId: string | nul
   const of = (t: (typeof threads)[number]) =>
     view.project ? (!t.projectId ? "check" : t.archived ? "archived" : t.starred ? "starred" : "own") : t.starred ? "starred" : "rest";
   const keys = view.project ? ["starred", "check", "own", "archived"] : ["starred", "rest"];
-  if (!view.project && (view.slug === "sent" || view.slug === "digest" || !threads.some((t) => t.starred))) return undefined;
+  if (!view.project && (view.slug === "sent" || view.slug === "digest" || view.slug === "all" || view.slug === "archived" || !threads.some((t) => t.starred))) return undefined;
   return keys.map((key) => ({ key, ids: threads.filter((t) => of(t) === key).map((t) => t.id) }));
 }
 

@@ -15,10 +15,10 @@ export type SeenGroup = "unseen" | "seen";
 
 /**
  * Views whose server order puts unseen mail first, so their rows fall into
- * unseen and seen groups. Work, the digest, Sent, Trash and projects keep their own order.
+ * unseen and seen groups. Work, the digest, All, Archived, Sent, Trash and projects keep their own order.
  */
 export const hasSeenGroups = (view: ViewSlug) =>
-  view !== "work" && view !== "digest" && view !== "sent" && view !== "trash" && !isProjectSlug(view);
+  !["work", "digest", "all", "archived", "sent", "trash"].includes(view) && !isProjectSlug(view);
 
 /**
  * Which thread the keyboard is on. Actions read `target` to know what to act

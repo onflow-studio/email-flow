@@ -140,6 +140,10 @@ function leavesView(action: ThreadAction | SenderAction, view: ViewSlug, target?
     if (action.type === "move") return true;
     return leavesView(action, "inbox", target);
   }
+  // All holds every live thread wherever it sits: only leaving live mail takes one out.
+  if (view === "all") return ["trash", "archive", "done", "spam", "snooze"].includes(action.type);
+  // Archived holds archived mail until something brings it back.
+  if (view === "archived") return ["trash", "spam", "unarchive", "work", "star"].includes(action.type);
   // Sent keeps every thread written in, wherever it went, until it is deleted or marked spam.
   if (view === "sent") return action.type === "trash" || action.type === "spam";
   if (view === "digest") {

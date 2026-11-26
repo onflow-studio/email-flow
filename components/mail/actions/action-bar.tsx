@@ -99,6 +99,7 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
   const replyAll: BarAction = { id: "reply-all", label: "reply all", keys: key("reply-all"), run: () => compose.open("reply-all", thread.id) };
   const forward: BarAction = { id: "forward", label: "forward", keys: key("forward"), run: () => compose.open("forward", thread.id) };
   const archive: BarAction = { id: "archive", label: "archive", keys: key("archive"), run: () => void run({ type: "archive" }, ids) };
+  const unarchive: BarAction = { id: "unarchive", label: "unarchive", run: () => void run({ type: "unarchive" }, ids) };
   const snooze: BarAction = { id: "snooze", label: "snooze", keys: key("snooze"), run: () => openSnooze(ids) };
   const unsnooze: BarAction | null = thread.snoozedUntil
     ? { id: "unsnooze", label: "unsnooze", run: () => void run({ type: "unsnooze" }, ids) }
@@ -177,6 +178,8 @@ function useLayout(thread: ThreadDetail, view: ViewSlug): Layout {
       return pick([work, reply], [snooze, del], [replyAll, forward, star, needsReply, deadline, unsnooze, unsub, unread, kind, spam]);
     case "trash":
       return pick([del], [], [work, reply, forward, spam]);
+    case "archived":
+      return pick([reply, unarchive], [del], [replyAll, forward, work, star, unsub, unread, kind, spam]);
     default:
       return pick([reply, archive, snooze], [work, del], [replyAll, forward, star, unsub, unread, kind, spam]);
   }
